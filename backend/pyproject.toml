@@ -1,0 +1,60 @@
+[project]
+name = "aethen-backend"
+version = "0.1.0"
+description = "Aethen-AI Backend - AI Agent Failure Intelligence"
+authors = [
+    {name = "Abu"}
+]
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "fastapi (>=0.136.1,<0.137.0)",
+    "uvicorn[standard] (>=0.46.0,<0.47.0)",
+    "pydantic (>=2.13.3,<3.0.0)",
+    "pydantic-settings (>=2.14.0,<3.0.0)",
+    "structlog (>=25.5.0,<26.0.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "openai (>=2.32.0,<3.0.0)",
+    "pinecone (>=8.1.2,<9.0.0)",
+    "neo4j (>=6.1.0,<7.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.15.11,<0.16.0)",
+    "pytest (>=9.0.3,<10.0.0)",
+    "pytest-asyncio (>=1.3.0,<2.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "pytest-mock (>=3.15.1,<4.0.0)"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[project.scripts]
+dev = "uvicorn app.main:app --reload --port 8000"
+lint = "ruff check ."
+format = "ruff format ."

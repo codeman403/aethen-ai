@@ -205,3 +205,27 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# === Aethen-AI Project ===
+
+# Generated artifacts
+backend/scripts/traces.json
+*.generated.json
+
+# Reference docs (not part of codebase)
+capstone_proj_proposal_codeman403.md
+existing_product_comparison.md
+proj_plan.md
+
+# Session memory (agent continuity logs)
+docs/adal/session_progress.md
+
+# Remotion (unrelated)
+.remotion/
+
+# OS
+.DS_Store
+
+# Frontend (redundant with frontend/.gitignore but good to have at root)
+node_modules/
+.next/
