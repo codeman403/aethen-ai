@@ -1,32 +1,77 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { 
+  LayoutDashboard, 
+  BrainCircuit, 
+  Wrench, 
+  ScanSearch, 
+  Network 
+} from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard", href: "/", icon: "📊" },
-  { label: "Memory Debug", href: "/memory-debug", icon: "🧠" },
-  { label: "Tool Misfire", href: "/tool-misfire", icon: "🔧" },
-  { label: "Hallucination RCA", href: "/hallucination-rca", icon: "🔍" },
-  { label: "Blind Spots", href: "/blind-spots", icon: "👁️" },
+  { label: "Overview", href: "/", icon: LayoutDashboard },
+  { label: "Memory Debug", href: "/memory-debug", icon: BrainCircuit },
+  { label: "Tool Misfire", href: "/tool-misfire", icon: Wrench },
+  { label: "Hallucination RCA", href: "/hallucination-rca", icon: ScanSearch },
+  { label: "Blind Spots", href: "/blind-spots", icon: Network },
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
-    <aside className="w-64 border-r bg-muted/40 p-4 flex flex-col gap-2">
-      <div className="mb-6 px-2">
-        <h1 className="text-lg font-bold">Aethen-AI</h1>
-        <p className="text-xs text-muted-foreground">Agent Reliability Studio</p>
+    <aside className="w-[260px] border-r border-border bg-card flex flex-col h-full shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+      <div className="h-16 flex items-center px-6 border-b border-border/50">
+        <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+          <div className="size-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-sm">
+            Ae
+          </div>
+          <span className="font-bold tracking-tight text-lg">Aethen-AI</span>
+        </Link>
       </div>
-      <nav className="flex flex-col gap-1">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
-      </nav>
+      
+      <div className="flex-1 overflow-auto py-6 px-4">
+        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
+          Intelligence Modules
+        </div>
+        <nav className="flex flex-col gap-1.5">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                  isActive 
+                    ? "bg-primary/10 text-primary shadow-sm" 
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className={cn("size-[18px]", isActive ? "text-primary" : "text-muted-foreground/70")} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+      
+      <div className="p-4 border-t border-border/50 mt-auto bg-muted/20">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card shadow-sm cursor-pointer hover:bg-accent transition-colors">
+          <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs border border-primary/20">
+            US
+          </div>
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <span className="text-sm font-medium truncate">System Admin</span>
+            <span className="text-xs text-muted-foreground truncate">admin@aethen.ai</span>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }
