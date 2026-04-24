@@ -1,6 +1,7 @@
 """POST /api/chat — Primary debug interface for analyzing AI agent sessions."""
 
 import time
+import traceback
 import uuid
 
 import structlog
@@ -64,6 +65,7 @@ async def analyze_session(request: ChatRequest) -> ApiResponse[AnalysisReport]:
             session_id=request.session_id,
             request_id=request_id,
             error=str(exc),
+            traceback=traceback.format_exc(),
         )
         return ApiResponse(
             error=f"Analysis failed: {exc!s}",

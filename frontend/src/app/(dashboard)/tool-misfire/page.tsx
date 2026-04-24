@@ -1,7 +1,40 @@
-import { Search, Wrench, Clock, AlertOctagon, Terminal } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import {
+  Search,
+  Wrench,
+  Clock,
+  AlertOctagon,
+  Terminal,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  analyzeSession,
+  buildToolMisfireSession,
+  type AnalysisReport,
+} from "@/lib/api";
 
 export default function ToolMisfirePage() {
+  const [sessionId, setSessionId] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [report, setReport] = useState<AnalysisReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAnalyze = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await analyzeSession(buildToolMisfireSession(sessionId));
+      setReport(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-1">
@@ -20,81 +53,200 @@ export default function ToolMisfirePage() {
         <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
           <Search className="size-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
         </div>
-        <input 
-          type="text" 
-          placeholder="Enter Session ID..." 
+        <input
+          type="text"
+          value={sessionId}
+          onChange={(e) => setSessionId(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+          placeholder="Enter Session ID..."
           className="flex h-14 w-full rounded-xl border border-input bg-card pl-12 pr-32 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
         />
         <div className="absolute inset-y-0 right-2 flex items-center">
-          <Button size="sm" className="h-10 px-6 rounded-lg font-medium tracking-wide">
-            Analyze
+          <Button
+            size="sm"
+            className="h-10 px-6 rounded-lg font-medium tracking-wide"
+            onClick={handleAnalyze}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="size-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              "Analyze"
+            )}
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="max-w-2xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border bg-card p-0 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-muted/30 px-6 py-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Terminal className="size-4 text-muted-foreground" />
-              <h3 className="font-semibold tracking-tight">Call Sequence (Waterfall)</h3>
+              <h3 className="font-semibold tracking-tight">
+                {report ? "Failure Analysis" : "Call Sequence (Waterfall)"}
+              </h3>
             </div>
-            <span className="text-xs font-medium text-muted-foreground bg-background px-2 py-1 rounded border">Total latency: 90.5s</span>
+            {report && (
+              <span className="text-xs font-medium text-muted-foreground bg-background px-2 py-1 rounded border capitalize">
+                {report.failure_type.replace("_", " ")} •{" "}
+                {report.findings.length} finding
+                {report.findings.length !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
-          
+
           <div className="p-6 space-y-4 bg-[#FAFAFA] dark:bg-[#0A0A0A]">
-            {[1, 2, 3].map((attempt) => (
-              <div key={attempt} className="rounded-lg border border-rose-500/30 bg-rose-500/5 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-rose-500/10 border-b border-rose-500/20">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold bg-background/50 border border-rose-500/20 text-rose-600 rounded-md px-1.5 py-0.5">
-                      #{attempt}
-                    </span>
-                    <span className="font-mono text-sm font-semibold text-foreground">payment_api</span>
+            {report ? (
+              report.findings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No tool failures detected.
+                </p>
+              ) : (
+                report.findings.map((f, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-rose-500/30 bg-rose-500/5 shadow-sm overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between px-4 py-3 bg-rose-500/10 border-b border-rose-500/20">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold bg-background/50 border border-rose-500/20 text-rose-600 rounded-md px-1.5 py-0.5">
+                          #{i + 1}
+                        </span>
+                        <span className="font-semibold text-sm text-foreground">
+                          {f.title}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400 tracking-wider uppercase">
+                        {f.severity}
+                      </span>
+                    </div>
+                    <div className="px-4 py-3 text-sm space-y-2">
+                      <div className="flex items-start gap-2">
+                        <AlertOctagon className="size-4 text-rose-500 mt-0.5 shrink-0" />
+                        <p className="text-rose-600/90 text-xs">{f.description}</p>
+                      </div>
+                      {f.evidence.length > 0 && (
+                        <div className="pl-6 space-y-1">
+                          {f.evidence.map((ev, j) => (
+                            <p key={j} className="text-xs font-mono text-muted-foreground">
+                              {ev}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="size-3.5 text-rose-500" />
-                    <span className="text-xs font-bold text-rose-600 dark:text-rose-400 tracking-wider">TIMEOUT (30.0s)</span>
+                ))
+              )
+            ) : (
+              [1, 2, 3].map((attempt) => (
+                <div
+                  key={attempt}
+                  className="rounded-lg border border-muted bg-muted/5 shadow-sm overflow-hidden"
+                >
+                  <div className="flex items-center justify-between px-4 py-3 bg-muted/10 border-b">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold bg-background/50 border text-muted-foreground rounded-md px-1.5 py-0.5">
+                        #{attempt}
+                      </span>
+                      <span className="font-mono text-sm text-muted-foreground">
+                        — awaiting analysis
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="size-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">—</span>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 text-sm flex items-start gap-2">
+                    <AlertOctagon className="size-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <p className="text-muted-foreground text-xs">Run an analysis to see tool call details.</p>
                   </div>
                 </div>
-                <div className="px-4 py-3 text-sm flex items-start gap-2">
-                  <AlertOctagon className="size-4 text-rose-500 mt-0.5 shrink-0" />
-                  <div className="font-mono text-rose-600/90 text-xs">
-                    Error: Connection timed out after 30000ms waiting for response from upstream payment gateway.
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="space-y-6">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden relative">
-             <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-rose-500 to-rose-700" />
+            <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-rose-500 to-rose-700" />
             <div className="p-6">
-              <h3 className="font-semibold text-lg tracking-tight mb-4">Executive Summary</h3>
+              <h3 className="font-semibold text-lg tracking-tight mb-4">
+                Executive Summary
+              </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                The agent entered a retry storm attempting to call <code className="text-xs bg-muted px-1 py-0.5 rounded">payment_api</code>. The upstream service timed out 3 times consecutively, consuming 90 seconds of total execution time before the graph forcefully halted the run.
+                {report?.summary ??
+                  "Run an analysis to see the executive summary for this tool misfire session."}
               </p>
+              {report && (
+                <div className="mt-4 pt-4 border-t space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Root Cause</span>
+                    <span className="font-medium text-right max-w-[60%]">
+                      {report.root_cause}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Confidence</span>
+                    <span className="font-medium">
+                      {Math.round(report.confidence * 100)}%
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="rounded-xl border bg-card p-6 shadow-sm">
-            <h3 className="font-semibold text-lg tracking-tight mb-4">Recommendations</h3>
-            <ul className="space-y-3">
-              <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                <div className="size-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                <span>Implement a strict circuit breaker pattern for <code className="text-xs bg-muted px-1 py-0.5 rounded">payment_api</code> to fail fast.</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                <div className="size-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                <span>Reduce maximum agent tool timeout from 30s to 5s.</span>
-              </li>
-              <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                <div className="size-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                <span>Add explicit fallback logic to prompt user if payment gateway is degraded.</span>
-              </li>
-            </ul>
+            <h3 className="font-semibold text-lg tracking-tight mb-4">
+              Recommendations
+            </h3>
+            {report ? (
+              <ul className="space-y-3">
+                {report.findings.flatMap((f) =>
+                  f.recommendation ? (
+                    <li
+                      key={f.title}
+                      className="flex items-start gap-2 text-sm text-muted-foreground"
+                    >
+                      <div className="size-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                      <span>{f.recommendation}</span>
+                    </li>
+                  ) : []
+                )}
+                {report.findings.every((f) => !f.recommendation) && (
+                  <li className="text-sm text-muted-foreground">
+                    No specific recommendations generated.
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <ul className="space-y-3">
+                {[
+                  "Implement circuit breaker for failing tools.",
+                  "Add per-tool timeout budgets.",
+                  "Define fallback behavior when tools are degraded.",
+                ].map((rec) => (
+                  <li
+                    key={rec}
+                    className="flex items-start gap-2 text-sm text-muted-foreground opacity-40"
+                  >
+                    <div className="size-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
+                    <span>{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>

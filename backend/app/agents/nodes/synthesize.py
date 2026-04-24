@@ -5,6 +5,8 @@ Falls back to GPT-4o-mini if Anthropic API key is not configured.
 """
 
 import json
+import re
+import traceback
 
 import structlog
 
@@ -71,34 +73,43 @@ async def synthesize(state: AgentState) -> dict:
         {"role": "user", "content": context},
     ])
 
-    # Extract text content (handle Anthropic's content block format)
+    # Extract text content — handle both string and list content block formats
     raw_content = response.content
     if isinstance(raw_content, list):
-        raw_content = "".join(
-            block.get("text", "") if isinstance(block, dict) else str(block)
-            for block in raw_content
-        )
+        parts = []
+        for block in raw_content:
+            if isinstance(block, dict):
+                parts.append(block.get("text", ""))
+            elif hasattr(block, "text"):  # langchain-anthropic TextBlock object
+                parts.append(block.text)
+            else:
+                parts.append(str(block))
+        raw_content = "".join(parts)
 
-    # Parse the structured response
+    # Strip markdown code fences if the model wrapped the JSON
+    raw_content = re.sub(r"^```(?:json)?\s*\n?", "", raw_content.strip())
+    raw_content = re.sub(r"\n?```\s*$", "", raw_content)
+
+    # Parse the structured response — catch all exceptions so report is always set
     try:
-        result = json.loads(raw_content)
+        parsed = json.loads(raw_content)
         report = AnalysisReport(
             session_id=session.session_id,
             failure_type=failure_type,
-            summary=result.get("summary", "Analysis complete."),
-            findings=[Finding(**f) for f in result.get("findings", [])],
-            root_cause=result.get("root_cause", ""),
-            confidence=float(result.get("confidence", 0.0)),
+            summary=parsed.get("summary", "Analysis complete."),
+            findings=[Finding(**f) for f in parsed.get("findings", [])],
+            root_cause=parsed.get("root_cause", ""),
+            confidence=float(parsed.get("confidence", 0.0)),
             raw_analysis=analysis,
         )
-    except (json.JSONDecodeError, ValueError) as exc:
-        logger.warning("synthesize_parse_error", error=str(exc))
+    except Exception as exc:
+        logger.warning("synthesize_parse_error", error=str(exc), tb=traceback.format_exc())
         report = AnalysisReport(
             session_id=session.session_id,
             failure_type=failure_type,
             summary="Analysis completed but structured parsing failed.",
             root_cause="See raw analysis for details.",
-            raw_analysis=analysis,
+            raw_analysis=str(raw_content),
         )
 
     logger.info(

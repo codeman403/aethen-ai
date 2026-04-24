@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-04-24 (Session 2)
+> **Last updated**: 2026-04-24 (Session 3)
 
 ---
 
@@ -17,14 +17,34 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 2 In Progress — LangGraph pipeline built and partially tested live
+- **Phase**: Week 2 Complete — full pipeline working, all 4 frontend pages wired to backend
 - **Branch**: `main`
-- **Next action**: Run full live end-to-end test (backend was about to be restarted for retry). Then wire frontend pages to backend API.
-- **Blocker**: None — API keys configured and working via DataExpert.io proxy
+- **Next action**: Integration tests (7 per proposal), dashboard wired to real data, Vercel deployment
+- **Blocker**: None — all 4 failure types tested end-to-end
 
 ---
 
 ## Completed Work
+
+### Session 3 — 2026-04-24
+
+**Pipeline Fix & Frontend Wiring**
+- [x] Diagnosed synthesize node crash: `langchain_anthropic` incompatible with DataExpert.io Anthropic proxy format
+- [x] Fixed `get_anthropic_llm()` in `app/agents/llm.py` — uses `gpt-4o-mini` via OpenAI proxy (Claude blocked by proxy policy)
+- [x] Fixed `synthesize.py` content block extraction — handles TextBlock objects with `.text` attribute + strips markdown fences
+- [x] Broadened exception handling in synthesize: `except Exception` ensures report always set
+- [x] Tested all 4 failure types end-to-end: memory ✅, tool_misfire ✅, hallucination ✅, blind_spot ✅
+- [x] Created `frontend/src/lib/api.ts` — typed API client with `analyzeSession()` + 4 demo session builders
+- [x] Wired `/memory-debug` — `"use client"`, controlled input, live results in timeline + findings sidebar
+- [x] Wired `/tool-misfire` — waterfall findings, real executive summary + recommendations
+- [x] Wired `/hallucination-rca` — live confidence score, findings panel, root cause display
+- [x] Wired `/blind-spots` — dynamic cluster details panel, findings from report
+- [x] Frontend builds clean (`pnpm build` ✅), TypeScript passes, 12 backend tests passing
+
+**Key Technical Notes**
+- DataExpert.io proxy: OpenAI endpoint (`/api/v1/openai`) permits only GPT-4 models; Anthropic endpoint returns non-Anthropic-SDK format
+- All synthesis uses `gpt-4o-mini` through the OpenAI proxy — Claude integration requires a different proxy or direct API key
+- Demo sessions: each module page sends a pre-built realistic trace to the backend so analysis always produces meaningful output
 
 ### Session 2 — 2026-04-24
 
@@ -115,24 +135,29 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Upcoming Work
 
-### Next Session — Complete Live Testing & Wire Frontend
+### Next Session — Week 3: Tests, Dashboard, Deploy
 
-**Immediate** (resume point):
-- [ ] Restart backend and retry full `POST /api/chat` live test (serialization fix applied)
-- [ ] Test all 4 failure types: memory, tool_misfire, hallucination, blind_spot
-- [ ] Wire frontend "Analyze" buttons to `POST /api/chat` with real API calls
-- [ ] Replace placeholder data with dynamic analysis results
+**Integration Tests** (7 per proposal):
+- [ ] `test_full_memory_pipeline` — end-to-end with retrieval events
+- [ ] `test_full_tool_misfire_pipeline` — with tool call trace
+- [ ] `test_full_hallucination_pipeline` — with LLM call trace
+- [ ] `test_full_blind_spot_pipeline` — with empty retrieval
+- [ ] `test_classify_routes_correctly` — each failure type routes to correct module
+- [ ] `test_synthesis_fallback` — invalid JSON from LLM falls back gracefully
+- [ ] `test_api_chat_returns_envelope` — correct `{data, error, metadata}` shape
 
-**Frontend Wiring**:
-- [ ] Create shared API client (fetch wrapper with base URL)
-- [ ] Add `"use client"` + state management to module pages
-- [ ] Display real AnalysisReport data in the UI components
-- [ ] Loading states and error handling
+**Dashboard Wiring**:
+- [ ] Wire main dashboard metric cards to real aggregated data (via new `/api/stats` endpoint)
+- [ ] Show recent session count + failure type breakdown
 
 **Polish**:
 - [ ] Dark mode toggle
-- [ ] QC endpoint with persistence layer
+- [ ] QC endpoint persistence layer
 - [ ] Create `skills/` directory (deferred from Session 1)
+
+**Deployment**:
+- [ ] Deploy frontend to Vercel
+- [ ] Deploy backend (Fly.io or Railway)
 
 ### Week 3 — Integration & Polish
 - [ ] 7 integration tests (per proposal)

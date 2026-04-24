@@ -1,7 +1,67 @@
-import { Search, ScanSearch, CheckCircle2, XCircle, FileText, Target } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import {
+  Search,
+  ScanSearch,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  Target,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  analyzeSession,
+  buildHallucinationSession,
+  type AnalysisReport,
+} from "@/lib/api";
+
+function GroundingBadge({ confidence }: { confidence: number }) {
+  const pct = Math.round(confidence * 100);
+  const label = pct >= 75 ? "Good" : pct >= 50 ? "Fair" : "Poor";
+  const cls =
+    pct >= 75
+      ? "text-emerald-600 border-emerald-500/20 bg-emerald-500/10"
+      : pct >= 50
+        ? "text-amber-600 border-amber-500/20 bg-amber-500/10"
+        : "text-rose-600 border-rose-500/20 bg-rose-500/10";
+  return (
+    <div className={`p-6 ${pct < 50 ? "bg-rose-500/5" : "bg-muted/10"}`}>
+      <p className="text-sm font-medium text-muted-foreground mb-1">
+        Confidence Score
+      </p>
+      <div className="flex items-end gap-2">
+        <span className={`text-3xl font-bold ${cls.split(" ")[0]}`}>{pct}%</span>
+        <span
+          className={`text-sm font-medium mb-1 border px-1.5 py-0.5 rounded ${cls}`}
+        >
+          {label}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function HallucinationRCAPage() {
+  const [sessionId, setSessionId] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [report, setReport] = useState<AnalysisReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAnalyze = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await analyzeSession(buildHallucinationSession(sessionId));
+      setReport(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-1">
@@ -12,7 +72,8 @@ export default function HallucinationRCAPage() {
           Hallucination RCA
         </h2>
         <p className="text-muted-foreground text-sm">
-          Trace fabricated claims back to source documents and measure grounding scores.
+          Trace fabricated claims back to source documents and measure grounding
+          scores.
         </p>
       </div>
 
@@ -20,115 +81,197 @@ export default function HallucinationRCAPage() {
         <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
           <Search className="size-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
         </div>
-        <input 
-          type="text" 
-          placeholder="Enter Session ID..." 
+        <input
+          type="text"
+          value={sessionId}
+          onChange={(e) => setSessionId(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+          placeholder="Enter Session ID..."
           className="flex h-14 w-full rounded-xl border border-input bg-card pl-12 pr-32 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
         />
         <div className="absolute inset-y-0 right-2 flex items-center">
-          <Button size="sm" className="h-10 px-6 rounded-lg font-medium tracking-wide">
-            Analyze
+          <Button
+            size="sm"
+            className="h-10 px-6 rounded-lg font-medium tracking-wide"
+            onClick={handleAnalyze}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="size-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              "Analyze"
+            )}
           </Button>
         </div>
       </div>
 
+      {error && (
+        <div className="max-w-2xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         {/* Metric Header */}
         <div className="grid grid-cols-2 md:grid-cols-4 border-b divide-x">
-          <div className="p-6 bg-rose-500/5">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Grounding Score</p>
-            <div className="flex items-end gap-2">
-              <span className="text-3xl font-bold text-rose-600">45%</span>
-              <span className="text-sm text-rose-600/80 font-medium mb-1 border border-rose-500/20 bg-rose-500/10 px-1.5 py-0.5 rounded">Poor</span>
+          {report ? (
+            <GroundingBadge confidence={report.confidence} />
+          ) : (
+            <div className="p-6 bg-muted/5">
+              <p className="text-sm font-medium text-muted-foreground mb-1">
+                Confidence Score
+              </p>
+              <span className="text-3xl font-bold text-muted-foreground/40">
+                —
+              </span>
             </div>
+          )}
+          <div className="p-6 bg-muted/10">
+            <p className="text-sm font-medium text-muted-foreground mb-1">
+              Findings
+            </p>
+            <span className="text-3xl font-bold text-foreground">
+              {report ? report.findings.length : "—"}
+            </span>
           </div>
           <div className="p-6 bg-muted/10">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Total Claims</p>
-            <span className="text-3xl font-bold text-foreground">4</span>
+            <p className="text-sm font-medium text-muted-foreground mb-1">
+              High/Critical
+            </p>
+            <span className="text-3xl font-bold text-rose-600">
+              {report
+                ? report.findings.filter(
+                    (f) => f.severity === "high" || f.severity === "critical"
+                  ).length
+                : "—"}
+            </span>
           </div>
           <div className="p-6 bg-muted/10">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Verified</p>
-            <span className="text-3xl font-bold text-emerald-600">1</span>
-          </div>
-          <div className="p-6 bg-muted/10">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Hallucinated</p>
-            <span className="text-3xl font-bold text-rose-600">3</span>
+            <p className="text-sm font-medium text-muted-foreground mb-1">
+              Medium/Low
+            </p>
+            <span className="text-3xl font-bold text-amber-600">
+              {report
+                ? report.findings.filter(
+                    (f) => f.severity === "medium" || f.severity === "low"
+                  ).length
+                : "—"}
+            </span>
           </div>
         </div>
-        
+
         {/* Comparison Panel */}
         <div className="p-8">
           <div className="grid gap-8 md:grid-cols-2">
-            {/* Left: LLM Output */}
+            {/* Left: Summary / LLM Analysis */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b">
                 <Target className="size-4 text-primary" />
-                <h3 className="font-semibold tracking-tight">LLM Response Generation</h3>
+                <h3 className="font-semibold tracking-tight">
+                  Analysis Summary
+                </h3>
               </div>
-              <div className="p-5 bg-muted/30 border rounded-xl leading-relaxed text-sm shadow-inner relative">
-                <div className="absolute top-2 right-2 flex gap-1">
-                  <span className="size-2 rounded-full bg-border" />
-                  <span className="size-2 rounded-full bg-border" />
-                  <span className="size-2 rounded-full bg-border" />
-                </div>
-                "Based on the retrieved context, your pro-rated refund will be processed automatically. 
-                <span className="mx-1 px-1.5 py-0.5 bg-rose-500/10 border-b-2 border-rose-500 text-rose-700 dark:text-rose-400 font-medium rounded-sm">
-                  The billing cycle is 30 days
-                </span> 
-                and you can expect the funds in your account shortly."
-                <div className="mt-4 pt-4 border-t text-xs text-muted-foreground font-mono flex items-center gap-1">
-                   <span>Citations:</span>
-                   <span className="bg-background border px-1.5 py-0.5 rounded">doc-3</span>
-                </div>
+              <div className="p-5 bg-muted/30 border rounded-xl leading-relaxed text-sm shadow-inner">
+                {report?.summary ??
+                  "Run an analysis to see the hallucination root cause assessment."}
               </div>
+              {report && (
+                <div className="p-4 bg-muted/20 rounded-xl border text-sm">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    Raw Analysis
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed line-clamp-4">
+                    {report.raw_analysis}
+                  </p>
+                </div>
+              )}
             </div>
-            
-            {/* Right: Source Truth */}
+
+            {/* Right: Findings / Source Verification */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b">
                 <FileText className="size-4 text-primary" />
-                <h3 className="font-semibold tracking-tight">Source Verification</h3>
+                <h3 className="font-semibold tracking-tight">
+                  {report ? "Findings" : "Source Verification"}
+                </h3>
               </div>
-              
+
               <div className="space-y-3">
-                <div className="p-4 bg-background border rounded-xl shadow-sm text-sm border-l-4 border-l-rose-500">
-                  <div className="flex gap-3">
-                    <XCircle className="size-5 text-rose-500 shrink-0 mt-0.5" />
-                    <div className="space-y-1.5">
-                      <p className="font-semibold text-foreground">Fabricated Detail Detected</p>
-                      <p className="text-muted-foreground leading-relaxed">
-                        The claim <strong className="text-foreground">"30 days"</strong> is not found in the cited source (doc-3). 
-                        The actual source text explicitly states a 14-day cycle.
-                      </p>
-                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs font-mono border">
-                        doc-3 excerpt: "...all plans operate on a standard 14-day rolling cycle..."
+                {report ? (
+                  report.findings.length === 0 ? (
+                    <div className="p-4 bg-background border rounded-xl text-sm border-l-4 border-l-emerald-500">
+                      <div className="flex gap-3">
+                        <CheckCircle2 className="size-5 text-emerald-500 shrink-0 mt-0.5" />
+                        <p className="text-muted-foreground">
+                          No hallucination issues detected.
+                        </p>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-background border rounded-xl shadow-sm text-sm border-l-4 border-l-emerald-500">
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="size-5 text-emerald-500 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="font-semibold text-foreground">Verified Claim</p>
-                      <p className="text-muted-foreground">"refund will be processed automatically" matches doc-3.</p>
+                  ) : (
+                    report.findings.map((f, i) => (
+                      <div
+                        key={i}
+                        className={`p-4 bg-background border rounded-xl shadow-sm text-sm border-l-4 ${
+                          f.severity === "high" || f.severity === "critical"
+                            ? "border-l-rose-500"
+                            : "border-l-amber-500"
+                        }`}
+                      >
+                        <div className="flex gap-3">
+                          <XCircle
+                            className={`size-5 shrink-0 mt-0.5 ${
+                              f.severity === "high" || f.severity === "critical"
+                                ? "text-rose-500"
+                                : "text-amber-500"
+                            }`}
+                          />
+                          <div className="space-y-1.5">
+                            <p className="font-semibold text-foreground">
+                              {f.title}
+                            </p>
+                            <p className="text-muted-foreground leading-relaxed">
+                              {f.description}
+                            </p>
+                            {f.evidence.length > 0 && (
+                              <div className="mt-2 p-2 bg-muted/50 rounded text-xs font-mono border">
+                                {f.evidence[0]}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )
+                ) : (
+                  <div className="p-4 bg-background border rounded-xl text-sm border-l-4 border-l-muted">
+                    <div className="flex gap-3">
+                      <FileText className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+                      <p className="text-muted-foreground">
+                        Claim verification results will appear here after
+                        analysis.
+                      </p>
                     </div>
                   </div>
-                </div>
-
+                )}
               </div>
             </div>
           </div>
 
           <div className="mt-8 pt-6 border-t flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Primary Root Cause</h3>
-              <p className="text-lg font-medium text-foreground flex items-center gap-2">
-                Source Misattribution / Context Hallucination
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Primary Root Cause
+              </h3>
+              <p className="text-lg font-medium text-foreground">
+                {report?.root_cause ?? "— Run analysis to identify root cause"}
               </p>
             </div>
-            <Button variant="outline">View Full Trace Logs</Button>
+            <Button variant="outline" disabled={!report}>
+              View Full Trace Logs
+            </Button>
           </div>
         </div>
       </div>
