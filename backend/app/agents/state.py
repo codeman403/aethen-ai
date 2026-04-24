@@ -7,6 +7,13 @@ from typing_extensions import TypedDict
 
 from app.models.trace import FailureType, Session
 
+
+def ensure_session(session_or_dict) -> Session:
+    """Convert a dict back to a Session if LangGraph serialized it."""
+    if isinstance(session_or_dict, dict):
+        return Session(**session_or_dict)
+    return session_or_dict
+
 # ── LangGraph State ────────────────────────────────────────────────────────────
 
 

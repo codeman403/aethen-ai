@@ -5,7 +5,7 @@ These two nodes run in parallel in the LangGraph pipeline.
 
 import structlog
 
-from app.agents.state import AgentState
+from app.agents.state import AgentState, ensure_session
 from app.services.embedding_service import EmbeddingService
 from app.services.neo4j_service import Neo4jService
 from app.services.pinecone_service import PineconeService
@@ -19,7 +19,7 @@ async def vector_retrieve(state: AgentState) -> dict:
     Uses the session's failure summary + retrieval queries as the search input.
     Returns top-k matching vectors with metadata.
     """
-    session = state["session"]
+    session = ensure_session(state["session"])
 
     # Build a query from the session's failure context
     query_parts = []
@@ -72,7 +72,7 @@ async def graph_traverse(state: AgentState) -> dict:
     Follows FAILED_WITH and RELATED_TO relationships to discover
     systemic patterns across sessions.
     """
-    session = state["session"]
+    session = ensure_session(state["session"])
     failure_type = state.get("failure_type", session.failure_type)
 
     try:

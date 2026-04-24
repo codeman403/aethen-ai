@@ -7,9 +7,9 @@ Falls back to GPT-4o-mini if Anthropic API key is not configured.
 import json
 
 import structlog
-from langchain_openai import ChatOpenAI
 
-from app.agents.state import AgentState, AnalysisReport, Finding
+from app.agents.llm import get_anthropic_llm
+from app.agents.state import AgentState, AnalysisReport, Finding, ensure_session
 from app.config import settings
 from app.models.trace import FailureType
 
@@ -48,32 +48,12 @@ Respond in this exact JSON format:
 
 def _get_llm():
     """Get the synthesis LLM — Claude Sonnet 4.6 preferred, GPT-4o-mini fallback."""
-    if settings.anthropic_api_key:
-        try:
-            from langchain_anthropic import ChatAnthropic
-
-            return ChatAnthropic(
-                model="claude-sonnet-4-6-20250514",
-                api_key=settings.anthropic_api_key,
-                anthropic_api_url=settings.anthropic_base_url or None,
-                temperature=0,
-                max_tokens=2000,
-            )
-        except ImportError:
-            logger.warning("langchain_anthropic_not_installed_falling_back_to_openai")
-
-    return ChatOpenAI(
-        model="gpt-4o-mini",
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url or None,
-        temperature=0,
-        max_tokens=2000,
-    )
+    return get_anthropic_llm(temperature=0, max_tokens=2000)
 
 
 async def synthesize(state: AgentState) -> dict:
     """Synthesize the final analysis report from module output."""
-    session = state["session"]
+    session = ensure_session(state["session"])
     failure_type = state.get("failure_type", FailureType.UNKNOWN)
     analysis = state.get("analysis", "")
 
@@ -91,9 +71,17 @@ async def synthesize(state: AgentState) -> dict:
         {"role": "user", "content": context},
     ])
 
+    # Extract text content (handle Anthropic's content block format)
+    raw_content = response.content
+    if isinstance(raw_content, list):
+        raw_content = "".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in raw_content
+        )
+
     # Parse the structured response
     try:
-        result = json.loads(response.content)
+        result = json.loads(raw_content)
         report = AnalysisReport(
             session_id=session.session_id,
             failure_type=failure_type,

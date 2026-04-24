@@ -6,9 +6,9 @@ Uses GPT-4o-mini to classify the session's failure type based on trace data.
 import json
 
 import structlog
-from langchain_openai import ChatOpenAI
 
-from app.agents.state import AgentState
+from app.agents.llm import get_openai_llm
+from app.agents.state import AgentState, ensure_session
 from app.config import settings
 from app.models.trace import FailureType
 
@@ -35,7 +35,7 @@ Respond with a JSON object:
 
 def _session_to_evidence_text(state: AgentState) -> str:
     """Serialize the session trace into a compact text summary for the LLM."""
-    session = state["session"]
+    session = ensure_session(state["session"])
     parts = [
         f"Session ID: {session.session_id}",
         f"Agent: {session.agent_id}",
@@ -78,13 +78,7 @@ def _session_to_evidence_text(state: AgentState) -> str:
 
 async def classify_intent(state: AgentState) -> dict:
     """Classify the session's failure type using GPT-4o-mini."""
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url or None,
-        temperature=0,
-        max_tokens=200,
-    )
+    llm = get_openai_llm(temperature=0, max_tokens=200)
 
     evidence_text = _session_to_evidence_text(state)
 

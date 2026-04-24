@@ -7,7 +7,7 @@ failure context, and returns the top evidence for the analysis module.
 import cohere
 import structlog
 
-from app.agents.state import AgentState
+from app.agents.state import AgentState, ensure_session
 from app.config import settings
 
 logger = structlog.get_logger()
@@ -55,7 +55,7 @@ async def rerank(state: AgentState) -> dict:
 
     Falls back to passing through raw evidence if Cohere is unavailable.
     """
-    session = state["session"]
+    session = ensure_session(state["session"])
 
     # Build the query from the session's failure context
     query = (

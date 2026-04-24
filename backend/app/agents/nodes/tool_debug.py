@@ -5,9 +5,9 @@ cascading tool errors.
 """
 
 import structlog
-from langchain_openai import ChatOpenAI
 
-from app.agents.state import AgentState
+from app.agents.llm import get_openai_llm
+from app.agents.state import AgentState, ensure_session
 from app.config import settings
 
 logger = structlog.get_logger()
@@ -50,7 +50,7 @@ Respond in this JSON format:
 
 def _build_tool_context(state: AgentState) -> str:
     """Build context string focused on tool call events."""
-    session = state["session"]
+    session = ensure_session(state["session"])
     parts = [
         f"Session: {session.session_id}",
         f"Failure summary: {session.failure_summary or 'N/A'}",
@@ -80,13 +80,7 @@ def _build_tool_context(state: AgentState) -> str:
 
 async def tool_debug(state: AgentState) -> dict:
     """Analyze tool call failures using GPT-4o-mini."""
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url or None,
-        temperature=0,
-        max_tokens=1500,
-    )
+    llm = get_openai_llm(temperature=0, max_tokens=1500)
 
     context = _build_tool_context(state)
 
