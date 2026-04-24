@@ -7,8 +7,10 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.chat import router as chat_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
+from app.api.qc import router as qc_router
 from app.config import settings
 from app.services.embedding_service import embedding_service
 from app.services.neo4j_service import neo4j_service
@@ -62,3 +64,5 @@ app.add_middleware(
 # Routers
 app.include_router(health_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
+app.include_router(qc_router, prefix="/api")
