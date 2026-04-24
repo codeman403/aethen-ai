@@ -55,6 +55,7 @@ def _get_llm():
             return ChatAnthropic(
                 model="claude-sonnet-4-6-20250514",
                 api_key=settings.anthropic_api_key,
+                anthropic_api_url=settings.anthropic_base_url or None,
                 temperature=0,
                 max_tokens=2000,
             )
@@ -64,6 +65,7 @@ def _get_llm():
     return ChatOpenAI(
         model="gpt-4o-mini",
         api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url or None,
         temperature=0,
         max_tokens=2000,
     )

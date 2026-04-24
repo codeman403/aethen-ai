@@ -81,6 +81,7 @@ async def classify_intent(state: AgentState) -> dict:
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url or None,
         temperature=0,
         max_tokens=200,
     )

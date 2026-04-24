@@ -1,15 +1,20 @@
 """Application configuration loaded from environment variables."""
 
+import os
+
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Load .env FIRST with override=True so it wins over empty shell env vars
+load_dotenv(".env", override=True)
 
 
 class Settings(BaseSettings):
     """Central configuration for the Aethen-AI backend."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # App
@@ -19,7 +24,9 @@ class Settings(BaseSettings):
 
     # LLM Providers
     anthropic_api_key: str = ""
+    anthropic_base_url: str = ""
     openai_api_key: str = ""
+    openai_base_url: str = ""
     cohere_api_key: str = ""
 
     # Pinecone
