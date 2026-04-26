@@ -147,6 +147,16 @@
 
 ---
 
+### A16. Fix chat follow-up detection + session context handoff
+**Gap**: Analysis of session `cs-69016bf50565` revealed that follow-up questions like "what do you understand from this failure" route to `"general"` instead of `"diagnostic"`. The LLM generates ungrounded analysis text (hallucination) instead of running the LangGraph pipeline. No mechanism to bind a data-path session_id to the next diagnostic question.
+**Action** (all in `backend/app/api/chat.py`):
+1. Add `_extract_session_id_from_history()` regex helper — finds last session_id mentioned in assistant messages
+2. Update `_llm_route` prompt — instruct LLM to return `session_id` in diagnostic intent when history contains a referenced session
+3. Update diagnostic path — when `route_result` has `session_id`, fetch that exact session via `postgres_service.get_session()` instead of random failure_type lookup
+4. Add general path guard — redirect to "ask me to diagnose it" when session_id is in context and LLM response looks like analysis
+**Files**: `backend/app/api/chat.py`
+**Status**: 🟢 Done (2026-04-26)
+
 ### A15. Document and validate `_infer_failure_type` retain decision
 **Gap**: Audit (Session 12) found `_infer_failure_type` in `langfuse_provider.py` is mostly dead in the analysis pipeline — `classify_intent` always overwrites it. Keeping it for two reasons only: (a) display pre-label before analysis runs, (b) `retrieve.py:76` Neo4j pattern matching depends on it.
 **Action**: Add inline comment to `_infer_failure_type` stating its narrow role. Add comment to `retrieve.py:76` explaining it reads pre-set label as a hint. No code deletion — retain is the decision.

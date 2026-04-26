@@ -4,6 +4,7 @@ POST /api/chat/freeform — accept a natural-language query, ground it in real
 """
 
 import asyncio
+import re
 import time
 import traceback
 import uuid
@@ -126,13 +127,37 @@ def _severity(count: int) -> str:
     return "low"
 
 
+_SESSION_ID_RE = re.compile(r"\b[0-9a-f]{32}\b")
+
+def _extract_session_id_from_history(history: list[HistoryMessage]) -> str | None:
+    """Return the most recently mentioned 32-char hex session ID from assistant messages."""
+    for msg in reversed(history):
+        if msg.role == "assistant":
+            m = _SESSION_ID_RE.search(msg.content)
+            if m:
+                return m.group()
+    return None
+
+
+_ANALYSIS_SIGNALS = (
+    "could involve", "suggests that", "indicates a", "this failure",
+    "misfire", "retrieval miss", "hallucination", "blind spot", "stale embedding",
+)
+
+def _looks_like_analysis(text: str) -> bool:
+    """True when general-path LLM text reads like specific-session analysis."""
+    lower = text.lower()
+    return any(s in lower for s in _ANALYSIS_SIGNALS)
+
+
 async def _llm_route(query: str, history: list[HistoryMessage]) -> dict:
     """Single LLM call: classifies intent, generates SQL for data queries, answers general ones.
 
     Returns one of:
       {"intent": "data",       "sql": "SELECT ..."}
-      {"intent": "diagnostic", "failure_type": "memory|tool_misfire|hallucination|blind_spot"}
+      {"intent": "diagnostic", "failure_type": "memory|...", "session_id": "<optional>"}
       {"intent": "general",    "answer": "..."}
+    session_id is included in diagnostic when the history references a specific session.
     """
     import json as _json
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -178,13 +203,20 @@ Respond with ONLY valid JSON (no markdown). Choose one intent:
    Always add LIMIT (max 50). Return only useful columns.
    → {{"intent":"data","sql":"SELECT session_id, agent_id, failure_type, failure_summary, session_ts FROM sessions WHERE ... ORDER BY ... LIMIT ..."}}
 
-2. DIAGNOSTIC — root cause analysis, "why is X failing", "diagnose", "analyze deep".
+2. DIAGNOSTIC — root cause analysis, "why is X failing", "diagnose", "analyze", "understand this failure".
    Pick the failure_type that best fits:
      memory       → wrong chunks retrieved, retrieval miss, stale embeddings, wrong context surfaced
      tool_misfire → API errors, tool call failures, timeouts, permission errors, wrong tool params
      hallucination → LLM fabricated facts, answer not grounded in source documents, made-up data
      blind_spot   → topic missing from knowledge base, agent can't answer despite data existing
    Use "unknown" when the failure type genuinely cannot be determined from the query.
+
+   IMPORTANT: If the conversation history shows that a specific session_id was recently
+   mentioned by Aethen (e.g. "session ID **abc123...** was logged") AND this query is asking
+   to understand, analyze, diagnose, or explain that failure — include the session_id:
+   → {{"intent":"diagnostic","failure_type":"tool_misfire","session_id":"abc123..."}}
+
+   If no specific session is referenced, omit session_id:
    → {{"intent":"diagnostic","failure_type":"memory|tool_misfire|hallucination|blind_spot|unknown"}}
 
 3. GENERAL — identity, capabilities, conversation history, anything not answerable by SQL.
@@ -324,8 +356,18 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
 
     try:
         if intent == "general":
-            # LLM already answered — wrap in a plain-text report
+            # LLM already answered — wrap in a plain-text report.
+            # Guard: if there's a referenced session in history and the LLM response looks
+            # like specific-session analysis, redirect rather than surface ungrounded text.
             answer = routing.get("answer", "I'm Aethen, your AI agent failure intelligence assistant.")
+            referenced_sid = _extract_session_id_from_history(request.history)
+            if referenced_sid and _looks_like_analysis(answer):
+                answer = (
+                    f"I can see session **{referenced_sid}** was mentioned earlier. "
+                    f"To get a grounded analysis with root cause, findings, and confidence score, "
+                    f"ask me to diagnose it — for example: "
+                    f"*\"Diagnose session {referenced_sid}\"* or *\"Analyze that failure\"*."
+                )
             report = AnalysisReport(
                 session_id=f"chat-{uuid.uuid4().hex[:8]}",
                 failure_type=FailureType.UNKNOWN,
@@ -345,11 +387,20 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
 
         else:  # diagnostic
             # Ground the query in a real session from Postgres.
-            # When failure_type is None (LLM couldn't determine type), fetch any
-            # recent session and let LangGraph's classify_intent node determine
-            # the type from session content — no premature short-circuit.
+            # Priority 1: LLM returned a specific session_id from conversation history.
+            # Priority 2: fetch by failure_type.
+            # Priority 3: any recent session so the pipeline always has real context.
+            referenced_session_id = routing.get("session_id") or _extract_session_id_from_history(request.history)
             real_sessions: list[dict] = []
-            if failure_type is not None:
+
+            if referenced_session_id:
+                # Fetch the exact session the user is asking about
+                exact = await postgres_service.get_session(referenced_session_id)
+                if exact:
+                    real_sessions = [exact]
+                    logger.info("freeform_diagnostic_exact_session", session_id=referenced_session_id)
+
+            if not real_sessions and failure_type is not None:
                 real_sessions = await postgres_service.get_by_failure_type(failure_type.value, limit=3)
             if not real_sessions:
                 # Fall back to any recent session so the pipeline has context

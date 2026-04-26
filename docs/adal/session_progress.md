@@ -55,6 +55,8 @@ Three clearly separated data stores — each owns a distinct responsibility:
 - [x] Updated `docs/implementation_timeline.md` — Classification Architecture Audit section added
 - [x] Updated `docs/adal/session_progress.md` — instruction #11 expanded with three-layer context
 
+- [x] **Chat session audit**: Analyzed session `cs-69016bf50565` — found all 4 responses used `"general"`/`"data"` paths, never LangGraph. "What do you understand from this failure" hallucinated analysis without running the pipeline. Root cause: `_llm_route` didn't extract session_ids from history; no follow-up→diagnostic handoff.
+- [x] **A16**: Fixed `backend/app/api/chat.py` — added `_extract_session_id_from_history()`, updated `_llm_route` prompt, diagnostic path uses referenced session_id, general path guard against ungrounded analysis.
 - [x] **A10**: Created `.github/workflows/ci.yml` (backend pytest + frontend type-check + build). Added `type-check` script to `frontend/package.json`. Committed rules/ implementation-status tables.
 - [x] **A12**: Added `loading.tsx` skeleton screens for `(dashboard)/`, `(dashboard)/traces/`, `(dashboard)/chat/`.
 - [x] **A13**: Dashboard auto-refreshes stats every 60s (silent — no spinner flash on interval).

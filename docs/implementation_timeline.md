@@ -543,6 +543,60 @@ classification is more important than saving one GPT-4o-mini call.
 
 ---
 
+## Chat Follow-up Bug: Ungrounded Analysis + Session Context Loss — 2026-04-26 (Session 12)
+
+### The Problem
+
+Analysis of a real chat session (`cs-69016bf50565`) revealed that **none of the four
+assistant responses ever ran the LangGraph pipeline**. Every stored report had
+`failure_type: unknown`, `confidence: 0`, `findings: []` — the hollow defaults produced
+by the `"general"` and `"data"` paths.
+
+The failure sequence:
+1. User asked *"what is the most recent failure trace"* → `"data"` path (text-to-SQL) →
+   correctly returned session `217fa0a232da75a60d64a31c10166f57` as a `tool_misfire` ✅
+2. User asked *"what do you understand from this failure"* → `"general"` path → LLM
+   generated *"This could involve errors in the tool call, timeouts, permission errors..."*
+   with no grounding in the actual session. **This is a hallucination** — Aethen described
+   a session it never read. ❌
+3. Session context was never bound: after step 1 surfaced a specific session_id, there was
+   no mechanism to carry it into the next diagnostic question.
+
+### Root Causes
+
+1. **`_llm_route` prompt did not instruct the LLM to extract session_ids from history** —
+   so "what do you understand from this failure" was classified as `"general"` instead of
+   `"diagnostic"` with the referenced session_id.
+2. **Diagnostic path used failure_type for session lookup, not session_id** — even if
+   `"diagnostic"` had fired, it would have fetched a random recent `tool_misfire` session
+   rather than `217fa0a232da75a60d64a31c10166f57`.
+3. **`"general"` path had no guard** — it allowed the LLM to generate analysis-sounding text
+   for specific sessions it never analyzed.
+
+### Decision: Three-fix approach in `backend/app/api/chat.py`
+
+**Fix 1 — `_extract_session_id_from_history()` helper** — scans assistant messages newest-first
+for a 32-char hex session ID using regex. Returns the most recently mentioned one.
+
+**Fix 2 — Updated `_llm_route` prompt** — adds an explicit instruction: when the history
+references a specific session_id AND the query asks to understand/analyze it, return
+`{"intent":"diagnostic","failure_type":"...","session_id":"<id from history>"}`.
+
+**Fix 3 — Diagnostic path uses referenced session_id** — when `route_result` contains a
+`session_id`, fetch that exact session from Postgres via `postgres_service.get_session()`
+instead of the failure_type-based random fetch. Falls back to existing logic if not found.
+
+**Fix 4 — General path guard** — if `_extract_session_id_from_history` finds a session_id
+in context AND the LLM-generated answer contains analysis-sounding language, replace the
+answer with a redirect: *"I found session X — ask me to diagnose it for a grounded analysis."*
+
+**Why not just improve `_llm_route` alone:**
+The LLM might still misclassify some follow-ups. The helper + guard provide defence in depth:
+the helper catches session_ids deterministically (regex, not LLM), and the guard catches
+cases where the LLM falls through to `"general"` with analysis-sounding text.
+
+---
+
 ## Classification Architecture Audit — 2026-04-26 (Session 12)
 
 ### Finding: Three overlapping failure-type classification layers
