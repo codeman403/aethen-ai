@@ -23,16 +23,16 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [pullResult, setPullResult] = useState<string | null>(null);
 
-  const loadStats = async () => {
+  const loadStats = async (showSpinner = true) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       setError(null);
       const data = await fetchDashboardStats();
       setStats(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load stats");
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
@@ -57,7 +57,11 @@ export default function HomePage() {
     }
   };
 
-  useEffect(() => { loadStats(); }, []);
+  useEffect(() => {
+    loadStats();
+    const interval = setInterval(() => loadStats(false), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fb    = stats?.failure_breakdown;
   const total = stats?.total_sessions ?? 0;
@@ -170,7 +174,7 @@ export default function HomePage() {
             {pulling ? "Pulling..." : "Pull Langfuse"}
           </button>
           <button
-            onClick={loadStats}
+            onClick={() => loadStats()}
             disabled={loading}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
           >
