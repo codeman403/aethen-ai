@@ -22,7 +22,7 @@
 6. `chore(backend): add Dockerfile, render.yaml, seed scripts`
 7. `docs: add implementation timeline, session progress, scenarios, skills`
 8. `test(backend): add integration tests and freeform intent tests`
-**Status**: ⬜
+**Status**: 🟢 Done (2026-04-26) — 8 commits pushed to main
 **Affects**: All files
 
 ---
@@ -31,9 +31,9 @@
 
 ### A2. Fix Claude vs GPT-4o-mini documentation mismatch
 **Gap**: README.md, CLAUDE.md, and proposal reference "Claude Sonnet 4.6 (Synthesis)" but actual code uses GPT-4o-mini via OpenAI proxy.
-**Action**: Update README.md to honestly reflect current LLM usage. Add a note explaining the proxy constraint and that Claude is the intended model for direct-key deployments.
-**Files to update**: `README.md` (tech stack table + LLMs line in architecture section)
-**Status**: ⬜
+**Action**: Wired Claude Sonnet 4.6 (`claude-sonnet-4-6`) via Anthropic proxy in `get_anthropic_llm()`. Falls back to GPT-4o-mini if no key. Updated docs to reflect.
+**Files updated**: `backend/app/agents/llm.py`, `README.md`, `CLAUDE.md`, `docs/implementation_timeline.md`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A3. Replace frontend/README.md boilerplate
 **Gap**: `frontend/README.md` is the default create-next-app text. Looks unfinished.

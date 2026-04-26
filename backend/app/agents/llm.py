@@ -32,11 +32,29 @@ def get_openai_llm(*, temperature: float = 0, max_tokens: int = 1500):
 
 
 def get_anthropic_llm(*, temperature: float = 0, max_tokens: int = 2000):
-    """Get the synthesis LLM.
+    """Get the synthesis LLM — Claude Sonnet 4.6 via Anthropic proxy.
 
-    The DataExpert.io proxy only allows GPT-4 models via the OpenAI endpoint,
-    and the Anthropic endpoint returns a non-standard format incompatible with
-    langchain_anthropic. Using gpt-4o-mini through the OpenAI proxy as the
-    reliable path. TODO: wire up direct Claude when a compatible proxy is available.
+    Uses ChatAnthropic with model claude-sonnet-4-6 when ANTHROPIC_API_KEY is set.
+    The API key is a proxy key (DataExpert.io Anthropic proxy).
+    Falls back to GPT-4o-mini via OpenAI proxy if no Anthropic key is configured.
     """
+    if settings.anthropic_api_key:
+        try:
+            from langchain_anthropic import ChatAnthropic
+
+            kwargs = {
+                "model": "claude-sonnet-4-6",
+                "api_key": settings.anthropic_api_key,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "default_headers": _DEFAULT_HEADERS,
+            }
+            if settings.anthropic_base_url:
+                kwargs["base_url"] = settings.anthropic_base_url
+
+            logger.info("Using Claude Sonnet 4.6 for synthesis (via proxy)")
+            return ChatAnthropic(**kwargs)
+        except Exception as e:
+            logger.warning("Failed to initialize Claude, falling back to GPT-4o-mini", error=str(e))
+
     return get_openai_llm(temperature=temperature, max_tokens=max_tokens)

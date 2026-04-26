@@ -567,6 +567,6 @@ classification is more important than saving one GPT-4o-mini call.
 
 5. **All LangGraph `ainvoke()` calls must pass Langfuse config.** Use `make_langfuse_handler()` from `app/utils/langfuse_utils.py`.
 
-6. **The DataExpert.io proxy blocks direct Anthropic SDK calls.** Use `get_openai_llm()` from `app/agents/llm.py`. Never instantiate LLM clients directly.
+6. **Claude Sonnet 4.6 is wired for synthesis** via the Anthropic proxy (`get_anthropic_llm()` in `app/agents/llm.py`). Model name: `claude-sonnet-4-6`. The API key is a proxy key. Falls back to GPT-4o-mini if no Anthropic key is set. Never instantiate LLM clients directly — always use the factory.
 
 7. **Update this document** whenever a significant decision is made.

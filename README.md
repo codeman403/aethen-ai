@@ -39,7 +39,7 @@ Frontend (Next.js 14)  →  BFF API routes  →  Python Backend (FastAPI)
                              (vector search) (graph RAG)
 ```
 
-**LLMs**: GPT-4o-mini (routing/classification), Claude Sonnet 4.6 (synthesis)
+**LLMs**: GPT-4o-mini (routing/classification), Claude Sonnet 4.6 (synthesis via Anthropic proxy, GPT-4o-mini fallback)
 **Observability**: Langfuse (live trace ingestion)
 
 ---
@@ -165,7 +165,7 @@ pnpm build
 |---|---|
 | Frontend | Next.js 14, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | Python 3.11, FastAPI, LangGraph, LangChain |
-| LLMs | Claude Sonnet 4.6, GPT-4o-mini, Cohere Rerank v3 |
+| LLMs | Claude Sonnet 4.6 (synthesis, via Anthropic proxy), GPT-4o-mini (routing/fallback), Cohere Rerank v3 |
 | Vector DB | Pinecone |
 | Graph DB | Neo4j Aura |
 | Observability | Langfuse |

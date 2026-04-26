@@ -17,7 +17,7 @@ This file is the single source of truth for AI-assisted development. It is compa
 |-------|-----------|
 | **Frontend** | Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
 | **Backend / Orchestration** | Python 3.11+, LangChain, LangGraph |
-| **LLMs** | Claude 3.5 Sonnet (Synthesis), GPT-4o-mini (Routing), Cohere Rerank v3 |
+| **LLMs** | Claude Sonnet 4.6 (Synthesis, via Anthropic proxy — GPT-4o-mini fallback), GPT-4o-mini (Routing), Cohere Rerank v3 |
 | **Session Store** | PostgreSQL via Supabase — full session JSON, CRUD, pagination (`asyncpg`) |
 | **Vector DB** | Pinecone — semantic search over embedded traces |
 | **Graph DB** | Neo4j Aura — graph structure only: relationships, traversal, blind spot detection |
