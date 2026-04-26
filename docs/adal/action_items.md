@@ -64,8 +64,9 @@
 
 ### A7. Add React error boundary
 **Gap**: No global error handling on frontend. LLM pipeline failures show as blank screens or console errors.
-**Action**: Create `frontend/src/app/(dashboard)/error.tsx` (Next.js convention) with user-friendly error UI + retry button. Optionally add per-page error boundaries for critical routes (`/chat`, `/traces`).
-**Status**: ⬜
+**Action**: Created `frontend/src/app/(dashboard)/error.tsx` with a premium error UI and "Try again" recovery mechanism.
+**Files updated**: `frontend/src/app/(dashboard)/error.tsx`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A8. Add API retry with exponential backoff (frontend)
 **Gap**: All `fetch` calls in `api.ts` are fire-once. LLM calls can be flaky.
