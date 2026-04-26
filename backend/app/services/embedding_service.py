@@ -21,7 +21,11 @@ class EmbeddingService:
         if not settings.openai_api_key:
             logger.warning("embedding_service_no_key", msg="OPENAI_API_KEY not set, embeddings unavailable")
             return
-        self._client = AsyncOpenAI(api_key=settings.openai_api_key)
+        kwargs: dict = {"api_key": settings.openai_api_key}
+        if settings.openai_base_url:
+            kwargs["base_url"] = settings.openai_base_url
+            kwargs["default_headers"] = {"x-session-id": "aethen-embedding-service"}
+        self._client = AsyncOpenAI(**kwargs)
         logger.info("embedding_service_initialized", model=self.model)
 
     async def embed_text(self, text: str) -> list[float]:

@@ -33,10 +33,18 @@ class Settings(BaseSettings):
     pinecone_api_key: str = ""
     pinecone_index: str = "aethen-traces"
 
-    # Neo4j
+    # PostgreSQL / Supabase — session CRUD store
+    database_url: str = ""
+
+    # Neo4j — graph traversal only
     neo4j_uri: str = ""
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
+
+    # Langfuse
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://us.cloud.langfuse.com"
 
     # Frontend
     frontend_url: str = "http://localhost:3000"

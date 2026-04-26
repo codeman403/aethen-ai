@@ -8,13 +8,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
+from app.api.chat_sessions import router as chat_sessions_router
+from app.api.demo import router as demo_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
+from app.api.langfuse import router as langfuse_router
 from app.api.qc import router as qc_router
+from app.api.sessions import router as sessions_router
+from app.api.stats import router as stats_router
 from app.config import settings
 from app.services.embedding_service import embedding_service
 from app.services.neo4j_service import neo4j_service
 from app.services.pinecone_service import pinecone_service
+from app.services.postgres_service import postgres_service
+from app.utils.rate_limit import RateLimitMiddleware
 
 structlog.configure(
     processors=[
@@ -38,11 +45,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await embedding_service.initialize()
     await pinecone_service.initialize()
     await neo4j_service.initialize()
+    await postgres_service.initialize()
 
     yield
 
     # Shutdown
     await neo4j_service.close()
+    await postgres_service.close()
 
 
 app = FastAPI(
@@ -51,6 +60,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Rate limiting — 20 req/min, 100 req/hr per IP (added before CORS so it fires first)
+app.add_middleware(RateLimitMiddleware, per_minute=20, per_hour=100)
 
 # CORS — allow frontend origin
 app.add_middleware(
@@ -65,4 +77,9 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
+app.include_router(chat_sessions_router, prefix="/api")
 app.include_router(qc_router, prefix="/api")
+app.include_router(demo_router, prefix="/api")
+app.include_router(langfuse_router, prefix="/api")
+app.include_router(sessions_router, prefix="/api")
+app.include_router(stats_router, prefix="/api")
