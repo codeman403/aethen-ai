@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-04-26 (Session 10)
+> **Last updated**: 2026-04-26 (Session 11)
 
 ---
 
@@ -19,11 +19,17 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 - **Phase**: Week 3 — Feature-complete. Mid-dev review done. Deployment remaining.
 - **Branch**: `main`
-- **Next action**: Resume from `docs/adal/action_items.md` — A10 (CI pipeline file created but not committed), then A12–A14, S1–S6, and A6 (deployment).
+- **Next action**: Resume from `docs/adal/action_items.md`:
+  1. **A10**: CI pipeline — `.github/workflows/ci.yml` was NOT persisted from Session 10 (needs recreation). Also add `type-check` script to `frontend/package.json`. Then commit rules/ changes + CI + push.
+  2. **A12**: Add `loading.tsx` skeleton screens for route segments.
+  3. **A13**: Auto-refresh dashboard every 60s.
+  4. **S3**: Create evaluator guide (`docs/EVALUATOR_GUIDE.md`).
+  5. **S1**: Record demo GIF for README.
+  6. **A6**: Deploy to Render + Vercel.
 - **Blocker**: None known
 - **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
 - **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
-- **Uncommitted work**: `.github/workflows/ci.yml` is created locally but not staged/committed. `frontend/package.json` has the `type-check` script added. Commit both with A10.
+- **Uncommitted work**: 4 modified `rules/` files (implementation status tables from A4 — tracked but not committed). `.github/workflows/ci.yml` needs to be recreated. `frontend/package.json` needs `type-check` script added.
 
 ### Architecture (as of Session 10)
 
