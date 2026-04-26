@@ -76,11 +76,9 @@
 
 ### A9. Add basic frontend tests
 **Gap**: Zero `.test.tsx` files. `rules/testing.md` specifies Vitest + React Testing Library.
-**Action**: Add smoke tests for critical pages — dashboard renders, chat page renders, API client functions exist. Even 5-10 tests demonstrate the practice.
-**Suggested files**:
-- `frontend/src/app/(dashboard)/__tests__/page.test.tsx` — dashboard renders
-- `frontend/src/lib/__tests__/api.test.ts` — API client functions return expected shapes
-**Status**: ⬜
+**Action**: Installed Vitest + React Testing Library. Added `page.test.tsx` (dashboard render) and `api.test.ts` (API client). Configured `package.json` test scripts. Fixed nested `<div>` in `<p>` hydration warnings.
+**Files updated**: `frontend/vitest.config.ts`, `frontend/package.json`, `frontend/src/app/(dashboard)/__tests__/page.test.tsx`, `frontend/src/lib/__tests__/api.test.ts`, `frontend/src/app/(dashboard)/page.tsx`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A10. Add GitHub Actions CI pipeline
 **Gap**: Tests only run manually. No automated quality gate.

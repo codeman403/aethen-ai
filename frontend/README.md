@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aethen-AI Frontend
+
+Next.js 14 (App Router) dashboard for the Aethen-AI Agent Reliability Studio.
+
+---
+
+## Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Next.js 16 (App Router) | Framework, SSR, routing |
+| TypeScript | Type safety |
+| Tailwind CSS | Styling |
+| shadcn/ui | UI component primitives |
+| Lucide React | Icons |
+| next-themes | Dark/light mode |
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires the backend running at `http://localhost:8000` (or set `NEXT_PUBLIC_API_URL`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Pages
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Route | Page | Description |
+|---|---|---|
+| `/` | Dashboard | Reliability score gauge, failure distribution chart, recent alerts |
+| `/chat` | Chat Debug | Freeform diagnostic chat with text-to-SQL, session persistence |
+| `/traces` | Trace Explorer | Browse sessions, search, filter by failure type, run analysis |
+| `/demo-agent` | Demo Agent | Generate real LLM traces for each failure type with Langfuse tracing |
+| `/memory-debug` | Memory Debug | Analyze retrieval failures — wrong chunks, stale embeddings |
+| `/tool-misfire` | Tool Misfire | Analyze tool call failures — timeouts, wrong params, cascading errors |
+| `/hallucination-rca` | Hallucination RCA | Root cause analysis for LLM hallucinations |
+| `/blind-spots` | Blind Spots | Systemic knowledge gap detection across sessions |
+| `/data-quality` | Data Quality | Automated quality report across all 4 data sources |
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/
+│   ├── (dashboard)/          # Dashboard route group (shared layout)
+│   │   ├── page.tsx          # Main dashboard
+│   │   ├── chat/             # Chat Debug page
+│   │   ├── traces/           # Trace Explorer page
+│   │   ├── demo-agent/       # Demo Agent page
+│   │   ├── memory-debug/     # Memory Debug module
+│   │   ├── tool-misfire/     # Tool Misfire module
+│   │   ├── hallucination-rca/# Hallucination RCA module
+│   │   ├── blind-spots/      # Blind Spot module
+│   │   ├── data-quality/     # Data Quality page
+│   │   └── layout.tsx        # Dashboard layout (sidebar + header)
+│   └── layout.tsx            # Root layout (theme, fonts)
+├── components/
+│   ├── ui/                   # shadcn/ui primitives (Button, etc.)
+│   ├── features/             # Feature components
+│   │   ├── SessionContext.tsx # Trace execution context display
+│   │   └── SessionsList.tsx  # Reusable session list with analysis trigger
+│   └── layout/               # Header, Sidebar
+├── lib/
+│   ├── api.ts                # API client — typed fetch calls to backend
+│   └── utils.ts              # cn() utility for Tailwind class merging
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm dev          # Development server
+pnpm build        # Production build
+pnpm start        # Production server
+pnpm lint         # ESLint
+```
 
-## Deploy on Vercel
+## Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Backend API URL (default: `http://localhost:8000`) |

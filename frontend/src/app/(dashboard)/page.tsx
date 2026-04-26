@@ -273,10 +273,10 @@ export default function HomePage() {
               <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
                 {loading ? <div className="h-8 w-24 bg-emerald-500/20 animate-pulse rounded-md" /> : totalSuccess.toLocaleString()}
               </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
                 sessions completed cleanly
                 <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </p>
+              </div>
             </Link>
 
             {/* Failures Detected → /traces */}
@@ -286,10 +286,10 @@ export default function HomePage() {
               <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
                 {loading ? <div className="h-8 w-24 bg-rose-500/20 animate-pulse rounded-md" /> : totalFailed.toLocaleString()}
               </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
                 sessions with diagnosed failures
                 <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </p>
+              </div>
             </Link>
 
             {/* Failure breakdown rows — each links to its module */}
