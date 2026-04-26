@@ -25,12 +25,15 @@ export function Header() {
 
       <div className="flex items-center gap-3">
         <div className="relative hidden md:flex items-center">
-          <Search className="absolute left-3 size-4 text-muted-foreground/70" />
-          <input
-            type="text"
-            placeholder="Search traces... (Cmd+K)"
-            className="h-9 w-72 rounded-full border border-input bg-muted/40 pl-9 pr-4 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:bg-background"
-          />
+          <button className="flex h-9 w-72 items-center justify-between rounded-full border border-input bg-muted/40 px-3 text-sm text-muted-foreground shadow-sm transition-all hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+            <div className="flex items-center gap-2">
+              <Search className="size-4 opacity-70" />
+              <span>Search traces...</span>
+            </div>
+            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </button>
         </div>
         <div className="flex items-center gap-1 ml-2 border-l pl-4 py-1">
           {mounted && (
@@ -48,10 +51,10 @@ export function Header() {
               )}
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="size-9 rounded-full text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon" title="Coming soon" className="size-9 rounded-full text-muted-foreground/50 hover:text-foreground">
             <Bell className="size-[18px]" />
           </Button>
-          <Button variant="ghost" size="icon" className="size-9 rounded-full text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon" title="Coming soon" className="size-9 rounded-full text-muted-foreground/50 hover:text-foreground">
             <Settings className="size-[18px]" />
           </Button>
         </div>

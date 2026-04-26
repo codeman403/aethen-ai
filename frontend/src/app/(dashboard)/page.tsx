@@ -204,7 +204,9 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="mt-4 flex items-baseline gap-2">
-                <p className="text-3xl font-bold tracking-tight">{loading ? "—" : card.value}</p>
+                <div className="text-3xl font-bold tracking-tight h-9 flex items-center">
+                  {loading ? <div className="h-8 w-20 bg-muted/60 animate-pulse rounded-md" /> : card.value}
+                </div>
               </div>
               <div className="mt-3 flex items-center gap-2 text-xs">
                 <span className={`flex items-center font-medium px-1.5 py-0.5 rounded-md ${card.positive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"}`}>
@@ -248,7 +250,7 @@ export default function HomePage() {
                 strokeDasharray={`${fillLen} ${ARC_LEN}`}
                 style={{ transition: "stroke-dasharray 0.8s ease" }} />
               <text x="100" y="84" textAnchor="middle" fontSize="38" fontWeight="bold"
-                fill="currentColor" className="fill-foreground">
+                fill="currentColor" className={`fill-foreground transition-opacity ${loading ? "opacity-30 animate-pulse" : "opacity-100"}`}>
                 {loading ? "—" : score}
               </text>
               <text x="100" y="102" textAnchor="middle" fontSize="11" fill="#6b7280">
@@ -268,8 +270,10 @@ export default function HomePage() {
             <Link href="/traces"
               className="rounded-lg border bg-emerald-500/5 border-emerald-500/20 p-4 hover:bg-emerald-500/10 transition-colors group">
               <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Successful</p>
-              <p className="text-3xl font-bold">{loading ? "—" : totalSuccess.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
+                {loading ? <div className="h-8 w-24 bg-emerald-500/20 animate-pulse rounded-md" /> : totalSuccess.toLocaleString()}
+              </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
                 sessions completed cleanly
                 <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </p>
@@ -279,8 +283,10 @@ export default function HomePage() {
             <Link href="/traces"
               className="rounded-lg border bg-rose-500/5 border-rose-500/20 p-4 hover:bg-rose-500/10 transition-colors group">
               <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">Failures Detected</p>
-              <p className="text-3xl font-bold">{loading ? "—" : totalFailed.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
+                {loading ? <div className="h-8 w-24 bg-rose-500/20 animate-pulse rounded-md" /> : totalFailed.toLocaleString()}
+              </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
                 sessions with diagnosed failures
                 <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </p>

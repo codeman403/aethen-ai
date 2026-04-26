@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Eye,
   MessageSquare,
+  ChevronsUpDown,
 } from "lucide-react";
 
 const navItems = [
@@ -40,7 +41,7 @@ export function Sidebar() {
     <aside className="w-[260px] border-r border-border bg-card flex flex-col h-full shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
       <div className="h-16 flex items-center px-6 border-b border-border/50">
         <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-          <div className="size-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-sm">
+          <div className="size-7 rounded-lg bg-gradient-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-bold text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.1)]">
             Ae
           </div>
           <span className="font-bold tracking-tight text-lg">Aethen-AI</span>
@@ -139,6 +140,7 @@ export function Sidebar() {
             <span className="text-sm font-medium truncate">System Admin</span>
             <span className="text-xs text-muted-foreground truncate">admin@aethen.ai</span>
           </div>
+          <ChevronsUpDown className="size-4 text-muted-foreground/50 ml-auto" />
         </div>
       </div>
     </aside>
