@@ -74,3 +74,15 @@ __pycache__/
 dist/
 .DS_Store
 ```
+
+---
+
+## Implementation Status (as of Session 10)
+
+| Standard | Status | Notes |
+|---|---|---|
+| Conventional commits | ✅ Implemented | All commits use `feat:`, `fix:`, `chore:`, `test:`, `docs:` prefixes |
+| Branch strategy (main/dev/feat) | ❌ Not followed | Solo development — all work committed directly to `main`. No `dev` branch created. Acceptable for single-developer capstone; adopt branching when collaborating. |
+| PR workflow | ❌ Not followed | No PRs during solo dev sprint. Will adopt for post-submission contributions. |
+| Pre-commit checks | ⚠️ Manual | Checks run manually before commits, not automated via hooks |
+| .gitignore | ✅ Implemented | Comprehensive — covers Python, Node, OS, IDE, project-specific files |

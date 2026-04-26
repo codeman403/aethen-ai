@@ -70,3 +70,19 @@ The following end-to-end scenarios must pass:
 - Tests run on every push and PR.
 - Frontend and backend test suites run in parallel.
 - Failing tests block merge.
+
+---
+
+## Implementation Status (as of Session 10)
+
+| Standard | Status | Notes |
+|---|---|---|
+| Backend pytest + pytest-asyncio | ✅ Implemented | 32 tests passing |
+| Integration tests (5 scenarios) | ✅ Implemented | 7 integration + 7 adapter tests |
+| LangGraph node isolation tests | ⚠️ Partial | Nodes tested via integration, not individually mocked |
+| Frontend Vitest + RTL | ❌ Not started | No `.test.tsx` files exist yet |
+| MSW for API mocking | ❌ Not started | Deferred — frontend tests not yet set up |
+| 80%+ backend coverage | ⚠️ Below target | Core API paths covered, not measured with coverage tool |
+| CI pipeline | ❌ Not started | Tests run manually only |
+
+**Priority**: Frontend smoke tests and CI pipeline are tracked in `docs/adal/action_items.md` (A9, A10).

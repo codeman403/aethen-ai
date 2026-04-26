@@ -86,3 +86,22 @@
 - See `rules/testing.md` for full testing standards.
 - Every LangGraph node must be testable in isolation with mocked LLM responses.
 - Every API endpoint must have integration tests.
+
+---
+
+## Implementation Status (as of Session 10)
+
+| Standard | Status | Notes |
+|---|---|---|
+| Python 3.11+, Poetry, Ruff | ✅ Implemented | Type hints on all public functions |
+| Async route handlers | ✅ Implemented | All endpoints are `async def` |
+| Response envelope `{data, error}` | ✅ Implemented | Consistent across all endpoints |
+| Pydantic v2 models | ✅ Implemented | Request/response bodies validated |
+| LangGraph state machine | ✅ Implemented | Single graph with conditional routing to 4 modules |
+| LLM factory (no hardcoded models) | ✅ Implemented | `app/agents/llm.py` — centralized factory |
+| Retry logic on LLM calls | ❌ Not implemented | LLM calls are fire-once; LangChain has built-in retry but not explicitly configured |
+| Custom exception classes | ❌ Not implemented | Uses generic `Exception` / `ValueError`. Deferred — functional but less precise error reporting |
+| Prompts in dedicated files | ⚠️ Partial | Prompts are constants in node files, not in a separate `app/prompts/` directory |
+| Secrets have no defaults | ⚠️ Not enforced | API keys default to `""` in config — allows graceful degradation but doesn't fail-fast on missing keys |
+| structlog logging | ✅ Implemented | JSON structured logging with request correlation |
+| Postgres as source of truth | ✅ Implemented | Neo4j is graph-only, Pinecone is vectors-only |

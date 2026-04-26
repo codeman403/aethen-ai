@@ -66,3 +66,19 @@ components/
 - Use semantic HTML (`<nav>`, `<main>`, `<article>`, `<button>`).
 - Images require `alt` text. Decorative images use `alt=""`.
 - shadcn/ui components handle most a11y — don't override their ARIA attributes.
+
+---
+
+## Implementation Status (as of Session 10)
+
+| Standard | Status | Notes |
+|---|---|---|
+| App Router, TypeScript, pnpm | ✅ Implemented | Strict mode enabled |
+| Server vs Client components | ✅ Implemented | `"use client"` used only where needed |
+| Tailwind + shadcn/ui only | ✅ Implemented | One `style={{ userSelect: "text" }}` inline override in chat (intentional) |
+| `useSWR` / `react-query` | ❌ Not used | Client-side data uses raw `fetch` + `useState`. Functional but less ergonomic |
+| `error.tsx` boundaries | ❌ Not started | No route-level error boundaries yet |
+| `loading.tsx` suspense | ❌ Not started | No loading skeletons yet |
+| URL state for filters | ⚠️ Partial | Trace Explorer uses local state, not search params |
+
+**Priority**: Error boundaries (A7) and loading states (A12) are tracked in `docs/adal/action_items.md`.
