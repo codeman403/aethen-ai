@@ -4,6 +4,11 @@
 
 This file is the single source of truth for AI-assisted development. It is compatible with Claude Code, AdaL, Cursor, and other AI coding agents.
 
+**Key reference documents:**
+- `docs/adal/session_progress.md` — session-by-session work log and upcoming tasks
+- `docs/implementation_timeline.md` — **decision log**: every major architectural choice, failure, pivot, and lesson since project inception. Read this before making architectural changes.
+- `docs/scenarios/` — demo scenarios for evaluators. `aethen_self_analysis.md` is the strongest demo case.
+
 ---
 
 ## Tech Stack
@@ -13,10 +18,19 @@ This file is the single source of truth for AI-assisted development. It is compa
 | **Frontend** | Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
 | **Backend / Orchestration** | Python 3.11+, LangChain, LangGraph |
 | **LLMs** | Claude 3.5 Sonnet (Synthesis), GPT-4o-mini (Routing), Cohere Rerank v3 |
-| **Vector DB** | Pinecone |
-| **Graph DB** | Neo4j Aura |
-| **Deployment** | Vercel (frontend), TBD (backend) |
+| **Session Store** | PostgreSQL via Supabase — full session JSON, CRUD, pagination (`asyncpg`) |
+| **Vector DB** | Pinecone — semantic search over embedded traces |
+| **Graph DB** | Neo4j Aura — graph structure only: relationships, traversal, blind spot detection |
+| **Deployment** | Vercel (frontend), Render (backend) |
 | **Package Managers** | pnpm (frontend), poetry (backend) |
+
+### Data Store Responsibilities
+
+| Store | Owns | Does NOT own |
+|-------|------|--------------|
+| **PostgreSQL / Supabase** | Agent session JSON (`sessions` table), chat conversation history (`chat_sessions` + `chat_messages` tables), dashboard stats (primary) | Graph relationships, vectors |
+| **Neo4j Aura** | Graph nodes + relationships (Session→Query→Chunk→ToolCall→Response), cross-session patterns | Raw session data, stats counting, vectors |
+| **Pinecone** | Embedded trace vectors for semantic search | Session metadata, graph structure |
 
 ## Project Structure (Target)
 
@@ -89,7 +103,7 @@ poetry run format     # Ruff formatter
 
 ## Environment Variables
 
-Required variables (see `.env.example`):
+Required variables (set in `backend/.env`):
 
 ```
 # LLM Providers
@@ -97,12 +111,23 @@ ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 COHERE_API_KEY=
 
-# Databases
+# Session Store — Supabase/PostgreSQL (asyncpg)
+# Supabase: Settings → Database → Connection string → URI (Session mode, port 5432)
+DATABASE_URL=postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+
+# Vector DB
 PINECONE_API_KEY=
-PINECONE_INDEX=
-NEO4J_URI=
-NEO4J_USER=
+PINECONE_INDEX=aethen-traces
+
+# Graph DB — relationships + traversal only
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
+NEO4J_USER=neo4j
 NEO4J_PASSWORD=
+
+# Langfuse
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_BASE_URL=https://us.cloud.langfuse.com
 
 # App
 NEXT_PUBLIC_API_URL=http://localhost:8000

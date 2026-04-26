@@ -219,6 +219,14 @@ capstone_proj_proposal_codeman403.md
 existing_product_comparison.md
 proj_plan.md
 
+# Environment (explicit paths)
+backend/.env
+.env.local
+
+# Build caches & empty dirs
+.render_cache/
+assets/
+
 # Session memory (agent continuity logs)
 
 # Remotion (unrelated)

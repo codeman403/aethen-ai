@@ -24,7 +24,77 @@ graph TD
     G4 --> H
 ```
 
+### Demo Agent Flow
+The Demo Agent UI provides an interactive, in-browser way to generate real traces without running scripts. It sits outside the LangGraph analysis pipeline and feeds directly into Langfuse:
+
+```
+User clicks scenario button (e.g. "Memory Debug")
+    │
+    ▼
+POST /api/demo/run  { scenario: "memory" }
+    │
+    ├─► LangChain ChatOpenAI call (via OpenAI proxy)
+    │       with Langfuse CallbackHandler attached
+    │
+    ├─► Response returned to frontend → displayed in chat log
+    │
+    └─► Trace flushed to Langfuse (visible in Langfuse dashboard)
+            │
+            ▼
+    User clicks "Pull Langfuse" on dashboard
+            │
+            ▼
+    POST /api/langfuse/pull → LangfuseProvider.fetch_traces()
+            │
+            ▼
+    Sessions stored in store._sessions, classified by failure type
+            │
+            ▼
+    Module pages show sessions in SessionsList → click to analyze
+            │
+            ▼
+    POST /api/chat → full LangGraph pipeline → AnalysisReport
+```
+
 ## UI Wireframes (Frontend Modules)
+
+### 0. Demo Agent (`/demo-agent`)
+**Goal:** Generate real LLM traces for each failure type directly from the browser — no scripts required.
+```text
++-------------------------------------------------------------+
+| Header: Demo Agent                                           |
+| Subtitle: Generate real traces and watch them flow to        |
+|           Langfuse → Pull → Analyze                         |
++-------------------------------------------------------------+
+| Scenario Buttons:                                            |
+| [ Memory Debug ] [ Tool Misfire ] [ Hallucination ] [ Blind Spot ] |
++-------------------------------------------------------------+
+| Chat Log:                                                    |
+|                                                              |
+|  ┌─ Memory Debug ──────────────────── Traced to Langfuse ✓ ─┐|
+|  │ You: "I can't reset my billing password. The retrieval    ||
+|  │ system returned wrong documents about API keys..."        ||
+|  │                                                           ||
+|  │ Agent: "I can see there's an issue with your billing      ||
+|  │ password. The support documents retrieved appear to be    ||
+|  │ mismatched..."                                            ||
+|  └───────────────────────────────────────────────────────────┘|
+|  ┌─ Tool Misfire ──────────────────── Traced to Langfuse ✓ ─┐|
+|  │ ...                                                        ||
+|  └───────────────────────────────────────────────────────────┘|
++-------------------------------------------------------------+
+| Footer: Pull Langfuse → navigate to module page to analyze   |
++-------------------------------------------------------------+
+```
+
+**Implementation**:
+- Backend: `POST /api/demo/run { scenario: "memory" | "tool_misfire" | "hallucination" | "blind_spot" }`
+  - Runs LangChain LLM call with Langfuse `CallbackHandler` attached
+  - Returns `{ scenario_name, user_message, assistant_response, langfuse_traced }`
+- Frontend: `frontend/src/app/(dashboard)/demo-agent/page.tsx`
+  - 4 scenario buttons trigger individual LLM calls
+  - Each response is appended to a running chat log with scenario label + Langfuse badge
+  - Loading state per-button (can run multiple scenarios sequentially)
 
 ### 1. Memory Debug (`/memory-debug`)
 **Goal:** Visualize retrieval failures (stale embeddings, missing chunks, low similarity).
