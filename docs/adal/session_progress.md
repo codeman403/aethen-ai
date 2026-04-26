@@ -17,19 +17,15 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 3 — Feature-complete. Mid-dev review done. Deployment remaining.
+- **Phase**: Week 3 — Feature-complete. Deployment remaining.
 - **Branch**: `main`
-- **Next action**: Resume from `docs/adal/action_items.md`:
-  1. **A10**: CI pipeline — `.github/workflows/ci.yml` (needs creation). Add `type-check` script to `frontend/package.json`. Commit rules/ changes + CI + push.
-  2. **A12**: Add `loading.tsx` skeleton screens for route segments.
-  3. **A13**: Auto-refresh dashboard every 60s.
-  4. **S3**: Create evaluator guide (`docs/EVALUATOR_GUIDE.md`).
-  5. **S1**: Record demo GIF for README.
-  6. **A6**: Deploy to Render + Vercel.
+- **Next action**:
+  1. **S1**: Record demo GIF for README.
+  2. **A6**: Deploy to Render + Vercel — fill ENV vars, deploy, verify end-to-end.
 - **Blocker**: None known
 - **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
 - **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
-- **Uncommitted work**: 4 modified `rules/` files (implementation status tables from A4 — tracked but not committed). `.github/workflows/ci.yml` needs to be created. `frontend/package.json` needs `type-check` script added.
+- **Uncommitted work**: None — all changes committed and pushed.
 
 ### Architecture (as of Session 10)
 
@@ -59,10 +55,11 @@ Three clearly separated data stores — each owns a distinct responsibility:
 - [x] Updated `docs/implementation_timeline.md` — Classification Architecture Audit section added
 - [x] Updated `docs/adal/session_progress.md` — instruction #11 expanded with three-layer context
 
-**Not committed (resume here)**:
-- [ ] `.github/workflows/ci.yml` — needs creation (A10)
-- [ ] `frontend/package.json` — `type-check` script not yet added (A10)
-- [ ] 4 modified `rules/` files — uncommitted since Session 11
+- [x] **A10**: Created `.github/workflows/ci.yml` (backend pytest + frontend type-check + build). Added `type-check` script to `frontend/package.json`. Committed rules/ implementation-status tables.
+- [x] **A12**: Added `loading.tsx` skeleton screens for `(dashboard)/`, `(dashboard)/traces/`, `(dashboard)/chat/`.
+- [x] **A13**: Dashboard auto-refreshes stats every 60s (silent — no spinner flash on interval).
+- [x] **S3**: Created `docs/EVALUATOR_GUIDE.md` — 5-step walkthrough for evaluators.
+- [x] All changes pushed to main.
 
 ### Session 11 — 2026-04-26 (AdaL)
 
