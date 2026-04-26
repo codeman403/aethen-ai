@@ -37,19 +37,21 @@
 
 ### A3. Replace frontend/README.md boilerplate
 **Gap**: `frontend/README.md` is the default create-next-app text. Looks unfinished.
-**Action**: Rewrite with Aethen-specific content: what the frontend does, how to run it, key pages, component structure.
-**Status**: ⬜
+**Action**: Rewrote with tech stack, all 9 pages, project structure tree, scripts, and env vars.
+**Files updated**: `frontend/README.md`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A4. Align rules/ with actual implementation
 **Gap**: Rules define aspirational standards the codebase doesn't fully follow. An evaluator reading both will notice.
-**Action**: Add a "Current Status" or "Implementation Notes" section to each rules file acknowledging what's implemented vs. deferred. This is more honest than silently changing standards.
-**Files to update**: `rules/testing.md`, `rules/frontend.md`, `rules/git.md`, `rules/backend.md`
-**Status**: ⬜
+**Action**: Added "Implementation Status" tables to all 4 rules files — honest accounting of what's implemented, partial, and deferred. Cross-references action items for tracked gaps.
+**Files updated**: `rules/testing.md`, `rules/frontend.md`, `rules/git.md`, `rules/backend.md`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A5. Add env var validation at backend startup
 **Gap**: No schema-based validation. Backend silently fails if required vars are missing.
-**Action**: Add a `@validator` or startup check in `app/config.py` that raises a clear error listing all missing required env vars. Pydantic Settings already supports this — just ensure `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `DATABASE_URL`, etc. are marked as required (no defaults).
-**Status**: ⬜
+**Action**: Added `@model_validator` to `Settings` in `app/config.py` to check for missing required fields (`openai_api_key`, `database_url`, etc.) and raise an explicit `ValueError` on startup.
+**Files updated**: `backend/app/config.py`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A6. Deploy to Render + Vercel
 **Gap**: Config files exist (`render.yaml`, `vercel.json`, `Dockerfile`) but deployment hasn't been tested.

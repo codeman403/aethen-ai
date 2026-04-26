@@ -3,6 +3,7 @@
 import os
 
 from dotenv import load_dotenv
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env FIRST with override=True so it wins over empty shell env vars
@@ -48,6 +49,25 @@ class Settings(BaseSettings):
 
     # Frontend
     frontend_url: str = "http://localhost:3000"
+
+    @model_validator(mode="after")
+    def validate_required_secrets(self) -> "Settings":
+        required_fields = [
+            "openai_api_key",
+            "cohere_api_key",
+            "pinecone_api_key",
+            "database_url",
+            "neo4j_uri",
+            "neo4j_password",
+        ]
+        missing = [field for field in required_fields if not getattr(self, field)]
+        
+        # Anthropic is optional (falls back to GPT-4o-mini), Langfuse is optional for local runs 
+        # (though required for full live trace feature).
+
+        if missing:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+        return self
 
 
 settings = Settings()
