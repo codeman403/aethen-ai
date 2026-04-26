@@ -1,5 +1,28 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/**
+ * Wrapper around fetch with exponential backoff retries.
+ * Retries on network errors and 5xx/429 status codes.
+ */
+async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok && (res.status >= 500 || res.status === 429)) {
+        if (i === retries - 1) return res;
+      } else {
+        return res;
+      }
+    } catch (error: any) {
+      lastError = error;
+      if (i === retries - 1) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, backoff * Math.pow(2, i)));
+  }
+  throw lastError || new Error("Fetch failed");
+}
+
 // ── Dashboard Stats ────────────────────────────────────────────────────────
 
 export interface FailureBreakdown {
@@ -18,7 +41,7 @@ export interface DashboardStats {
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const res = await fetch(`${BASE_URL}/api/stats`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/stats`);
   const body: ApiResponse<DashboardStats> = await res.json();
   if (body.error) throw new Error(body.error);
   if (!body.data) throw new Error("No stats data returned");
@@ -34,7 +57,7 @@ export interface LangfusePullResult {
 }
 
 export async function pullLangfuseTraces(limit: number = 20): Promise<LangfusePullResult> {
-  const res = await fetch(`${BASE_URL}/api/langfuse/pull`, {
+  const res = await fetchWithRetry(`${BASE_URL}/api/langfuse/pull`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ limit }),
@@ -70,7 +93,7 @@ export interface DataQualityReport {
 }
 
 export async function fetchQualityReport(): Promise<DataQualityReport> {
-  const res = await fetch(`${BASE_URL}/api/qc/report`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/qc/report`);
   const body: ApiResponse<DataQualityReport> = await res.json();
   if (body.error) throw new Error(body.error);
   if (!body.data) throw new Error("No quality report returned");
@@ -110,7 +133,7 @@ export async function sendDemoChat(
   message: string,
   history: DemoChatMessage[] = []
 ): Promise<DemoChatResult> {
-  const res = await fetch(`${BASE_URL}/api/demo/chat`, {
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, history }),
@@ -122,7 +145,7 @@ export async function sendDemoChat(
 }
 
 export async function runDemoScenario(scenario: string): Promise<DemoRunResult> {
-  const res = await fetch(`${BASE_URL}/api/demo/run`, {
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scenario }),
@@ -134,7 +157,7 @@ export async function runDemoScenario(scenario: string): Promise<DemoRunResult> 
 }
 
 export async function fetchDemoScenarios(): Promise<ScenarioInfo[]> {
-  const res = await fetch(`${BASE_URL}/api/demo/scenarios`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/scenarios`);
   const body: ApiResponse<ScenarioInfo[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
@@ -154,14 +177,14 @@ export interface SessionSummary {
 }
 
 export async function fetchAllSessions(): Promise<SessionSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/sessions`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/sessions`);
   const body: ApiResponse<SessionSummary[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
 }
 
 export async function fetchSession(sessionId: string): Promise<object | null> {
-  const res = await fetch(`${BASE_URL}/api/sessions/${encodeURIComponent(sessionId)}`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/sessions/${encodeURIComponent(sessionId)}`);
   if (res.status === 404) return null;
   const body: ApiResponse<object> = await res.json();
   if (body.error) throw new Error(body.error);
@@ -169,7 +192,7 @@ export async function fetchSession(sessionId: string): Promise<object | null> {
 }
 
 export async function fetchSessionsByType(failureType: string): Promise<object[]> {
-  const res = await fetch(`${BASE_URL}/api/sessions?failure_type=${encodeURIComponent(failureType)}`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/sessions?failure_type=${encodeURIComponent(failureType)}`);
   const body: ApiResponse<object[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
@@ -228,7 +251,7 @@ export interface ChatMessageRecord {
 }
 
 export async function createChatSession(title = "New Session"): Promise<ChatSessionSummary> {
-  const res = await fetch(`${BASE_URL}/api/chat/sessions`, {
+  const res = await fetchWithRetry(`${BASE_URL}/api/chat/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
@@ -239,14 +262,14 @@ export async function createChatSession(title = "New Session"): Promise<ChatSess
 }
 
 export async function listChatSessions(): Promise<ChatSessionSummary[]> {
-  const res = await fetch(`${BASE_URL}/api/chat/sessions`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/chat/sessions`);
   const body: ApiResponse<ChatSessionSummary[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
 }
 
 export async function loadChatSession(sessionId: string): Promise<ChatMessageRecord[]> {
-  const res = await fetch(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`);
+  const res = await fetchWithRetry(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`);
   const body: ApiResponse<ChatMessageRecord[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
@@ -256,7 +279,7 @@ export async function appendChatMessage(
   sessionId: string,
   message: { id: string; role: string; kind: string; content: string; report?: AnalysisReport | null; latency_ms?: number | null },
 ): Promise<void> {
-  await fetch(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+  await fetchWithRetry(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(message),
@@ -264,7 +287,7 @@ export async function appendChatMessage(
 }
 
 export async function renameChatSession(sessionId: string, title: string): Promise<void> {
-  await fetch(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
+  await fetchWithRetry(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
@@ -275,7 +298,7 @@ export async function sendFreeformQuery(
   query: string,
   history: ChatHistoryMessage[] = [],
 ): Promise<AnalysisReport> {
-  const res = await fetch(`${BASE_URL}/api/chat/freeform`, {
+  const res = await fetchWithRetry(`${BASE_URL}/api/chat/freeform`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, history }),
@@ -289,7 +312,7 @@ export async function sendFreeformQuery(
 export async function analyzeSession(
   payload: object
 ): Promise<AnalysisReport> {
-  const res = await fetch(`${BASE_URL}/api/chat`, {
+  const res = await fetchWithRetry(`${BASE_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

@@ -70,8 +70,9 @@
 
 ### A8. Add API retry with exponential backoff (frontend)
 **Gap**: All `fetch` calls in `api.ts` are fire-once. LLM calls can be flaky.
-**Action**: Add a `fetchWithRetry()` wrapper in `lib/api.ts` with 3 retries, exponential backoff (1s, 2s, 4s), and only retry on 5xx/network errors.
-**Status**: ⬜
+**Action**: Added `fetchWithRetry()` to `lib/api.ts` with 3 retries, exponential backoff (1s, 2s, 4s), retrying strictly on 5xx/429 or network errors.
+**Files updated**: `frontend/src/lib/api.ts`
+**Status**: 🟢 Done (2026-04-26)
 
 ### A9. Add basic frontend tests
 **Gap**: Zero `.test.tsx` files. `rules/testing.md` specifies Vitest + React Testing Library.
