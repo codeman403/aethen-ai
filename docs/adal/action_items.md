@@ -89,8 +89,9 @@
 
 ### A11. Document scope delta between proposal and implementation
 **Gap**: Proposal describes features (React Flow, bubble charts, 7 Neo4j node types) that weren't implemented. Evaluators who read closely will notice.
-**Action**: Add a "Scope Adjustments" section to `README.md` or a dedicated `docs/scope_adjustments.md` explaining what was descoped and why (time constraints, proxy limitations, etc.). Honesty > silence.
-**Status**: ⬜
+**Action**: Created `docs/scope_adjustments.md` with 4 sections: Implemented as Proposed, Simplified, Deferred, and Architectural Pivots. Every delta explained with reasoning.
+**Files updated**: `docs/scope_adjustments.md`
+**Status**: 🟢 Done (2026-04-26)
 
 ---
 
