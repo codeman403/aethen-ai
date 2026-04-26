@@ -7,6 +7,7 @@ from app.models.response import ApiResponse
 from app.models.trace import IngestRequest, IngestResult
 from app.services.neo4j_service import neo4j_service
 from app.services.pinecone_service import pinecone_service
+from app.services.postgres_service import postgres_service
 
 logger = structlog.get_logger()
 
@@ -44,6 +45,9 @@ async def ingest_traces(request: IngestRequest) -> ApiResponse[IngestResult]:
                 msg = f"Neo4j error for session {session.session_id}: {e}"
                 logger.error("ingest_neo4j_error", session_id=session.session_id, error=str(e))
                 errors.append(msg)
+
+        # Persist full session to Postgres (primary session store)
+        await postgres_service.save_session(session)
 
         sessions_ok += 1
         logger.info("session_ingested", session_id=session.session_id, events=event_count)
