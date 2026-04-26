@@ -17,12 +17,13 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 3 — Feature-complete. Deployment is the only remaining step.
+- **Phase**: Week 3 — Feature-complete. Mid-dev review done. Deployment remaining.
 - **Branch**: `main`
-- **Next action**: `git add -A && git commit && git push` → Render deployment → Vercel deployment
+- **Next action**: Resume from `docs/adal/action_items.md` — A10 (CI pipeline file created but not committed), then A12–A14, S1–S6, and A6 (deployment).
 - **Blocker**: None known
-- **Tests**: 32 passing (backend), frontend build clean (`pnpm build ✅`)
+- **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
 - **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
+- **Uncommitted work**: `.github/workflows/ci.yml` is created locally but not staged/committed. `frontend/package.json` has the `type-check` script added. Commit both with A10.
 
 ### Architecture (as of Session 10)
 
@@ -39,6 +40,29 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 11 — 2026-04-26 (AdaL)
+
+**Mid-Development Review & Action Items Sprint**
+
+- [x] Full review of all 19 markdown files + codebase structure + git status
+- [x] Created `docs/adal/mid_dev_review.md` — comprehensive project assessment
+- [x] Created `docs/adal/action_items.md` — 14 prioritized action items + 6 suggestions
+- [x] **A1**: Committed 40+ uncommitted files into 8 logical conventional commits, pushed to GitHub
+- [x] **Gitignore audit**: Added `.render_cache/`, `assets/`, `backend/.env`, `.env.local`
+- [x] **A2**: Wired Claude Sonnet 4.6 (`claude-sonnet-4-6`) for synthesis via Anthropic proxy in `get_anthropic_llm()`, GPT-4o-mini fallback. Updated README, CLAUDE.md, implementation_timeline.
+- [x] **A3**: Replaced `frontend/README.md` boilerplate with Aethen-specific content (tech stack, 9 pages, project structure, scripts, env vars)
+- [x] **A4**: Added "Implementation Status" tables to all 4 rules files (`testing.md`, `frontend.md`, `git.md`, `backend.md`) — honest accounting of what's implemented vs. deferred
+- [x] **UI Polish**: Upgraded Header (command palette button with ⌘K badge), Sidebar (gradient logo, ChevronsUpDown on user profile), Dashboard (skeleton loaders replacing `—` placeholders), removed default Next.js SVGs from `public/`
+- [x] **A5**: Added `@model_validator` to `Settings` in `config.py` — fails fast on missing required env vars
+- [x] **A7**: Created `frontend/src/app/(dashboard)/error.tsx` — global error boundary with retry
+- [x] **A8**: Added `fetchWithRetry()` to `lib/api.ts` — 3 retries, exponential backoff (1s/2s/4s), retries on 5xx/429/network errors
+- [x] **A9**: Installed Vitest + React Testing Library, created `page.test.tsx` and `api.test.ts` (3 tests passing), fixed `<div>` in `<p>` hydration warning, added `test` and `type-check` scripts
+- [x] **A11**: Created `docs/scope_adjustments.md` — transparent delta between proposal and implementation (13 implemented, 3 simplified, 5 deferred, 5 architectural pivots)
+
+**Not committed (resume here)**:
+- [ ] `.github/workflows/ci.yml` — created locally, needs `git add && commit && push` (A10)
+- [ ] `frontend/package.json` — `type-check` script added, needs committing with A10
 
 ### Session 10 — 2026-04-26
 
