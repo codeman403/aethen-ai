@@ -147,8 +147,16 @@
 
 ---
 
+### A15. Document and validate `_infer_failure_type` retain decision
+**Gap**: Audit (Session 12) found `_infer_failure_type` in `langfuse_provider.py` is mostly dead in the analysis pipeline — `classify_intent` always overwrites it. Keeping it for two reasons only: (a) display pre-label before analysis runs, (b) `retrieve.py:76` Neo4j pattern matching depends on it.
+**Action**: Add inline comment to `_infer_failure_type` stating its narrow role. Add comment to `retrieve.py:76` explaining it reads pre-set label as a hint. No code deletion — retain is the decision.
+**Status**: ⬜
+
+---
+
 ## Change Log
 
 | Date | Item | Action | Notes |
 |------|------|--------|-------|
 | 2026-04-25 | — | File created from mid-dev review | — |
+| 2026-04-26 | A15 | Added from Session 12 classification audit | `_infer_failure_type` retain decision documented |

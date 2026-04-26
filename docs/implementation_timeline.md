@@ -543,6 +543,44 @@ classification is more important than saving one GPT-4o-mini call.
 
 ---
 
+## Classification Architecture Audit — 2026-04-26 (Session 12)
+
+### Finding: Three overlapping failure-type classification layers
+
+A thorough audit of the failure type classification pipeline revealed three separate layers:
+
+1. `_infer_failure_type()` in `backend/app/providers/langfuse_provider.py` — heuristic keyword matching at ingestion time (tags → trace name → content → structural signals)
+2. `classify_intent()` in `backend/app/agents/nodes/classify.py` — LLM-based evidence classification, always runs first in the graph
+3. `_llm_route()` in `backend/app/api/chat.py` — intent router for freeform chat; picks `failure_type` for Postgres session filtering
+
+**Layer 1 (`_infer_failure_type`) — mostly dead in the analysis pipeline:**
+- Result stored in Postgres `sessions.failure_type` column
+- `classify_intent` always overwrites it (LLM runs unconditionally — Session 10 decision)
+- One real dependency: `retrieve.py:76` uses `session.failure_type` for Neo4j pattern matching before classification state is written
+- Narrow value: pre-labels sessions for UI display before a full analysis has run
+
+**Layer 3 (`_llm_route`) — useful for filtering, redundant for classification:**
+- The `failure_type` it returns is used for Postgres session filtering (correct use)
+- That value is then passed into the graph where `classify_intent` re-classifies from evidence (redundant, accepted)
+
+**Efficiency vs accuracy trade-off:**
+- Heuristic (Layer 1): zero API cost, microseconds, moderate accuracy
+- LLM (Layer 2): GPT-4o-mini cost per analysis run, ~200ms latency, high accuracy
+- Current design pays LLM cost on every run, even for correctly pre-labeled sessions
+
+### Decision: Keep current architecture; document roles clearly
+
+Reverting to a short-circuit in `classify_intent` would re-introduce the wrong-classification bugs fixed in Session 10. The LLM always classifying from evidence is load-bearing.
+
+Layer 1 (`_infer_failure_type`) is kept because:
+- It gives sessions a display label before any analysis runs
+- `retrieve.py:76` depends on it for Neo4j pattern matching at retrieval time
+- Removing it would show `UNKNOWN` everywhere until analysis completes
+
+**Potential future optimization:** Conditional LLM skip when heuristic confidence is provably HIGH (e.g., explicit failure-type tags, not just keyword guesses). Not implemented — premature at current scale.
+
+---
+
 ## Decisions Still Open / To Monitor
 
 | Decision | Status | Notes |
@@ -570,3 +608,5 @@ classification is more important than saving one GPT-4o-mini call.
 6. **Claude Sonnet 4.6 is wired for synthesis** via the Anthropic proxy (`get_anthropic_llm()` in `app/agents/llm.py`). Model name: `claude-sonnet-4-6`. The API key is a proxy key. Falls back to GPT-4o-mini if no Anthropic key is set. Never instantiate LLM clients directly — always use the factory.
 
 7. **Update this document** whenever a significant decision is made.
+
+8. **`_infer_failure_type` in `langfuse_provider.py` is intentionally kept** as a display pre-label and `retrieve.py` fallback. It is NOT authoritative — `classify_intent` always overwrites it during analysis. Do not remove it without also fixing `retrieve.py:76`.

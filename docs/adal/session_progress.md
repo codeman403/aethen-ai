@@ -20,7 +20,7 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 - **Phase**: Week 3 — Feature-complete. Mid-dev review done. Deployment remaining.
 - **Branch**: `main`
 - **Next action**: Resume from `docs/adal/action_items.md`:
-  1. **A10**: CI pipeline — `.github/workflows/ci.yml` was NOT persisted from Session 10 (needs recreation). Also add `type-check` script to `frontend/package.json`. Then commit rules/ changes + CI + push.
+  1. **A10**: CI pipeline — `.github/workflows/ci.yml` (needs creation). Add `type-check` script to `frontend/package.json`. Commit rules/ changes + CI + push.
   2. **A12**: Add `loading.tsx` skeleton screens for route segments.
   3. **A13**: Auto-refresh dashboard every 60s.
   4. **S3**: Create evaluator guide (`docs/EVALUATOR_GUIDE.md`).
@@ -29,7 +29,7 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 - **Blocker**: None known
 - **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
 - **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
-- **Uncommitted work**: 4 modified `rules/` files (implementation status tables from A4 — tracked but not committed). `.github/workflows/ci.yml` needs to be recreated. `frontend/package.json` needs `type-check` script added.
+- **Uncommitted work**: 4 modified `rules/` files (implementation status tables from A4 — tracked but not committed). `.github/workflows/ci.yml` needs to be created. `frontend/package.json` needs `type-check` script added.
 
 ### Architecture (as of Session 10)
 
@@ -46,6 +46,23 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 12 — 2026-04-26 (Claude Code)
+
+**Classification Architecture Audit + Development Continuation**
+
+- [x] **Architectural audit**: Mapped all three failure-type classification layers — `_infer_failure_type` (heuristic ingestion), `classify_intent` (LLM, authoritative), `_llm_route` (chat routing)
+- [x] **Finding**: `_infer_failure_type` is dead in the analysis pipeline (always overwritten by `classify_intent`) but has two valid uses: UI display pre-label + `retrieve.py:76` Neo4j pattern matching hint
+- [x] **Finding**: `_llm_route` failure_type is correctly used for Postgres session filtering; the redundant re-classification by the graph is accepted (not worth optimizing)
+- [x] **Efficiency insight**: Heuristic (Layer 1) is zero-cost + instant; LLM (Layer 2) costs per-run. Current design pays LLM unconditionally — correct tradeoff given Session 10's accuracy requirement
+- [x] **A15 added to action_items.md**: Add inline comments clarifying `_infer_failure_type` narrow role and `retrieve.py:76` dependency
+- [x] Updated `docs/implementation_timeline.md` — Classification Architecture Audit section added
+- [x] Updated `docs/adal/session_progress.md` — instruction #11 expanded with three-layer context
+
+**Not committed (resume here)**:
+- [ ] `.github/workflows/ci.yml` — needs creation (A10)
+- [ ] `frontend/package.json` — `type-check` script not yet added (A10)
+- [ ] 4 modified `rules/` files — uncommitted since Session 11
 
 ### Session 11 — 2026-04-26 (AdaL)
 
@@ -469,6 +486,7 @@ Three clearly separated data stores — each owns a distinct responsibility:
     - `"general"` → LLM catch-all with trace stats + conversation history.
     - DO NOT add pattern-matching back for stats/list — use text-to-SQL instead.
 11. **classify_intent ALWAYS uses LLM** — the short-circuit (`if session.failure_type → return early`) has been removed. The LLM reads actual evidence (retrieval scores, tool errors, LLM prompt/response) to determine failure type. Pre-set labels are a fallback only.
+    - **Three classification layers exist**: `_infer_failure_type` (heuristic, ingestion-time, `langfuse_provider.py`) → `classify_intent` (LLM, always authoritative, `nodes/classify.py`) → `_llm_route` (freeform chat routing only, `api/chat.py`). The heuristic layer pre-labels sessions for UI display and feeds `retrieve.py:76` for Neo4j pattern matching. Do NOT remove it. `classify_intent` always overwrites it. See `docs/implementation_timeline.md` — Classification Architecture Audit for the full analysis.
 12. **Langfuse tracing** — all LangGraph `ainvoke()` calls must pass a `CallbackHandler` config. Use `make_langfuse_handler()` from `app/utils/langfuse_utils.py`. Flush after invoke.
 13. **Implementation timeline** — `docs/implementation_timeline.md` is the canonical decision log. Update it whenever: a significant architectural decision is made, a technical path fails and is replaced, or a new component is added.
 14. **Scenario documentation** — `docs/scenarios/` contains demo scenarios for evaluators. Add new scenarios here when discovered. The `aethen_self_analysis.md` scenario (Aethen diagnosing its own failures) is the strongest demo case.
