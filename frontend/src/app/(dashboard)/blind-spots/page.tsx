@@ -3,19 +3,15 @@
 import { useState } from "react";
 import {
   Network,
-  Search,
   AlertCircle,
   TrendingUp,
   Layers,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  analyzeSession,
-  buildBlindSpotSession,
-  type AnalysisReport,
-  type Finding,
-} from "@/lib/api";
+import { SessionsList } from "@/components/features/SessionsList";
+import { SessionContext } from "@/components/features/SessionContext";
+import { analyzeSession, type AnalysisReport, type Finding } from "@/lib/api";
 
 function ClusterNode({
   label,
@@ -115,17 +111,21 @@ function FindingDetails({ finding }: { finding: Finding }) {
 }
 
 export default function BlindSpotsPage() {
-  const [sessionId, setSessionId] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
 
-  const handleAnalyze = async () => {
+  const handleSelectSession = async (sessionData: object) => {
+    const s = sessionData as { session_id: string };
+    setSelectedId(s.session_id);
+    setSelectedSession(sessionData as Record<string, unknown>);
     setIsLoading(true);
     setError(null);
     try {
-      const result = await analyzeSession(buildBlindSpotSession(sessionId));
+      const result = await analyzeSession(sessionData);
       setReport(result);
       setSelectedFinding(result.findings[0] ?? null);
     } catch (err) {
@@ -151,42 +151,26 @@ export default function BlindSpotsPage() {
         </p>
       </div>
 
-      <div className="relative max-w-2xl group">
-        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-          <Search className="size-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+      {isLoading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Analyzing session...
         </div>
-        <input
-          type="text"
-          value={sessionId}
-          onChange={(e) => setSessionId(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-          placeholder="Enter Session ID..."
-          className="flex h-14 w-full rounded-xl border border-input bg-card pl-12 pr-32 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-        />
-        <div className="absolute inset-y-0 right-2 flex items-center">
-          <Button
-            size="sm"
-            className="h-10 px-6 rounded-lg font-medium tracking-wide"
-            onClick={handleAnalyze}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="size-4 mr-2 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              "Analyze"
-            )}
-          </Button>
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="max-w-2xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
+
+      <div className="max-w-2xl">
+        <SessionsList
+          failureType="blind_spot"
+          onSelect={handleSelectSession}
+          selectedId={selectedId}
+        />
+        {selectedSession && <SessionContext session={selectedSession} />}
+      </div>
 
       <div className="grid lg:grid-cols-3 gap-6 h-[600px]">
         {/* Graph Area */}

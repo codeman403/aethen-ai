@@ -1,5 +1,182 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// ── Dashboard Stats ────────────────────────────────────────────────────────
+
+export interface FailureBreakdown {
+  memory: number;
+  tool_misfire: number;
+  hallucination: number;
+  blind_spot: number;
+}
+
+export interface DashboardStats {
+  total_sessions: number;
+  failure_breakdown: FailureBreakdown;
+  recent_sessions: number;
+  daily_counts: number[];
+  reliability_score: number;
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  const res = await fetch(`${BASE_URL}/api/stats`);
+  const body: ApiResponse<DashboardStats> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No stats data returned");
+  return body.data;
+}
+
+// ── Langfuse ───────────────────────────────────────────────────────────────
+
+export interface LangfusePullResult {
+  sessions_ingested: number;
+  events_processed: number;
+  errors: string[];
+}
+
+export async function pullLangfuseTraces(limit: number = 20): Promise<LangfusePullResult> {
+  const res = await fetch(`${BASE_URL}/api/langfuse/pull`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ limit }),
+  });
+  const body: ApiResponse<LangfusePullResult> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No data returned from Langfuse pull");
+  return body.data;
+}
+
+// ── Data Quality ───────────────────────────────────────────────────────────
+
+export interface QualityCheck {
+  name: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+  count: number;
+  flagged: number;
+}
+
+export interface SourceReport {
+  source: string;
+  total: number;
+  status: "pass" | "warn" | "fail";
+  checks: QualityCheck[];
+}
+
+export interface DataQualityReport {
+  generated_at: string;
+  overall_status: "pass" | "warn" | "fail";
+  sources: SourceReport[];
+  summary_text: string;
+}
+
+export async function fetchQualityReport(): Promise<DataQualityReport> {
+  const res = await fetch(`${BASE_URL}/api/qc/report`);
+  const body: ApiResponse<DataQualityReport> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No quality report returned");
+  return body.data;
+}
+
+// ── Demo Agent ─────────────────────────────────────────────────────────────
+
+export interface DemoRunResult {
+  scenario: string;
+  scenario_name: string;
+  user_message: string;
+  assistant_response: string;
+  session_id: string;
+  langfuse_traced: boolean;
+}
+
+export interface ScenarioInfo {
+  key: string;
+  name: string;
+  description: string;
+}
+
+export interface DemoChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface DemoChatResult {
+  user_message: string;
+  assistant_response: string;
+  session_id: string;
+  langfuse_traced: boolean;
+}
+
+export async function sendDemoChat(
+  message: string,
+  history: DemoChatMessage[] = []
+): Promise<DemoChatResult> {
+  const res = await fetch(`${BASE_URL}/api/demo/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  const body: ApiResponse<DemoChatResult> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No data returned from chat");
+  return body.data;
+}
+
+export async function runDemoScenario(scenario: string): Promise<DemoRunResult> {
+  const res = await fetch(`${BASE_URL}/api/demo/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scenario }),
+  });
+  const body: ApiResponse<DemoRunResult> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No data returned from demo run");
+  return body.data;
+}
+
+export async function fetchDemoScenarios(): Promise<ScenarioInfo[]> {
+  const res = await fetch(`${BASE_URL}/api/demo/scenarios`);
+  const body: ApiResponse<ScenarioInfo[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+// ── Sessions ───────────────────────────────────────────────────────────────
+
+export interface SessionSummary {
+  session_id: string;
+  agent_id: string;
+  failure_type: string | null;
+  timestamp: string;
+  failure_summary: string | null;
+  llm_calls: number;
+  tool_calls: number;
+  retrieval_events: number;
+}
+
+export async function fetchAllSessions(): Promise<SessionSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/sessions`);
+  const body: ApiResponse<SessionSummary[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function fetchSession(sessionId: string): Promise<object | null> {
+  const res = await fetch(`${BASE_URL}/api/sessions/${encodeURIComponent(sessionId)}`);
+  if (res.status === 404) return null;
+  const body: ApiResponse<object> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? null;
+}
+
+export async function fetchSessionsByType(failureType: string): Promise<object[]> {
+  const res = await fetch(`${BASE_URL}/api/sessions?failure_type=${encodeURIComponent(failureType)}`);
+  const body: ApiResponse<object[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+// ── Analysis ───────────────────────────────────────────────────────────────
+
 export interface Finding {
   title: string;
   severity: "low" | "medium" | "high" | "critical";
@@ -22,6 +199,91 @@ interface ApiResponse<T> {
   data: T | null;
   error: string | null;
   metadata: { request_id: string; duration_ms: number } | null;
+}
+
+export interface ChatHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+// ── Chat Sessions ──────────────────────────────────────────────────────────
+
+export interface ChatSessionSummary {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  session_id: string;
+  role: string;
+  kind: string;
+  content: string;
+  report: AnalysisReport | null;
+  latency_ms: number | null;
+  created_at: string | null;
+}
+
+export async function createChatSession(title = "New Session"): Promise<ChatSessionSummary> {
+  const res = await fetch(`${BASE_URL}/api/chat/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  const body: ApiResponse<ChatSessionSummary> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data!;
+}
+
+export async function listChatSessions(): Promise<ChatSessionSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/chat/sessions`);
+  const body: ApiResponse<ChatSessionSummary[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function loadChatSession(sessionId: string): Promise<ChatMessageRecord[]> {
+  const res = await fetch(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`);
+  const body: ApiResponse<ChatMessageRecord[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function appendChatMessage(
+  sessionId: string,
+  message: { id: string; role: string; kind: string; content: string; report?: AnalysisReport | null; latency_ms?: number | null },
+): Promise<void> {
+  await fetch(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(message),
+  });
+}
+
+export async function renameChatSession(sessionId: string, title: string): Promise<void> {
+  await fetch(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function sendFreeformQuery(
+  query: string,
+  history: ChatHistoryMessage[] = [],
+): Promise<AnalysisReport> {
+  const res = await fetch(`${BASE_URL}/api/chat/freeform`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, history }),
+  });
+  const body: ApiResponse<AnalysisReport> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No analysis returned");
+  return body.data;
 }
 
 export async function analyzeSession(

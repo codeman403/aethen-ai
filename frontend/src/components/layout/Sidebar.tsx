@@ -3,12 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  BrainCircuit, 
-  Wrench, 
-  ScanSearch, 
-  Network 
+import {
+  LayoutDashboard,
+  BrainCircuit,
+  Wrench,
+  ScanSearch,
+  Network,
+  Bot,
+  ShieldCheck,
+  Eye,
+  MessageSquare,
 } from "lucide-react";
 
 const navItems = [
@@ -17,6 +21,16 @@ const navItems = [
   { label: "Tool Misfire", href: "/tool-misfire", icon: Wrench },
   { label: "Hallucination RCA", href: "/hallucination-rca", icon: ScanSearch },
   { label: "Blind Spots", href: "/blind-spots", icon: Network },
+  { label: "Trace Explorer", href: "/traces", icon: Eye },
+  { label: "Chat Debug", href: "/chat", icon: MessageSquare },
+];
+
+const demoItems = [
+  { label: "Demo Agent", href: "/demo-agent", icon: Bot },
+];
+
+const systemItems = [
+  { label: "Data Quality", href: "/data-quality", icon: ShieldCheck },
 ];
 
 export function Sidebar() {
@@ -33,32 +47,87 @@ export function Sidebar() {
         </Link>
       </div>
       
-      <div className="flex-1 overflow-auto py-6 px-4">
-        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
-          Intelligence Modules
+      <div className="flex-1 overflow-auto py-6 px-4 space-y-6">
+        <div>
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
+            Intelligence Modules
+          </div>
+          <nav className="flex flex-col gap-1.5">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "bg-primary/10 text-primary shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Icon className={cn("size-[18px]", isActive ? "text-primary" : "text-muted-foreground/70")} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-        <nav className="flex flex-col gap-1.5">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
-            
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-                  isActive 
-                    ? "bg-primary/10 text-primary shadow-sm" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <Icon className={cn("size-[18px]", isActive ? "text-primary" : "text-muted-foreground/70")} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+
+        <div>
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
+            Live Demo
+          </div>
+          <nav className="flex flex-col gap-1.5">
+            {demoItems.map((item) => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "bg-primary/10 text-primary shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Icon className={cn("size-[18px]", isActive ? "text-primary" : "text-muted-foreground/70")} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div>
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
+            System
+          </div>
+          <nav className="flex flex-col gap-1.5">
+            {systemItems.map((item) => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "bg-primary/10 text-primary shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Icon className={cn("size-[18px]", isActive ? "text-primary" : "text-muted-foreground/70")} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
       </div>
       
       <div className="p-4 border-t border-border/50 mt-auto bg-muted/20">

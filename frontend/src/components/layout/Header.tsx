@@ -1,7 +1,17 @@
-import { Search, Bell, Settings } from "lucide-react";
+"use client";
+
+import { Search, Bell, Settings, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Avoid hydration mismatch — render toggle only after mount
+  useEffect(() => setMounted(true), []);
+
   return (
     <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between px-8">
       <div className="flex items-center gap-4">
@@ -12,7 +22,7 @@ export function Header() {
           </span>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-3">
         <div className="relative hidden md:flex items-center">
           <Search className="absolute left-3 size-4 text-muted-foreground/70" />
@@ -23,6 +33,21 @@ export function Header() {
           />
         </div>
         <div className="flex items-center gap-1 ml-2 border-l pl-4 py-1">
+          {mounted && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full text-muted-foreground hover:text-foreground"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              aria-label="Toggle theme"
+            >
+              {resolvedTheme === "dark" ? (
+                <Sun className="size-[18px]" />
+              ) : (
+                <Moon className="size-[18px]" />
+              )}
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="size-9 rounded-full text-muted-foreground hover:text-foreground">
             <Bell className="size-[18px]" />
           </Button>
