@@ -77,7 +77,7 @@ function ChatTurn({ result }: { result: DemoRunResult }) {
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-400">
       {/* Scenario label + trace badge */}
       <div className="flex items-center justify-between">
-        <span className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider ${scenario?.color ?? "text-muted-foreground"}`}>
+        <span className={`flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider ${scenario?.color ?? "text-muted-foreground"}`}>
           <Icon className="size-3.5" />
           {result.scenario_name}
         </span>
@@ -91,7 +91,7 @@ function ChatTurn({ result }: { result: DemoRunResult }) {
 
       {/* User bubble */}
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-4 py-2.5 text-sm leading-relaxed shadow-sm">
+        <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-4 py-2.5 text-base leading-relaxed shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
           {result.user_message}
         </div>
       </div>
@@ -101,7 +101,7 @@ function ChatTurn({ result }: { result: DemoRunResult }) {
         <div className={`shrink-0 size-7 rounded-full flex items-center justify-center border ${scenario?.bg.split(" ")[0] ?? "bg-muted"}`}>
           <Icon className={`size-3.5 ${scenario?.color ?? "text-muted-foreground"}`} />
         </div>
-        <div className="max-w-[80%] rounded-2xl rounded-tl-sm border bg-card px-4 py-2.5 text-sm leading-relaxed shadow-sm">
+        <div className="max-w-[80%] rounded-2xl rounded-tl-sm border bg-card px-4 py-2.5 text-base leading-relaxed shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
           {result.assistant_response}
         </div>
       </div>
@@ -183,13 +183,13 @@ export default function DemoAgentPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-          <div className="p-2 bg-primary/10 text-primary rounded-lg border border-primary/20">
+        <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-foreground flex items-center gap-3">
+          <div className="p-2 bg-primary/10 text-primary rounded-xl border border-primary/20">
             <Bot className="size-6" />
           </div>
           Demo Agent
         </h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-base">
           Generate real failure traces directly from the browser. Each scenario fires a live LLM call, sends the trace to Langfuse, and displays the response below.
         </p>
       </div>
@@ -208,7 +208,7 @@ export default function DemoAgentPage() {
                 isRunning ? s.activeBg : s.bg
               }`}
             >
-              <div className={`p-2 rounded-lg border ${s.bg.split(" ")[0]} ${s.color}`}>
+              <div className={`p-2 rounded-xl border ${s.bg.split(" ")[0]} ${s.color}`}>
                 {isRunning ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
@@ -216,8 +216,8 @@ export default function DemoAgentPage() {
                 )}
               </div>
               <div>
-                <p className={`text-sm font-semibold ${s.color}`}>{s.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+                <p className={`text-base font-semibold ${s.color}`}>{s.label}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{s.description}</p>
               </div>
               {!loading && (
                 <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
@@ -229,20 +229,20 @@ export default function DemoAgentPage() {
 
       {/* Scenario error */}
       {scenarioError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
           {scenarioError}
         </div>
       )}
 
       {/* Chat log */}
       {turns.length > 0 ? (
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
           <div className="px-6 py-4 border-b bg-muted/20 flex items-center justify-between">
             <h3 className="font-semibold tracking-tight flex items-center gap-2">
               <Bot className="size-4 text-muted-foreground" />
               Trace Log
             </h3>
-            <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-md border">
+            <span className="text-sm text-muted-foreground bg-muted px-2.5 py-1 rounded-lg border">
               {turns.length} scenario{turns.length !== 1 ? "s" : ""} run
             </span>
           </div>
@@ -258,15 +258,15 @@ export default function DemoAgentPage() {
       ) : (
         <div className="rounded-xl border border-dashed bg-muted/10 p-12 text-center">
           <Bot className="size-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">No traces yet</p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
+          <p className="text-base font-medium text-muted-foreground">No traces yet</p>
+          <p className="text-sm text-muted-foreground/70 mt-1">
             Click a scenario button above to generate your first trace.
           </p>
         </div>
       )}
 
       {/* ── Free-form Chat ────────────────────────────────────────────────── */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
         <div className="px-6 py-4 border-b bg-muted/20 flex items-center gap-2">
           <MessageSquare className="size-4 text-muted-foreground" />
           <h3 className="font-semibold tracking-tight">Free-form Chat</h3>
@@ -278,7 +278,7 @@ export default function DemoAgentPage() {
         {/* Messages */}
         <div className="p-6 space-y-4 min-h-[180px] max-h-[420px] overflow-y-auto">
           {chatTurns.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
+            <p className="text-base text-muted-foreground text-center py-8">
               Type a message below to start a conversation. Every turn is traced to Langfuse.
             </p>
           ) : (
@@ -290,7 +290,7 @@ export default function DemoAgentPage() {
                   </div>
                 )}
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
+                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-base leading-relaxed shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 ${
                     t.role === "user"
                       ? "rounded-tr-sm bg-primary text-primary-foreground"
                       : "rounded-tl-sm border bg-muted/40"
@@ -320,7 +320,7 @@ export default function DemoAgentPage() {
 
         {/* Input */}
         {chatError && (
-          <div className="mx-6 mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="mx-6 mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {chatError}
           </div>
         )}
@@ -333,12 +333,12 @@ export default function DemoAgentPage() {
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
             placeholder="Type a message…"
             disabled={chatLoading}
-            className="flex-1 rounded-lg border bg-card px-4 py-2.5 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:opacity-50"
+            className="flex-1 rounded-xl border bg-card px-4 py-2.5 text-base shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:opacity-50"
           />
           <button
             onClick={handleChatSend}
             disabled={chatLoading || !chatInput.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {chatLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </button>
@@ -347,7 +347,7 @@ export default function DemoAgentPage() {
 
       {/* Workflow hint */}
       {(turns.length > 0 || chatTurns.length > 0) && (
-        <div className="rounded-lg border bg-muted/20 px-5 py-4 text-sm text-muted-foreground flex items-start gap-3">
+        <div className="rounded-xl border bg-muted/20 px-5 py-4 text-base text-muted-foreground flex items-start gap-3">
           <CheckCircle2 className="size-4 text-emerald-500 mt-0.5 shrink-0" />
           <span>
             Traces sent to Langfuse. Go to the{" "}

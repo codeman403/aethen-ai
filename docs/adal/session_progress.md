@@ -17,17 +17,18 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 3 — Production hardening. P0 fixes applied, P1 next.
+- **Phase**: Week 3 — Production hardening + UI polish.
 - **Branch**: `main`
 - **Next action**:
-  1. **P1 fixes**: Hallucination content heuristics, diagnostic output validation, adversarial test traces (see `docs/adal/gap_analysis.md` §2.4, §3.1, §3.3)
-  2. **P2 fixes**: Multi-hop Neo4j queries, vector search namespace separation (see `docs/adal/gap_analysis.md` §3.2, §3.4)
-  3. **Deploy**: Render + Vercel — fill ENV vars, deploy, verify end-to-end.
-  4. **S1**: Record demo GIF for README.
-- **Blocker**: None known
+  1. **🔴 UI Fixes (U1-U5)**: Outstanding UI issues from Sessions 15-16 — results positioning (top not bottom), prominent "Analyzing..." state, search boxes on all pages, font/readability audit, general layout fixes. See `docs/adal/action_items.md` §Outstanding UI Issues. **Do a fresh visual audit with user feedback at each step.**
+  2. **P1 fixes**: Hallucination content heuristics, diagnostic output validation, adversarial test traces (see `docs/adal/gap_analysis.md` §2.4, §3.1, §3.3)
+  3. **P2 fixes**: Multi-hop Neo4j queries, vector search namespace separation (see `docs/adal/gap_analysis.md` §3.2, §3.4)
+  4. **Deploy**: Render + Vercel — fill ENV vars, deploy, verify end-to-end.
+  5. **S1**: Record demo GIF for README.
+- **Blocker**: UI issues must be resolved before deployment — user has flagged them multiple times.
 - **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
 - **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
-- **Uncommitted work**: Sessions 13-15 changes — commit before deploying. Session 15 gap analysis + P0 fixes. Key files changed: `backend/app/agents/nodes/classify.py`, `backend/app/providers/langfuse_provider.py`, `docs/adal/gap_analysis.md`.
+- **Uncommitted work**: Sessions 13-16 changes — commit before deploying. Includes gap analysis, P0 fixes, and UI refactoring across all diagnostic pages + landing page.
 
 ### Architecture (as of Session 10)
 

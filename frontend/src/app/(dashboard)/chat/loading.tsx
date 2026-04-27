@@ -3,10 +3,10 @@ export default function ChatLoading() {
     <div className="flex h-[calc(100vh-4rem)] animate-pulse">
       {/* Sessions sidebar */}
       <div className="w-64 border-r border-white/10 p-4 space-y-3 shrink-0">
-        <div className="h-8 w-full rounded-md bg-white/10" />
+        <div className="h-8 w-full rounded-lg bg-white/10" />
         <div className="space-y-2 pt-1">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-10 w-full rounded-lg bg-white/10" />
+            <div key={i} className="h-10 w-full rounded-xl bg-white/10" />
           ))}
         </div>
       </div>

@@ -151,7 +151,7 @@ export default function HomePage() {
     { title: "Langfuse Live Mode",             time: "Active",       type: "info",    desc: "Generate traces via the Demo Agent",               href: "/demo-agent" },
   ];
 
-  const cardCls = "relative overflow-hidden rounded-xl border bg-card p-6 text-card-foreground shadow-sm transition-all hover:shadow-md hover:border-primary/20 group cursor-pointer";
+  const cardCls = "relative overflow-hidden rounded-xl border bg-card p-6 text-card-foreground shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 transition-all hover:shadow-md hover:border-primary/20 group cursor-pointer";
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -159,8 +159,8 @@ export default function HomePage() {
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Platform Overview</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-foreground">Platform Overview</h2>
+          <p className="text-muted-foreground text-base">
             Agent performance metrics and real-time failure intelligence.
           </p>
         </div>
@@ -168,7 +168,7 @@ export default function HomePage() {
           <button
             onClick={handleLangfusePull}
             disabled={pulling}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             <Zap className={`size-4 ${pulling ? "animate-pulse" : ""}`} />
             {pulling ? "Pulling..." : "Pull Langfuse"}
@@ -176,7 +176,7 @@ export default function HomePage() {
           <button
             onClick={() => loadStats()}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-base font-medium hover:bg-muted transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -184,12 +184,12 @@ export default function HomePage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/30 p-4 text-sm text-rose-700 dark:text-rose-400">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/30 p-4 text-base text-rose-700 dark:text-rose-400">
           {error}
         </div>
       )}
       {pullResult && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 text-sm text-emerald-700 dark:text-emerald-400">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 text-base text-emerald-700 dark:text-emerald-400">
           {pullResult}
         </div>
       )}
@@ -202,18 +202,18 @@ export default function HomePage() {
           const body = (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">{card.label}</p>
-                <div className={`p-2.5 rounded-lg ${card.positive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"}`}>
+                <p className="text-base font-medium text-muted-foreground group-hover:text-foreground transition-colors">{card.label}</p>
+                <div className={`p-2.5 rounded-xl ${card.positive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"}`}>
                   <Icon className="size-[18px]" />
                 </div>
               </div>
               <div className="mt-4 flex items-baseline gap-2">
-                <div className="text-3xl font-bold tracking-tight h-9 flex items-center">
-                  {loading ? <div className="h-8 w-20 bg-muted/60 animate-pulse rounded-md" /> : card.value}
+                <div className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent h-9 flex items-center">
+                  {loading ? <div className="h-8 w-20 bg-muted/60 animate-pulse rounded-lg" /> : card.value}
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-2 text-xs">
-                <span className={`flex items-center font-medium px-1.5 py-0.5 rounded-md ${card.positive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"}`}>
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className={`flex items-center font-medium px-1.5 py-0.5 rounded-lg ${card.positive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"}`}>
                   <TrendIcon className="mr-1 size-3" />{card.trend}
                 </span>
                 <span className="text-muted-foreground">{card.description}</span>
@@ -230,15 +230,15 @@ export default function HomePage() {
       </div>
 
       {/* ── Reliability Score Gauge ───────────────────────────────────── */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
         <div className="px-6 py-4 border-b bg-muted/10 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-lg tracking-tight">Platform Reliability Score</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Percentage of sessions that completed without a detected failure
             </p>
           </div>
-          <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${scoreBg} ${scoreLabelColor}`}>
+          <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${scoreBg} ${scoreLabelColor}`}>
             {scoreLabel}
           </span>
         </div>
@@ -261,7 +261,7 @@ export default function HomePage() {
                 out of 100
               </text>
             </svg>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
               <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-rose-500 inline-block" />0–49 Critical</span>
               <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-500 inline-block" />50–79 Degraded</span>
               <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-500 inline-block" />80–100 Healthy</span>
@@ -272,12 +272,12 @@ export default function HomePage() {
           <div className="flex-1 grid grid-cols-2 gap-4 w-full">
             {/* Successful → /traces */}
             <Link href="/traces"
-              className="rounded-lg border bg-emerald-500/5 border-emerald-500/20 p-4 hover:bg-emerald-500/10 transition-colors group">
-              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Successful</p>
+              className="rounded-xl border bg-emerald-500/5 border-emerald-500/20 p-4 hover:bg-emerald-500/10 transition-colors group">
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Successful</p>
               <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
-                {loading ? <div className="h-8 w-24 bg-emerald-500/20 animate-pulse rounded-md" /> : totalSuccess.toLocaleString()}
+                {loading ? <div className="h-8 w-24 bg-emerald-500/20 animate-pulse rounded-lg" /> : totalSuccess.toLocaleString()}
               </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <div className="text-sm text-muted-foreground flex items-center gap-1">
                 sessions completed cleanly
                 <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
@@ -285,20 +285,20 @@ export default function HomePage() {
 
             {/* Failures Detected → /traces */}
             <Link href="/traces"
-              className="rounded-lg border bg-rose-500/5 border-rose-500/20 p-4 hover:bg-rose-500/10 transition-colors group">
-              <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">Failures Detected</p>
+              className="rounded-xl border bg-rose-500/5 border-rose-500/20 p-4 hover:bg-rose-500/10 transition-colors group">
+              <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">Failures Detected</p>
               <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
-                {loading ? <div className="h-8 w-24 bg-rose-500/20 animate-pulse rounded-md" /> : totalFailed.toLocaleString()}
+                {loading ? <div className="h-8 w-24 bg-rose-500/20 animate-pulse rounded-lg" /> : totalFailed.toLocaleString()}
               </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <div className="text-sm text-muted-foreground flex items-center gap-1">
                 sessions with diagnosed failures
                 <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </Link>
 
             {/* Failure breakdown rows — each links to its module */}
-            <div className="col-span-2 rounded-lg border bg-muted/20 p-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            <div className="col-span-2 rounded-xl border bg-muted/20 p-4">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Failure Breakdown — click to investigate
               </p>
               <div className="space-y-2">
@@ -307,13 +307,13 @@ export default function HomePage() {
                   return (
                     <Link key={label} href={href}
                       className="flex items-center gap-3 py-0.5 rounded group hover:opacity-80 transition-opacity">
-                      <span className="text-xs text-muted-foreground w-32 flex-shrink-0 group-hover:text-foreground transition-colors">
+                      <span className="text-sm text-muted-foreground w-32 flex-shrink-0 group-hover:text-foreground transition-colors">
                         {label}
                       </span>
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="text-xs font-medium tabular-nums w-6 text-right">{value}</span>
+                      <span className="text-sm font-medium tabular-nums w-6 text-right">{value}</span>
                       <ChevronRight className="size-3 text-muted-foreground/40 group-hover:text-primary flex-shrink-0 transition-colors" />
                     </Link>
                   );
@@ -328,16 +328,16 @@ export default function HomePage() {
       <div className="grid gap-6 md:grid-cols-7">
 
         {/* Failure Distribution chart */}
-        <div className="col-span-4 rounded-xl border bg-card p-6 shadow-sm flex flex-col">
+        <div className="col-span-4 rounded-xl border bg-card p-6 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h3 className="font-semibold text-lg tracking-tight">Failure Distribution</h3>
-              <p className="text-xs text-muted-foreground mt-1">Daily failure count across all modules</p>
+              <p className="text-sm text-muted-foreground mt-1">Daily failure count across all modules</p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-md border">Last 7 days</span>
+              <span className="text-sm font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-lg border">Last 7 days</span>
               <Link href="/traces"
-                className="text-xs font-medium text-primary flex items-center gap-1 hover:underline">
+                className="text-sm font-medium text-primary flex items-center gap-1 hover:underline">
                 View all <ChevronRight className="size-3" />
               </Link>
             </div>
@@ -366,34 +366,34 @@ export default function HomePage() {
         </div>
 
         {/* Recent Alerts — all items link to their module */}
-        <div className="col-span-3 rounded-xl border bg-card p-0 shadow-sm flex flex-col overflow-hidden">
+        <div className="col-span-3 rounded-xl border bg-card p-0 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col overflow-hidden">
           <div className="p-6 border-b flex items-center justify-between bg-muted/10">
             <div>
               <h3 className="font-semibold text-lg tracking-tight">Recent Alerts</h3>
-              <p className="text-xs text-muted-foreground mt-1">System notifications and anomalies</p>
+              <p className="text-sm text-muted-foreground mt-1">System notifications and anomalies</p>
             </div>
             <Link href="/data-quality"
-              className="text-xs font-medium text-primary flex items-center gap-1 hover:underline">
+              className="text-sm font-medium text-primary flex items-center gap-1 hover:underline">
               Data Quality <ChevronRight className="size-3" />
             </Link>
           </div>
           <div className="flex-1 overflow-auto p-2">
             {alerts.map((alert, i) => (
               <Link key={i} href={alert.href}
-                className="flex items-start gap-4 p-4 rounded-lg hover:bg-muted/50 transition-colors group">
-                <div className={`mt-0.5 size-2.5 rounded-full shadow-sm flex-shrink-0 ${
+                className="flex items-start gap-4 p-4 rounded-xl hover:bg-muted/50 transition-colors group">
+                <div className={`mt-0.5 size-2.5 rounded-full shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex-shrink-0 ${
                   alert.type === "error"   ? "bg-rose-500 shadow-rose-500/40" :
                   alert.type === "warning" ? "bg-amber-500 shadow-amber-500/40" :
                                              "bg-blue-500 shadow-blue-500/40"
                 }`} />
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium leading-none text-foreground group-hover:text-primary transition-colors">
+                    <p className="text-base font-medium leading-none text-foreground group-hover:text-primary transition-colors">
                       {alert.title}
                     </p>
                     <span className="text-[10px] font-medium text-muted-foreground">{alert.time}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">{alert.desc}</p>
+                  <p className="text-sm text-muted-foreground">{alert.desc}</p>
                 </div>
                 <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-primary flex-shrink-0 transition-colors mt-0.5" />
               </Link>

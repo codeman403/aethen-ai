@@ -67,7 +67,7 @@ export default function ToolMisfirePage() {
           onSelect={handleSelectSession}
           selectedId={selectedId}
         />
-        {selectedSession && <SessionContext session={selectedSession} />}
+        
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -233,6 +233,7 @@ export default function ToolMisfirePage() {
             )}
           </div>
         </div>
+          {selectedSession && <SessionContext session={selectedSession} />}
       </div>
     </div>
   );

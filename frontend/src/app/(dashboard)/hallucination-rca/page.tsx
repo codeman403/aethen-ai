@@ -96,7 +96,7 @@ export default function HallucinationRCAPage() {
           onSelect={handleSelectSession}
           selectedId={selectedId}
         />
-        {selectedSession && <SessionContext session={selectedSession} />}
+        
       </div>
 
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -259,6 +259,7 @@ export default function HallucinationRCAPage() {
             </Button>
           </div>
         </div>
+          {selectedSession && <SessionContext session={selectedSession} />}
       </div>
     </div>
   );

@@ -134,32 +134,30 @@ class DataQualityReport(BaseModel):
     summary_text: str             # formatted report like the proposal
 
 
-def _check_agent_traces(sessions_raw: dict) -> SourceReport:
-    """2 checks on ingested session data."""
-    report = SourceReport(source="Agent Traces", total=len(sessions_raw))
+def _check_agent_traces(sessions: list[dict]) -> SourceReport:
+    """2 checks on ingested session data (accepts list of session dicts from Postgres)."""
+    report = SourceReport(source="Agent Traces", total=len(sessions))
     REQUIRED_FIELDS = {"session_id", "agent_id", "outcome"}
 
     # ── Check 1: Schema Validation ────────────────────────────────────────
     invalid = 0
-    for sid, v in sessions_raw.items():
-        data = v.get("data") or {}
+    for data in sessions:
         missing = REQUIRED_FIELDS - set(data.keys())
         if missing or not data.get("session_id"):
             invalid += 1
-    pct = round((len(sessions_raw) - invalid) / max(len(sessions_raw), 1) * 100, 1)
+    pct = round((len(sessions) - invalid) / max(len(sessions), 1) * 100, 1)
     report.checks.append(QualityCheck(
         name="Schema Validation",
-        status="pass" if invalid == 0 else ("warn" if invalid / max(len(sessions_raw), 1) < 0.05 else "fail"),
-        detail=f"{len(sessions_raw) - invalid}/{len(sessions_raw)} passed schema validation ({pct}%)",
-        count=len(sessions_raw),
+        status="pass" if invalid == 0 else ("warn" if invalid / max(len(sessions), 1) < 0.05 else "fail"),
+        detail=f"{len(sessions) - invalid}/{len(sessions)} passed schema validation ({pct}%)",
+        count=len(sessions),
         flagged=invalid,
     ))
 
     # ── Check 2: Completeness (sessions with 0 events) ───────────────────
     empty = 0
     missing_summary = 0
-    for sid, v in sessions_raw.items():
-        data = v.get("data") or {}
+    for data in sessions:
         events = len(data.get("llm_calls", [])) + len(data.get("tool_calls", [])) + len(data.get("retrieval_events", []))
         if events == 0:
             empty += 1
@@ -173,15 +171,16 @@ def _check_agent_traces(sessions_raw: dict) -> SourceReport:
             f"{empty} sessions with 0 events (quarantined); "
             f"{missing_summary} failure sessions missing summary"
         ),
-        count=len(sessions_raw),
+        count=len(sessions),
         flagged=issues,
     ))
 
     return report
 
 
-def _check_vector_db() -> SourceReport:
-    """2 checks on Pinecone index health."""
+async def _check_vector_db() -> SourceReport:
+    """2 checks on Pinecone index health (async-safe — runs sync Pinecone call in executor)."""
+    import asyncio
     from app.services.pinecone_service import pinecone_service
 
     report = SourceReport(source="Vector DB Chunks")
@@ -200,7 +199,12 @@ def _check_vector_db() -> SourceReport:
         return report
 
     try:
-        stats = pinecone_service._index.describe_index_stats()
+        # Run sync Pinecone call in executor to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        stats = await asyncio.wait_for(
+            loop.run_in_executor(None, pinecone_service._index.describe_index_stats),
+            timeout=15.0,
+        )
         total_vectors = stats.total_vector_count
         namespaces = stats.namespaces or {}
         report.total = total_vectors
@@ -231,6 +235,17 @@ def _check_vector_db() -> SourceReport:
             flagged=len(empty_ns),
         ))
 
+    except asyncio.TimeoutError:
+        report.checks.append(QualityCheck(
+            name="Coverage (≥1,000 vectors)",
+            status="fail",
+            detail="Pinecone timed out after 15s — index may be unreachable",
+        ))
+        report.checks.append(QualityCheck(
+            name="Namespace Population",
+            status="fail",
+            detail="Pinecone timed out — cannot check namespaces",
+        ))
     except Exception as exc:
         report.checks.append(QualityCheck(
             name="Coverage (≥1,000 vectors)",
@@ -246,13 +261,12 @@ def _check_vector_db() -> SourceReport:
     return report
 
 
-def _check_tool_call_logs(sessions_raw: dict) -> SourceReport:
+def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
     """2 checks on tool call data across all ingested sessions."""
     # Collect all tool calls
     tool_stats: dict[str, dict] = {}  # tool_name -> {total, failed, latencies}
 
-    for v in sessions_raw.values():
-        data = v.get("data") or {}
+    for data in sessions:
         for tc in data.get("tool_calls", []):
             name = tc.get("tool_name", "unknown")
             if name not in tool_stats:
@@ -394,27 +408,50 @@ async def data_quality_report() -> ApiResponse[DataQualityReport]:
       Source 4 — User Feedback  : session coverage, label distribution bias
     """
     generated_at = datetime.now(timezone.utc).isoformat()
-    sessions_raw = store._sessions  # noqa: SLF001 — internal read for QC
+    request_id = str(uuid.uuid4())
+    start = time.perf_counter()
 
-    sources = [
-        _check_agent_traces(sessions_raw).compute_status(),
-        _check_vector_db().compute_status(),
-        _check_tool_call_logs(sessions_raw).compute_status(),
-        _check_user_feedback().compute_status(),
-    ]
+    try:
+        from app.services.postgres_service import postgres_service
 
-    all_statuses = [s.status for s in sources]
-    overall = "fail" if "fail" in all_statuses else ("warn" if "warn" in all_statuses else "pass")
+        # Fetch all sessions from Postgres in a single query
+        sessions = await postgres_service.get_all_sessions(limit=500)
 
-    summary = _build_summary_text(sources, generated_at)
+        # _check_vector_db is async (runs Pinecone in executor); others are sync
+        vector_report = await _check_vector_db()
 
-    logger.info("qc_report_generated", overall=overall, sources=len(sources))
+        sources = [
+            _check_agent_traces(sessions).compute_status(),
+            vector_report.compute_status(),
+            _check_tool_call_logs(sessions).compute_status(),
+            _check_user_feedback().compute_status(),
+        ]
 
-    return ApiResponse(
-        data=DataQualityReport(
-            generated_at=generated_at,
-            overall_status=overall,
-            sources=sources,
-            summary_text=summary,
+        all_statuses = [s.status for s in sources]
+        overall = "fail" if "fail" in all_statuses else ("warn" if "warn" in all_statuses else "pass")
+
+        summary = _build_summary_text(sources, generated_at)
+
+        logger.info("qc_report_generated", overall=overall, sources=len(sources))
+
+        return ApiResponse(
+            data=DataQualityReport(
+                generated_at=generated_at,
+                overall_status=overall,
+                sources=sources,
+                summary_text=summary,
+            ),
+            metadata=ResponseMetadata(
+                request_id=request_id,
+                duration_ms=(time.perf_counter() - start) * 1000,
+            ),
         )
-    )
+    except Exception as exc:
+        logger.error("qc_report_failed", error=str(exc))
+        return ApiResponse(
+            error=f"Quality report failed: {exc!s}",
+            metadata=ResponseMetadata(
+                request_id=request_id,
+                duration_ms=(time.perf_counter() - start) * 1000,
+            ),
+        )

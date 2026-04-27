@@ -164,9 +164,47 @@
 
 ---
 
+---
+
+## 🔴 Outstanding UI Issues (From Session 15-16, Unresolved)
+
+> **Carried forward**: User confirmed these issues persist after multiple attempts. Must be addressed in next session.
+
+### U1. Results positioning — pin to top, not buried at bottom
+**Issue**: Diagnostic results (analysis output) appear below the fold / at the bottom of the detail panel. User must scroll down to see them.
+**Required**: Results/findings/summary should render at the TOP of the detail panel, immediately visible without scrolling. Raw session logs/context should be below.
+**Pages affected**: All diagnostic pages (memory-debug, tool-misfire, hallucination-rca, blind-spots)
+**Status**: ⬜
+
+### U2. "Analyzing..." state not prominent enough
+**Issue**: When analysis is running, the loading/processing indicator is not visually prominent. User can't immediately tell something is happening.
+**Required**: Large, centered, animated "Analyzing..." overlay or indicator that's impossible to miss. Glassmorphism overlay was attempted but may not be rendering correctly.
+**Pages affected**: All diagnostic pages
+**Status**: ⬜
+
+### U3. Search boxes on all pages
+**Issue**: Session search/filter functionality was requested across all diagnostic pages.
+**Required**: A search input at the top of each session list sidebar that filters sessions by ID, agent name, or failure summary.
+**Pages affected**: All diagnostic pages with session lists
+**Status**: ⬜
+
+### U4. Redundant info and light/small fonts
+**Issue**: Some UI elements show redundant information (duplicate labels, repeated data). Font weights are too light and sizes too small in places, reducing readability.
+**Required**: Audit all diagnostic pages — remove duplicate info, increase font weights (medium→semibold for labels, normal→medium for body text), ensure minimum text-sm across all content.
+**Pages affected**: All pages
+**Status**: ⬜
+
+### U5. General layout/styling issues still present
+**Issue**: User reported "same issue" persists despite multiple rounds of fixes. Likely a combination of the above + possible rendering/build issues.
+**Required**: Fresh visual audit of all pages in next session — compare against user expectations, fix incrementally with user feedback at each step.
+**Status**: ⬜
+
+---
+
 ## Change Log
 
 | Date | Item | Action | Notes |
 |------|------|--------|-------|
 | 2026-04-25 | — | File created from mid-dev review | — |
 | 2026-04-26 | A15 | Added from Session 12 classification audit | `_infer_failure_type` retain decision documented |
+| 2026-04-27 | U1-U5 | Added outstanding UI issues from Sessions 15-16 | Results positioning, analyzing state, search, fonts, layout |

@@ -265,16 +265,15 @@ Classify the user's message into exactly one intent:
    - Query ONLY the sessions table. No system tables (pg_catalog, information_schema).
    - NEVER use SELECT * — name only the columns the answer needs.
    - Allowed columns: session_id, agent_id, failure_type, outcome, failure_summary, session_ts, created_at
-   - NEVER select raw session_data column (too large). But you CAN extract specific fields from it
-     using JSONB operators. session_data is a JSONB column with this structure:
-     {{"llm_calls": [{{"prompt": "...", "response": "...", "model": "...", "hallucination_flag": bool}}],
-      "tool_calls": [{{"tool_name": "...", "parameters": {{}}, "result": "...", "error": "...", "status": "..."}}],
-      "retrieval_events": [{{"query": "...", "chunks_returned": N, "relevance_scores": [...]}}]}}
-   - To get LLM prompt/response: session_data->'llm_calls'->0->>'prompt', session_data->'llm_calls'->0->>'response'
-   - To get tool errors: session_data->'tool_calls'->0->>'error'
-   - To iterate all LLM calls: use jsonb_array_elements(session_data->'llm_calls')
-   - Always LIMIT and truncate text with LEFT(..., 500) for large text fields.
+   - NEVER include session_data (too large, contains sensitive trace content).
    - Always include LIMIT (max 50).
+
+   If the user asks about actual trace CONTENT (LLM prompts, LLM responses, tool parameters,
+   tool errors, retrieval queries) — you CANNOT get that from SQL alone. Instead, generate a
+   query that finds the right session(s) and includes session_id. The system will automatically
+   extract the trace content for matching sessions.
+   Example: user asks "What did the AI respond in the latest hallucination?"
+   → {{"intent":"data","sql":"SELECT session_id, failure_type, failure_summary FROM sessions WHERE failure_type = 'hallucination' ORDER BY session_ts DESC LIMIT 1","extract_trace": "llm_response"}}
 
    Multi-part questions ("show me oldest X, then oldest Y"): write ONE statement using CTE or UNION ALL.
    Never separate statements with a semicolon.
@@ -394,7 +393,7 @@ async def _fix_sql(original_sql: str, error_msg: str, user_query: str) -> str | 
 
 
 async def _handle_text_to_sql(
-    query: str, sql: str, history: list[HistoryMessage]
+    query: str, sql: str, history: list[HistoryMessage], *, extract_trace: str = ""
 ) -> AnalysisReport:
     """Execute LLM-generated SQL safely and format results as plain English.
 
@@ -402,6 +401,10 @@ async def _handle_text_to_sql(
     Multi-statement: if the LLM still generates semicolon-separated statements
     despite instructions, splits and executes each separately.
     LIMIT: if results are capped, the format response notifies the user.
+
+    When extract_trace is set (e.g. "llm_response", "llm_prompt", "tool_errors"),
+    the function fetches full session_data for matching session_ids and extracts
+    the requested trace content — enabling answers about actual LLM prompts/responses.
     """
     import json as _json
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -467,6 +470,50 @@ async def _handle_text_to_sql(
     logger.info("text_to_sql_executed", rows=len(results), statements=len(statements),
                 sql=sql[:120])
 
+    # ── Extract trace content when requested ───────────────────────────────
+    trace_content_block = ""
+    if extract_trace and results:
+        session_ids = [r["session_id"] for r in results if "session_id" in r]
+        if session_ids:
+            trace_parts: list[str] = []
+            for sid in session_ids[:5]:  # cap to avoid huge payloads
+                session_data = await postgres_service.get_session(sid)
+                if not session_data:
+                    continue
+                llm_calls = session_data.get("llm_calls", [])
+                tool_calls = session_data.get("tool_calls", [])
+
+                if extract_trace in ("llm_response", "llm_prompt", "llm_calls"):
+                    for i, call in enumerate(llm_calls[:5], 1):
+                        prompt_text = call.get("prompt", "")[:500]
+                        response_text = call.get("response", "")[:500]
+                        if extract_trace == "llm_response":
+                            trace_parts.append(f"Session {sid} — LLM call {i} response:\n{response_text}")
+                        elif extract_trace == "llm_prompt":
+                            trace_parts.append(f"Session {sid} — LLM call {i} prompt:\n{prompt_text}")
+                        else:
+                            trace_parts.append(
+                                f"Session {sid} — LLM call {i}:\n"
+                                f"  Prompt: {prompt_text}\n  Response: {response_text}"
+                            )
+                elif extract_trace in ("tool_errors", "tool_calls"):
+                    for i, call in enumerate(tool_calls[:5], 1):
+                        if extract_trace == "tool_errors" and not call.get("error"):
+                            continue
+                        trace_parts.append(
+                            f"Session {sid} — Tool call {i} ({call.get('tool_name', '?')}):\n"
+                            f"  Params: {str(call.get('parameters', {}))[:300]}\n"
+                            f"  Result: {str(call.get('result', ''))[:300]}\n"
+                            f"  Error: {call.get('error', 'none')}"
+                        )
+
+            if trace_parts:
+                trace_content_block = (
+                    "\n\n--- Extracted Trace Content ---\n" + "\n\n".join(trace_parts)
+                )
+                logger.info("trace_content_extracted", sessions=len(session_ids),
+                            extract_type=extract_trace, parts=len(trace_parts))
+
     # Format results as natural language
     results_json = _json.dumps(results, indent=2) if results else "[]"
     history_text = "\n".join(
@@ -484,12 +531,15 @@ async def _handle_text_to_sql(
         "When 0 results are returned for a keyword/content search: state how many total sessions were "
         "searched, and note that the value the user is looking for may be in the raw session content "
         "(LLM prompts/responses) which is not stored in the searchable metadata. "
+        "If 'Extracted Trace Content' is provided below the query results, use it to answer questions "
+        "about what the LLM actually said, prompted, or returned. Quote relevant parts directly. "
         "Be concise. Never mention SQL or database internals."
     )
     format_prompt = (
         f"User question: {query}\n\n"
         f"Total sessions in database: {total_count}\n"
-        f"Query returned {len(results)} row(s):\n{results_json}\n\n"
+        f"Query returned {len(results)} row(s):\n{results_json}"
+        f"{trace_content_block}\n\n"
         f"Answer in plain English, citing the actual values.{limit_note}"
     )
 
@@ -608,7 +658,8 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
             sql = routing.get("sql", "")
             if not sql:
                 raise ValueError("LLM returned data intent but no SQL query")
-            report = await _handle_text_to_sql(query, sql, request.history)
+            extract_trace = routing.get("extract_trace", "")
+            report = await _handle_text_to_sql(query, sql, request.history, extract_trace=extract_trace)
 
         if intent == "diagnostic":  # explicit or implicit-consent (re-routed from general)
             # Ground the query in a real session from Postgres.

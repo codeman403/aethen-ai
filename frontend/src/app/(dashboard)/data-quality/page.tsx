@@ -42,7 +42,7 @@ function StatusBadge({ status }: { status: "pass" | "warn" | "fail" }) {
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${cfg.badge}`}>
+    <span className={`inline-flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full border ${cfg.badge}`}>
       <Icon className="size-3" />
       {cfg.label}
     </span>
@@ -59,14 +59,14 @@ function CheckRow({ check }: { check: QualityCheck }) {
         check.status === "warn" ? "text-amber-500" : "text-rose-500"
       }`} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{check.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{check.detail}</p>
+        <p className="text-base font-medium">{check.name}</p>
+        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{check.detail}</p>
       </div>
       {check.count > 0 && (
         <div className="shrink-0 text-right">
-          <p className="text-xs text-muted-foreground">{check.count} checked</p>
+          <p className="text-sm text-muted-foreground">{check.count} checked</p>
           {check.flagged > 0 && (
-            <p className={`text-xs font-medium ${check.status === "pass" ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
+            <p className={`text-sm font-medium ${check.status === "pass" ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
               {check.flagged} flagged
             </p>
           )}
@@ -81,7 +81,7 @@ function SourceCard({ src }: { src: SourceReport }) {
   const cfg = STATUS_CONFIG[src.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.warn;
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors"
@@ -90,7 +90,7 @@ function SourceCard({ src }: { src: SourceReport }) {
           <div className={`size-2.5 rounded-full ${cfg.dot}`} />
           <span className="font-semibold tracking-tight">{src.source}</span>
           {src.total > 0 && (
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md border">
+            <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-lg border">
               {src.total.toLocaleString()} items
             </span>
           )}
@@ -142,33 +142,33 @@ export default function DataQualityPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-            <div className="p-2 bg-primary/10 text-primary rounded-lg border border-primary/20">
+          <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 text-primary rounded-xl border border-primary/20">
               <ShieldCheck className="size-6" />
             </div>
             Data Quality Report
           </h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-base">
             Automated checks across all 4 data sources — schema, coverage, error rates, and latency.
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-base font-medium hover:bg-muted transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
           {error}
         </div>
       )}
 
       {loading && !report && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+        <div className="flex items-center gap-2 text-base text-muted-foreground py-8 justify-center">
           <RefreshCw className="size-4 animate-spin" />
           Running quality checks…
         </div>
@@ -193,7 +193,7 @@ export default function DataQualityPage() {
                 <p className="font-semibold">
                   Overall Status: <span className="uppercase">{report.overall_status}</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-sm text-muted-foreground mt-0.5">
                   {report.sources.length} sources checked · Generated {new Date(report.generated_at).toLocaleString()}
                 </p>
               </div>
@@ -213,18 +213,18 @@ export default function DataQualityPage() {
           </div>
 
           {/* Raw report text */}
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
             <button
               onClick={() => setShowRaw((v) => !v)}
               className="w-full flex items-center gap-3 px-6 py-4 hover:bg-muted/30 transition-colors"
             >
               <ClipboardList className="size-4 text-muted-foreground" />
-              <span className="font-semibold tracking-tight text-sm">Formatted Report</span>
+              <span className="font-semibold tracking-tight text-base">Formatted Report</span>
               {showRaw ? <ChevronUp className="size-4 text-muted-foreground ml-auto" /> : <ChevronDown className="size-4 text-muted-foreground ml-auto" />}
             </button>
             {showRaw && (
               <div className="border-t bg-muted/10 p-6">
-                <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap text-foreground">
+                <pre className="text-sm font-mono leading-relaxed whitespace-pre-wrap text-foreground">
                   {report.summary_text}
                 </pre>
               </div>

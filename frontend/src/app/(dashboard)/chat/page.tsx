@@ -118,17 +118,17 @@ function AnalysisCard({ report }: { report: AnalysisReport }) {
   };
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden mt-2">
+    <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden mt-2">
       <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
           {showTypeBadge && (
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
+            <span className={`text-sm font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
               {report.failure_type.replace(/_/g, " ")}
             </span>
           )}
           {showConfidence && (
             <span
-              className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+              className={`text-sm font-bold px-2 py-0.5 rounded-full border ${
                 report.confidence >= 0.7
                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
                   : report.confidence >= 0.4
@@ -150,26 +150,26 @@ function AnalysisCard({ report }: { report: AnalysisReport }) {
       </div>
       <div className="px-4 py-3 space-y-3">
         {report.summary && (
-          <p className="text-sm">{report.summary}</p>
+          <p className="text-base">{report.summary}</p>
         )}
         {report.root_cause && (
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Root Cause</p>
-            <p className="text-sm font-medium">{report.root_cause}</p>
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Root Cause</p>
+            <p className="text-base font-medium">{report.root_cause}</p>
           </div>
         )}
         {report.findings.slice(0, 10).map((f: Finding, i: number) => (
           <div
             key={i}
-            className={`rounded-lg border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
+            className={`rounded-xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
           >
             <div className="flex items-center gap-1.5 mb-1">
               <AlertCircle className="size-3 flex-shrink-0" />
-              <span className="text-xs font-medium">{f.title}</span>
+              <span className="text-sm font-medium">{f.title}</span>
             </div>
-            <p className="text-xs opacity-80">{f.description}</p>
+            <p className="text-sm opacity-80">{f.description}</p>
             {f.recommendation && (
-              <p className="text-xs font-medium mt-1">→ {f.recommendation}</p>
+              <p className="text-sm font-medium mt-1">→ {f.recommendation}</p>
             )}
           </div>
         ))}
@@ -429,12 +429,12 @@ export default function ChatPage() {
     <div className="flex gap-4 h-[calc(100vh-5rem)] animate-in fade-in duration-500">
 
       {/* ── Sessions Panel ────────────────────────────────────────────── */}
-      <div className="w-52 flex-shrink-0 flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="w-52 flex-shrink-0 flex flex-col rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
         <div className="px-3 py-3 border-b bg-muted/10 flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
+          <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
           <button
             onClick={handleNewChat}
-            className="size-6 rounded-md flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            className="size-6 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
             title="New chat"
           >
             <Plus className="size-3.5" />
@@ -443,7 +443,7 @@ export default function ChatPage() {
         <div className="flex-1 overflow-auto p-1.5 space-y-0.5">
           {/* Current unsaved session */}
           {currentSessionId === null && messages.length > 0 && (
-            <div className="px-2.5 py-2 rounded-lg text-xs bg-primary/10 text-primary font-medium truncate">
+            <div className="px-2.5 py-2 rounded-xl text-sm bg-primary/10 text-primary font-medium truncate">
               Current session
             </div>
           )}
@@ -456,13 +456,13 @@ export default function ChatPage() {
             <button
               key={s.id}
               onClick={() => handleSelectSession(s.id)}
-              className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors group ${
+              className={`w-full text-left px-2.5 py-2 rounded-xl transition-colors group ${
                 s.id === currentSessionId
                   ? "bg-primary/10 text-primary"
                   : "hover:bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
-              <p className="text-xs font-medium truncate">{s.title}</p>
+              <p className="text-sm font-medium truncate">{s.title}</p>
               <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-60">
                 <Clock className="size-2.5" />
                 <span>{s.message_count} msg{s.message_count !== 1 ? "s" : ""}</span>
@@ -473,14 +473,14 @@ export default function ChatPage() {
       </div>
 
       {/* ── Chat Interface ─────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="flex-1 flex flex-col rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
         <div className="px-6 py-4 border-b bg-muted/10 flex items-center gap-3">
-          <div className="size-9 rounded-lg bg-primary/10 flex items-center justify-center">
+          <div className="size-9 rounded-xl bg-primary/10 flex items-center justify-center">
             <MessageSquare className="size-4 text-primary" />
           </div>
           <div>
             <h2 className="font-semibold tracking-tight">Chat Debug</h2>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Freeform diagnostic queries · LangGraph analysis · Langfuse traced
             </p>
           </div>
@@ -494,7 +494,7 @@ export default function ChatPage() {
                 <MessageSquare className="size-7 opacity-40" />
               </div>
               <p className="font-medium text-foreground">Start a debugging session</p>
-              <p className="text-sm mt-1 max-w-xs">
+              <p className="text-base mt-1 max-w-xs">
                 Ask anything about your agent failures — all responses are grounded in your real trace data via the LangGraph pipeline.
               </p>
             </div>
@@ -507,7 +507,7 @@ export default function ChatPage() {
                   <div className="max-w-[80%] flex flex-col items-end gap-1">
                     {/* inline style guarantees selection even if a parent sets user-select:none */}
                     <div
-                      className="rounded-2xl rounded-tr-sm px-4 py-3 bg-primary text-primary-foreground text-sm cursor-text"
+                      className="rounded-2xl rounded-tr-sm px-4 py-3 bg-primary text-primary-foreground text-base cursor-text"
                       style={{ userSelect: "text" }}
                     >
                       {msg.content}
@@ -533,14 +533,14 @@ export default function ChatPage() {
                       <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center">
                         <MessageSquare className="size-3 text-primary" />
                       </div>
-                      <span className="text-xs font-medium text-muted-foreground">Aethen</span>
+                      <span className="text-sm font-medium text-muted-foreground">Aethen</span>
                       {!isPlainText && (
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
                           ✓ LangGraph Pipeline
                         </span>
                       )}
                       {msg.latency_ms != null && (
-                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-lg">
                           {msg.latency_ms >= 1000
                             ? `${(msg.latency_ms / 1000).toFixed(1)}s`
                             : `${msg.latency_ms}ms`}
@@ -550,7 +550,7 @@ export default function ChatPage() {
                     </div>
                     {isPlainText ? (
                       <div
-                        className="rounded-2xl rounded-tl-sm px-4 py-3 border bg-muted/30 text-sm leading-relaxed cursor-text"
+                        className="rounded-2xl rounded-tl-sm px-4 py-3 border bg-muted/30 text-base leading-relaxed cursor-text"
                         style={{ userSelect: "text" }}
                       >
                         {renderText(msg.report.summary)}
@@ -569,15 +569,15 @@ export default function ChatPage() {
                     <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center">
                       <MessageSquare className="size-3 text-primary" />
                     </div>
-                    <span className="text-xs font-medium text-muted-foreground">Aethen</span>
+                    <span className="text-sm font-medium text-muted-foreground">Aethen</span>
                     {msg.langfuseTraced && (
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                      <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
                         <Zap className="size-2.5 inline mr-0.5" />
                         Traced to Langfuse ✓
                       </span>
                     )}
                     {msg.latency_ms != null && (
-                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">
+                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-lg">
                         {msg.latency_ms >= 1000
                           ? `${(msg.latency_ms / 1000).toFixed(1)}s`
                           : `${msg.latency_ms}ms`}
@@ -586,7 +586,7 @@ export default function ChatPage() {
                     <CopyButton text={msg.content} />
                   </div>
                   <div
-                    className="rounded-2xl rounded-tl-sm px-4 py-3 border bg-muted/30 text-sm leading-relaxed cursor-text"
+                    className="rounded-2xl rounded-tl-sm px-4 py-3 border bg-muted/30 text-base leading-relaxed cursor-text"
                     style={{ userSelect: "text" }}
                   >
                     {renderText(msg.content)}
@@ -605,7 +605,7 @@ export default function ChatPage() {
                     <div className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
                     <div className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
                   </div>
-                  <span className="text-xs text-muted-foreground tabular-nums font-medium">
+                  <span className="text-sm text-muted-foreground tabular-nums font-medium">
                     {elapsed >= 1000 ? `${(elapsed / 1000).toFixed(1)}s` : `${elapsed}ms`}
                   </span>
                 </div>
@@ -626,13 +626,13 @@ export default function ChatPage() {
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="e.g. 'show top tool failures' or 'why is retrieval failing?' — grounded in your real traces"
-              className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-32 overflow-y-auto py-1"
+              className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground max-h-32 overflow-y-auto py-1"
               style={{ minHeight: "24px" }}
             />
             <button
               onClick={() => input.trim() && !isLoading && sendFreeform(input.trim())}
               disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40"
+              className="flex-shrink-0 size-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40"
             >
               {isLoading ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -650,10 +650,10 @@ export default function ChatPage() {
       {/* ── Right: Suggested Queries + Evidence ───────────────────────── */}
       <div className="w-72 flex-shrink-0 flex flex-col gap-4 overflow-auto">
         {/* Suggested Queries */}
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/10">
-            <h3 className="font-semibold tracking-tight text-sm">Suggested Queries</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <h3 className="font-semibold tracking-tight text-base">Suggested Queries</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
               Click to run a structured LangGraph analysis
             </p>
           </div>
@@ -665,13 +665,13 @@ export default function ChatPage() {
                   key={q.failureType}
                   onClick={() => !isLoading && runSuggestedQuery(q)}
                   disabled={isLoading}
-                  className={`w-full text-left rounded-lg border p-3 transition-all ${q.bg} disabled:opacity-50`}
+                  className={`w-full text-left rounded-xl border p-3 transition-all ${q.bg} disabled:opacity-50`}
                 >
                   <div className="flex items-start gap-2">
                     <Icon className={`size-4 flex-shrink-0 mt-0.5 ${q.color}`} />
                     <div>
-                      <p className={`text-xs font-semibold ${q.color}`}>{q.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      <p className={`text-sm font-semibold ${q.color}`}>{q.title}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
                         {q.description}
                       </p>
                     </div>
@@ -684,11 +684,11 @@ export default function ChatPage() {
 
         {/* Evidence Panel */}
         {lastReport && (
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
             <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
-              <h3 className="font-semibold tracking-tight text-sm">Evidence</h3>
+              <h3 className="font-semibold tracking-tight text-base">Evidence</h3>
               <span
-                className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                className={`text-sm font-bold px-2 py-0.5 rounded-full border ${
                   lastReport.confidence >= 0.7
                     ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
                     : lastReport.confidence >= 0.4
@@ -703,17 +703,17 @@ export default function ChatPage() {
               {lastReport.findings.slice(0, 3).map((f: Finding, i: number) => (
                 <div
                   key={i}
-                  className={`rounded-lg border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
+                  className={`rounded-xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
                 >
                   <div className="flex items-center gap-1.5 mb-1">
                     <AlertCircle className="size-3 flex-shrink-0" />
-                    <span className="text-xs font-medium line-clamp-1">{f.title}</span>
+                    <span className="text-sm font-medium line-clamp-1">{f.title}</span>
                   </div>
-                  <p className="text-xs opacity-70 line-clamp-2">{f.description}</p>
+                  <p className="text-sm opacity-70 line-clamp-2">{f.description}</p>
                 </div>
               ))}
               {lastReport.findings.length > 3 && (
-                <p className="text-xs text-muted-foreground text-center">
+                <p className="text-sm text-muted-foreground text-center">
                   +{lastReport.findings.length - 3} more findings in the analysis above
                 </p>
               )}
@@ -724,7 +724,7 @@ export default function ChatPage() {
                   SUGGESTED_QUERIES.find((q) => q.failureType === lastReport.failure_type)?.href ??
                   "/"
                 }
-                className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border text-xs font-medium hover:bg-muted transition-colors"
+                className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl border text-sm font-medium hover:bg-muted transition-colors"
               >
                 View Full Report
                 <ChevronRight className="size-3" />

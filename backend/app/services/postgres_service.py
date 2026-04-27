@@ -82,6 +82,11 @@ ON CONFLICT (session_id) DO UPDATE SET
 
 _SELECT_BY_ID = "SELECT session_data FROM sessions WHERE session_id = $1"
 
+_SELECT_ALL_DATA = """
+SELECT session_data FROM sessions
+ORDER BY created_at DESC LIMIT $1
+"""
+
 _SELECT_BY_TYPE = """
 SELECT session_data FROM sessions
 WHERE failure_type = $1
@@ -201,6 +206,14 @@ class PostgresService:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(_SELECT_BY_ID, session_id)
         return row["session_data"] if row else None
+
+    async def get_all_sessions(self, limit: int = 500) -> list[dict]:
+        """Return full session_data dicts for all sessions (for QC checks)."""
+        if not self.is_available:
+            return []
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(_SELECT_ALL_DATA, limit)
+        return [r["session_data"] for r in rows]
 
     async def get_by_failure_type(self, failure_type: str, limit: int = 50) -> list[dict]:
         """Return full session dicts for a given failure type, newest first."""

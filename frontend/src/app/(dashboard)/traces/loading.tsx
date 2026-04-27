@@ -3,10 +3,10 @@ export default function TracesLoading() {
     <div className="flex-1 p-6 space-y-5 animate-pulse">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="h-7 w-36 rounded-md bg-white/10" />
+        <div className="h-7 w-36 rounded-lg bg-white/10" />
         <div className="flex gap-2">
-          <div className="h-9 w-40 rounded-md bg-white/10" />
-          <div className="h-9 w-32 rounded-md bg-white/10" />
+          <div className="h-9 w-40 rounded-lg bg-white/10" />
+          <div className="h-9 w-32 rounded-lg bg-white/10" />
         </div>
       </div>
 
@@ -28,7 +28,7 @@ export default function TracesLoading() {
             <div className="h-4 flex-1 rounded bg-white/10" />
             <div className="h-5 w-20 rounded-full bg-white/10" />
             <div className="h-4 w-16 rounded bg-white/10" />
-            <div className="h-8 w-24 rounded-md bg-white/10" />
+            <div className="h-8 w-24 rounded-lg bg-white/10" />
           </div>
         ))}
       </div>

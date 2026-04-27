@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Layers, Loader2, Zap } from "lucide-react";
+import { Clock, Layers, Loader2, Zap, ChevronRight, AlertCircle, Search } from "lucide-react";
 import { fetchSessionsByType } from "@/lib/api";
 
 interface SessionsListProps {
@@ -22,6 +22,7 @@ interface RawSession {
 
 export function SessionsList({ failureType, onSelect, selectedId }: SessionsListProps) {
   const [sessions, setSessions] = useState<RawSession[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,76 +34,102 @@ export function SessionsList({ failureType, onSelect, selectedId }: SessionsList
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-        <Loader2 className="size-4 animate-spin" />
-        Loading sessions...
+      <div className="flex flex-col items-center justify-center gap-2 text-sm py-12 text-foreground/60">
+        <Loader2 className="size-5 animate-spin text-primary" />
+        Fetching sessions...
       </div>
     );
   }
 
   if (sessions.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-        No Langfuse sessions ingested yet for this failure type.
-        <br />
-        Pull traces from the dashboard first.
+      <div className="flex flex-col items-center justify-center text-center text-sm py-12 text-foreground/60">
+        <AlertCircle className="size-6 mb-3 opacity-50" />
+        <p>No sessions ingested yet.</p>
+        <p className="mt-1 text-xs opacity-70">Pull traces from the dashboard first.</p>
       </div>
     );
   }
 
+  const filteredSessions = sessions.filter(s => 
+    s.session_id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    s.agent_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.failure_summary && s.failure_summary.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-        {sessions.length} session{sessions.length !== 1 ? "s" : ""} from Langfuse
-      </p>
-      {sessions.map((s) => {
-        const isSelected = s.session_id === selectedId;
-        const eventCount =
-          (s.llm_calls?.length ?? 0) +
-          (s.tool_calls?.length ?? 0) +
-          (s.retrieval_events?.length ?? 0);
-        return (
-          <button
-            key={s.session_id}
-            onClick={() => onSelect(s)}
-            className={`w-full text-left rounded-lg border p-3 transition-all hover:border-primary/40 hover:bg-muted/40 ${
-              isSelected
-                ? "border-primary/60 bg-primary/5 ring-1 ring-primary/20"
-                : "border-border bg-card"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-mono text-foreground truncate">{s.session_id}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                  {s.agent_id}
-                </p>
-                {s.failure_summary && (
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2 opacity-80">
-                    {s.failure_summary}
-                  </p>
-                )}
-              </div>
-              <div className="shrink-0 flex flex-col items-end gap-1">
-                {s.timestamp && (
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <Clock className="size-3" />
-                    {new Date(s.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+    <div className="flex flex-col h-full">
+      <div className="px-2 mb-3 space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-foreground/50" />
+          <input 
+            type="text" 
+            placeholder="Search..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all shadow-sm"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-medium text-foreground/60 uppercase tracking-wider">
+            {filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex flex-col gap-1 overflow-y-auto px-1 pb-2">
+        {filteredSessions.length === 0 ? (
+          <div className="text-center py-4 text-xs text-foreground/50">No matches</div>
+        ) : (
+          filteredSessions.map((s) => {
+            const isSelected = s.session_id === selectedId;
+            const eventCount =
+              (s.llm_calls?.length ?? 0) +
+              (s.tool_calls?.length ?? 0) +
+              (s.retrieval_events?.length ?? 0);
+              
+            return (
+              <button
+                key={s.session_id}
+                onClick={() => onSelect(s)}
+                className={`group flex flex-col text-left rounded-md border p-2.5 transition-all duration-200 ${
+                  isSelected
+                    ? "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                    : "border-transparent bg-transparent hover:border-border hover:bg-muted/40"
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider ${isSelected ? 'bg-primary/20 text-primary' : 'bg-muted text-foreground/70 group-hover:text-primary'}`}>
+                    {s.agent_id}
                   </span>
-                )}
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Layers className="size-3" />
-                  {eventCount} event{eventCount !== 1 ? "s" : ""}
-                </span>
-              </div>
-            </div>
-            <div className="mt-2 flex items-center gap-1">
-              <Zap className="size-3 text-primary" />
-              <span className="text-[10px] font-medium text-primary">Click to analyze</span>
-            </div>
-          </button>
-        );
-      })}
+                  {s.timestamp && (
+                    <span className="text-[10px] text-foreground/50 flex items-center gap-1">
+                      <Clock className="size-3" />
+                      {new Date(s.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className={`text-[11px] font-mono truncate pr-2 ${isSelected ? 'text-primary font-medium' : 'text-foreground/70 font-normal'}`}>
+                    {s.session_id}
+                  </span>
+                  <ChevronRight className={`size-3 shrink-0 transition-transform duration-300 ${isSelected ? 'text-primary translate-x-0.5' : 'text-foreground/30 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5'}`} />
+                </div>
+                
+                <div className="flex items-center justify-between w-full mt-1.5">
+                  <p className={`text-[11px] line-clamp-1 pr-2 ${isSelected ? 'text-foreground/90' : 'text-foreground/50'}`}>
+                    {s.failure_summary ? s.failure_summary.split('\\n')[0] : "No summary"}
+                  </p>
+                  <span className="flex items-center gap-1 text-[10px] text-foreground/50 shrink-0">
+                    <Layers className="size-3" /> {eventCount}
+                  </span>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

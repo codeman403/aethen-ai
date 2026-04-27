@@ -169,7 +169,7 @@ export default function BlindSpotsPage() {
           onSelect={handleSelectSession}
           selectedId={selectedId}
         />
-        {selectedSession && <SessionContext session={selectedSession} />}
+        
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 h-[600px]">
@@ -357,6 +357,7 @@ export default function BlindSpotsPage() {
             </>
           )}
         </div>
+          {selectedSession && <SessionContext session={selectedSession} />}
       </div>
     </div>
   );

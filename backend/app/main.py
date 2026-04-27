@@ -61,8 +61,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiting — 20 req/min, 100 req/hr per IP (added before CORS so it fires first)
-app.add_middleware(RateLimitMiddleware, per_minute=20, per_hour=100)
+# Rate limiting — 40 req/min, 200 req/hr per IP (added before CORS so it fires first)
+app.add_middleware(RateLimitMiddleware, per_minute=40, per_hour=200)
 
 # CORS — allow frontend origin
 app.add_middleware(
