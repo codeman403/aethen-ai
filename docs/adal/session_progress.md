@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-04-26 (Session 11)
+> **Last updated**: 2026-04-26 (Session 14)
 
 ---
 
@@ -17,15 +17,17 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 3 — Feature-complete. Deployment remaining.
+- **Phase**: Week 3 — Production hardening. P0 fixes applied, P1 next.
 - **Branch**: `main`
 - **Next action**:
-  1. **S1**: Record demo GIF for README.
-  2. **A6**: Deploy to Render + Vercel — fill ENV vars, deploy, verify end-to-end.
+  1. **P1 fixes**: Hallucination content heuristics, diagnostic output validation, adversarial test traces (see `docs/adal/gap_analysis.md` §2.4, §3.1, §3.3)
+  2. **P2 fixes**: Multi-hop Neo4j queries, vector search namespace separation (see `docs/adal/gap_analysis.md` §3.2, §3.4)
+  3. **Deploy**: Render + Vercel — fill ENV vars, deploy, verify end-to-end.
+  4. **S1**: Record demo GIF for README.
 - **Blocker**: None known
 - **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
 - **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
-- **Uncommitted work**: None — all changes committed and pushed.
+- **Uncommitted work**: Sessions 13-15 changes — commit before deploying. Session 15 gap analysis + P0 fixes. Key files changed: `backend/app/agents/nodes/classify.py`, `backend/app/providers/langfuse_provider.py`, `docs/adal/gap_analysis.md`.
 
 ### Architecture (as of Session 10)
 
@@ -42,6 +44,61 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 14 — 2026-04-26 (Claude Code)
+
+**Chat Architecture Overhaul + SQL Security + Self-Analysis**
+
+**Two-tier freeform routing architecture (`chat.py`):**
+- [x] `_llm_route` rewritten as **classification-only** — no longer answers GENERAL queries inline. Returns `{intent: data|diagnostic|general}` only. System prompt stripped from ~300 lines to ~40 lines — much more reliable JSON output, fewer fallback fires
+- [x] `_handle_general()` added — **focused conversational handler** with purpose-aware persona. Handles all GENERAL queries: recall, frustration, off-topic, social acks, pronoun resolution, capability questions. No keyword rules — LLM intelligence within a clear persona boundary
+- [x] `_handle_general` returns `{"type":"answer","text":"..."}` OR `{"type":"diagnose","session_id":"..."}` — the `DIAGNOSE:` signal enables implicit consent routing: when the user accepts a prior diagnostic offer ("yes please", "go ahead"), `_handle_general` detects this from conversation context and triggers the full pipeline automatically
+- [x] Removed all hardcoded keyword/signal guards (`_looks_like_analysis`, `_history_has_diagnostic`, `_ANALYSIS_SIGNALS`, `_DIAGNOSTIC_COMPLETE_SIGNALS`) — replaced by `_handle_general` persona instruction: "do not produce diagnostic analysis without the pipeline"
+- [x] `_SESSION_ID_RE` changed to `\*\*([0-9a-f]{32})\*\*` — only matches bold session IDs (Aethen's conversational references), not session IDs in data result listings
+
+**SQL security + reliability (`chat.py`, `_handle_text_to_sql`):**
+- [x] `_validate_sql()` — blocks `session_data`, system tables (pg_catalog, information_schema), DDL tokens, `SELECT *`
+- [x] Multi-statement SQL safety: splits on semicolons, executes each separately, each validated individually
+- [x] LIMIT notification: detects `LIMIT N` on row-returning queries and passes a note to the format LLM so users know results may be truncated
+- [x] Schema fix: `outcome TEXT ('failure'|'success')` — was documented as `'failed'`; LLM was generating `WHERE outcome = 'failed'` which returned 0 rows
+- [x] DATA intent expanded: trend/time-series queries ("increasing/decreasing over time", "by day/week") now correctly route to SQL instead of GENERAL handler
+- [x] PostgreSQL aggregation guidance added: correct `GROUP BY DATE(session_ts)` pattern, CTE usage for multi-part queries, UNION ALL instead of semicolons
+- [x] `_ALLOWED_COLUMNS`, `_BLOCKED_TOKENS`, `_LIMIT_RE`, `_IS_AGGREGATE_RE` constants added
+
+**Chat conversation quality (accumulated fixes):**
+- [x] Routing prompt: DIAGNOSTIC rule updated — "diagnose the latest X" always routes DIAGNOSTIC not DATA; conversational recall ("what did we discuss about X") always routes GENERAL not DIAGNOSTIC
+- [x] `_handle_general` system prompt: formatting instructions followed/acknowledged; purpose boundary enforced; no sycophantic openers; proportional response length
+- [x] GENERAL fallback response improved — no longer dumps stats count; gives actionable one-liner
+- [x] Adversarial inputs (`sanitize_input` HTTPException) now return proper `ApiResponse` message instead of empty response
+- [x] Empty/whitespace-only input guard added before any LLM call
+
+**Aethen self-analysis testing:**
+- [x] Ran systematic self-test across all 4 failure types (memory, hallucination, blind spot, tool misfire)
+- [x] Confirmed: `outcome = 'failed'` schema bug caused tool misfire (0 results); trend routing was a blind spot; GROUP BY alias was a tool misfire. All fixed
+- [x] Created `docs/scenarios/chat_self_test_questions.md` — 20 concrete test questions (5 per failure type) with notes on what to watch for and known issues log
+- [x] Replayed all 7 existing chat sessions (57/57 turns) against new architecture — 0 issues
+
+### Session 13 — 2026-04-26 (Claude Code)
+
+**Pipeline Bug Fixes + Claude Proxy Fix + Chat Quality**
+
+**Pipeline bugs in `retrieve.py` (all nodes were silently failing):**
+- [x] `vector_retrieve`: was instantiating `new EmbeddingService()` (uninitialized) and calling non-existent `embed()` → fixed to use `pinecone_service` singleton and `query_similar()` (which handles embedding internally — no separate embed step needed)
+- [x] `graph_traverse`: was instantiating `new Neo4jService()` (driver=None) and calling non-existent `execute_read()` → fixed to use `neo4j_service` singleton; added `execute_read()` method to `Neo4jService`
+- [x] Removed `HAS_TOOL_CALL` / `HAS_LLM_CALL` OPTIONAL MATCH clauses from graph traverse Cypher query — these relationship types were never seeded in the DB; Neo4j was emitting DBMS warnings on every query
+- [x] Added traceback logging to `freeform_query_failed` error handler (previously only logged `str(exc)`, making root-cause analysis impossible)
+
+**Claude synthesis fix (`synthesize.py` + `llm.py`):**
+- [x] Root cause identified: DataExpert.io Anthropic proxy **always returns SSE (`text/event-stream`)** regardless of whether streaming was requested. `langchain_anthropic._format_output` calls `data.model_dump()` expecting an `anthropic.types.Message` Pydantic object, but received a raw SSE string → `'str' object has no attribute 'model_dump'`
+- [x] Investigation path: Option A (ChatOpenAI + `/openai` endpoint with claude model) → rejected: proxy returns `"Only GPT-4 models allowed"`. Direct Anthropic API without base_url → rejected: still hits proxy via `ANTHROPIC_BASE_URL` env var. Solution: `streaming=True` on `ChatAnthropic` — langchain_anthropic's SSE parser correctly handles the proxy's always-streaming response
+- [x] `synthesize.py` refactored: `_extract_content()` helper, `_invoke_llm()` with Claude → GPT-4o-mini fallback chain
+
+**Chat conversation quality fixes (`chat.py` + frontend `page.tsx`):**
+- [x] `_SESSION_ID_RE` changed from `\b[0-9a-f]{32}\b` to `\*\*([0-9a-f]{32})\*\*` — only match session IDs Aethen explicitly bolded. Data query results bold the label (`**Session ID:**`) but not the hex value; conversational references bold the ID itself. Prevents SQL result IDs from triggering the diagnostic redirect guard
+- [x] Added `_history_has_diagnostic()` — skips the ungrounded-analysis guard when a prior completed diagnostic for that session already exists in the conversation history (enables follow-up questions like "explain to a 10-year-old" without being redirected to "diagnose it first")
+- [x] Updated GENERAL intent system prompt: no repeating stats already in history; proportional response length; explicit guidance for "give me sample questions" queries
+- [x] Frontend: `content: report.summary ?? ""` instead of `content: ""` when saving assistant messages — DB content column now populated; previously all assistant messages had empty content
+- [x] Frontend `buildHistory`: only appends `Root cause:` for real analysis responses (confidence > 0 and root_cause non-empty) — eliminates `" Root cause: "` noise in LLM history context for conversational/general responses
 
 ### Session 12 — 2026-04-26 (Claude Code)
 
@@ -471,6 +528,8 @@ Three clearly separated data stores — each owns a distinct responsibility:
 5. **Do not modify** reference docs: `capstone_proj_proposal_codeman403.md`, `existing_product_comparison.md`, `proj_plan.md`.
 6. **LLM proxy**: API keys use DataExpert.io proxy — always use `app/agents/llm.py` factory, never instantiate LLM clients directly.
 7. **Claude model**: Use `claude-sonnet-4-6` (not the full dated version name).
+   **Proxy quirk**: DataExpert.io `/anthropic` endpoint always returns SSE (`text/event-stream`). `ChatAnthropic` must be instantiated with `streaming=True` so `langchain_anthropic` uses its SSE parser. Without this flag, synthesis crashes with `'str' object has no attribute 'model_dump'` inside `langchain_anthropic._format_output`. The `/openai` endpoint rejects non-GPT-4 model names — Claude must go through `/anthropic`.
+   **Service singletons**: Always import and use `embedding_service`, `neo4j_service`, `pinecone_service` module-level singletons (initialized in FastAPI lifespan). Never instantiate these classes directly inside node functions — the new instances have no initialized driver/connection.
 8. **Data store responsibilities** — strictly enforced:
    - Agent session CRUD (save/fetch/list) → **`postgres_service`** (`sessions` table) only
    - Chat conversation history → **`postgres_service`** (`chat_sessions` + `chat_messages` tables) only

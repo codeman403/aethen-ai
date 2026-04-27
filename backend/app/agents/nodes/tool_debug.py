@@ -80,6 +80,8 @@ def _build_tool_context(state: AgentState) -> str:
 
 async def tool_debug(state: AgentState) -> dict:
     """Analyze tool call failures using GPT-4o-mini."""
+    from app.agents.nodes.diagnostic_utils import parse_diagnostic_output
+
     llm = get_openai_llm(temperature=0, max_tokens=1500)
 
     context = _build_tool_context(state)
@@ -89,5 +91,9 @@ async def tool_debug(state: AgentState) -> dict:
         {"role": "user", "content": context},
     ])
 
-    logger.info("tool_debug_complete", session_id=state["session"].session_id)
-    return {"analysis": response.content}
+    raw = response.content if hasattr(response, "content") else str(response)
+    validated = parse_diagnostic_output(raw, "tool_debug")
+
+    logger.info("tool_debug_complete", session_id=state["session"].session_id,
+                findings_count=len(validated["findings"]))
+    return {"analysis": raw, "_validated": validated}

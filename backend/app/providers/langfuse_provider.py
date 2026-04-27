@@ -116,6 +116,12 @@ class LangfuseTraceAdapter:
         prompt = self._extract_text(obs.get("input"))
         response = self._extract_text(obs.get("output"))
 
+        # Extract source documents from observation metadata or input context
+        source_documents = self._extract_source_documents(obs)
+
+        # Infer hallucination flag from observation-level signals
+        hallucination_flag = self._infer_hallucination_flag(obs, response, source_documents)
+
         return LLMCall(
             call_id=obs.get("id", f"llm-{uuid.uuid4().hex[:8]}"),
             model=model,
@@ -124,8 +130,8 @@ class LangfuseTraceAdapter:
             tokens_in=usage.get("input") or usage.get("promptTokens") or 0,
             tokens_out=usage.get("output") or usage.get("completionTokens") or 0,
             latency_ms=self._calc_latency(obs),
-            hallucination_flag=False,  # Can be enriched post-analysis
-            source_documents=[],
+            hallucination_flag=hallucination_flag,
+            source_documents=source_documents,
         )
 
     def _to_tool_call(self, obs: dict) -> ToolCall:
@@ -133,10 +139,28 @@ class LangfuseTraceAdapter:
         error = None
         status = ToolCallStatus.SUCCESS
         level = (obs.get("level") or "").upper()
+        latency = self._calc_latency(obs)
+        metadata = obs.get("metadata") or {}
 
         if level == "ERROR" or obs.get("statusMessage"):
             error = obs.get("statusMessage") or "Tool execution failed"
             status = ToolCallStatus.FAILED
+        elif latency > 30_000:
+            # Flag likely timeouts based on high latency (>30s)
+            status = ToolCallStatus.TIMEOUT
+            error = f"High latency detected: {latency:.0f}ms (possible timeout)"
+
+        # Extract error from output if not already captured
+        if not error:
+            output = obs.get("output")
+            if isinstance(output, dict) and output.get("error"):
+                error = str(output["error"])
+                status = ToolCallStatus.FAILED
+            elif isinstance(output, str) and any(
+                sig in output.lower() for sig in ("error", "traceback", "exception", "failed")
+            ):
+                error = output[:500]
+                status = ToolCallStatus.FAILED
 
         return ToolCall(
             call_id=obs.get("id", f"tool-{uuid.uuid4().hex[:8]}"),
@@ -145,27 +169,98 @@ class LangfuseTraceAdapter:
             result=self._extract_text(obs.get("output")),
             error=error,
             status=status,
-            latency_ms=self._calc_latency(obs),
+            latency_ms=latency,
         )
 
     def _to_retrieval_event(self, obs: dict) -> RetrievalEvent:
         """Map a retrieval-like observation to RetrievalEvent."""
         output = obs.get("output")
+        metadata = obs.get("metadata") or {}
+        input_data = obs.get("input")
         chunks = 0
         doc_ids: list[str] = []
+        relevance_scores: list[float] = []
 
         if isinstance(output, list):
             chunks = len(output)
-            doc_ids = [str(item.get("id", "")) for item in output if isinstance(item, dict)]
+            for item in output:
+                if not isinstance(item, dict):
+                    continue
+                # Extract doc IDs
+                doc_id = item.get("id") or item.get("doc_id") or item.get("document_id") or ""
+                if doc_id:
+                    doc_ids.append(str(doc_id))
+                # Extract relevance/similarity scores from result items
+                score = (
+                    item.get("score")
+                    or item.get("relevance_score")
+                    or item.get("similarity")
+                    or item.get("distance")
+                    or item.get("_score")
+                )
+                if score is not None:
+                    try:
+                        relevance_scores.append(float(score))
+                    except (ValueError, TypeError):
+                        pass
         elif isinstance(output, dict):
-            results = output.get("results") or output.get("documents") or []
+            results = output.get("results") or output.get("documents") or output.get("matches") or []
             chunks = len(results)
-            doc_ids = [str(r.get("id", "")) for r in results if isinstance(r, dict)]
+            for r in results:
+                if not isinstance(r, dict):
+                    continue
+                doc_id = r.get("id") or r.get("doc_id") or r.get("document_id") or ""
+                if doc_id:
+                    doc_ids.append(str(doc_id))
+                score = (
+                    r.get("score")
+                    or r.get("relevance_score")
+                    or r.get("similarity")
+                    or r.get("distance")
+                    or r.get("_score")
+                )
+                if score is not None:
+                    try:
+                        relevance_scores.append(float(score))
+                    except (ValueError, TypeError):
+                        pass
+
+        # Extract scores from observation metadata if not found in output
+        if not relevance_scores:
+            meta_scores = metadata.get("relevance_scores") or metadata.get("scores") or []
+            for s in meta_scores:
+                try:
+                    relevance_scores.append(float(s))
+                except (ValueError, TypeError):
+                    pass
+
+        # Extract metadata filters from input
+        metadata_filters: dict = {}
+        if isinstance(input_data, dict):
+            metadata_filters = (
+                input_data.get("filter")
+                or input_data.get("filters")
+                or input_data.get("metadata_filter")
+                or input_data.get("where")
+                or {}
+            )
+            if not isinstance(metadata_filters, dict):
+                metadata_filters = {}
+
+        # Extract namespace from input or metadata
+        namespace = "default"
+        if isinstance(input_data, dict):
+            namespace = input_data.get("namespace") or input_data.get("index") or "default"
+        if metadata.get("namespace"):
+            namespace = metadata["namespace"]
 
         return RetrievalEvent(
             event_id=obs.get("id", f"ret-{uuid.uuid4().hex[:8]}"),
             query=self._extract_text(obs.get("input")),
+            namespace=namespace,
             chunks_returned=chunks,
+            relevance_scores=sorted(relevance_scores, reverse=True),
+            metadata_filters=metadata_filters,
             actual_doc_ids=doc_ids,
         )
 
@@ -198,6 +293,91 @@ class LangfuseTraceAdapter:
             except (ValueError, TypeError):
                 pass
         return {}
+
+    def _extract_source_documents(self, obs: dict) -> list[str]:
+        """Extract source document references from a GENERATION observation.
+
+        Looks in multiple locations where frameworks store source/context docs:
+        - observation metadata (e.g., metadata.source_documents)
+        - input context (e.g., documents passed as context to the LLM)
+        - output metadata (e.g., citations in structured output)
+        """
+        sources: list[str] = []
+        metadata = obs.get("metadata") or {}
+
+        # Check metadata for source document references
+        for key in ("source_documents", "sources", "context_documents", "documents", "references"):
+            docs = metadata.get(key) or []
+            if isinstance(docs, list):
+                for doc in docs:
+                    doc_id = doc.get("id") if isinstance(doc, dict) else str(doc)
+                    if doc_id:
+                        sources.append(str(doc_id))
+
+        # Check input for context documents (common in RAG pipelines)
+        input_data = obs.get("input")
+        if isinstance(input_data, dict):
+            for key in ("context", "documents", "sources", "retrieved_chunks"):
+                ctx = input_data.get(key) or []
+                if isinstance(ctx, list):
+                    for item in ctx:
+                        if isinstance(item, dict):
+                            doc_id = item.get("id") or item.get("doc_id") or item.get("source") or ""
+                            if doc_id:
+                                sources.append(str(doc_id))
+                        elif isinstance(item, str) and len(item) < 200:
+                            sources.append(item)
+        elif isinstance(input_data, list):
+            # Messages list — scan for context/source references in system messages
+            for msg in input_data:
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get("role") or (msg.get("data") or {}).get("role") or ""
+                content = msg.get("content") or (msg.get("data") or {}).get("content") or ""
+                if role == "system" and isinstance(content, str) and "source" in content.lower():
+                    # Extract doc IDs mentioned in system prompt (e.g., "Sources: doc-123, doc-456")
+                    import re
+                    doc_refs = re.findall(r'doc[-_]?[a-zA-Z0-9]{4,}', content)
+                    sources.extend(doc_refs[:10])
+
+        return list(dict.fromkeys(sources))[:20]  # Deduplicate, cap at 20
+
+    def _infer_hallucination_flag(self, obs: dict, response: str, source_documents: list[str]) -> bool:
+        """Infer whether a response is likely hallucinated using content heuristics.
+
+        Checks for common hallucination patterns without requiring an explicit flag.
+        """
+        metadata = obs.get("metadata") or {}
+
+        # Explicit flags in metadata
+        if metadata.get("hallucination") or metadata.get("hallucination_flag"):
+            return True
+        if metadata.get("verification_status") == "failed":
+            return True
+
+        # Content-based heuristics
+        if not response:
+            return False
+
+        response_lower = response.lower()
+
+        # Pattern: Claims grounding without sources
+        grounding_claims = (
+            "based on the documents", "according to the sources",
+            "the retrieved context shows", "as stated in the",
+            "the documentation says", "per the knowledge base",
+        )
+        if any(claim in response_lower for claim in grounding_claims) and not source_documents:
+            return True
+
+        # Pattern: Very specific numerical claims in short responses (often fabricated)
+        # e.g., "The refund policy allows 90 days" when no source backs this
+        import re
+        has_specific_numbers = bool(re.search(r'\b\d{2,}\s*(days?|hours?|percent|%|\$|USD|GB|MB)\b', response))
+        if has_specific_numbers and not source_documents and len(response) > 100:
+            return True
+
+        return False
 
     def _adapt_aethen_trace(self, trace: dict, trace_name: str) -> Session:
         """Build a clean Session from Aethen's own LangGraph analysis traces.
@@ -438,7 +618,7 @@ class LangfuseTraceAdapter:
         if "blind" in name or "gap" in name or "knowledge" in name:
             return FailureType.BLIND_SPOT
 
-        # 3. Scan input/output content of the trace
+        # 3. Scan input/output content of the trace for generic failure signals
         content = " ".join([
             self._extract_text(trace.get("input")),
             self._extract_text(trace.get("output")),
@@ -446,23 +626,84 @@ class LangfuseTraceAdapter:
             *(c.response for c in llm_calls),
         ]).lower()
 
-        if any(k in content for k in ("hallucin", "fabricat", "not verified", "incorrect claim", "quantum encryption")):
+        # Content-based signals (generic, not demo-specific)
+        hallucination_signals = (
+            "hallucin", "fabricat", "not verified", "incorrect claim",
+            "unsupported by source", "contradicts the", "made up", "not grounded",
+        )
+        tool_failure_signals = (
+            "permissionerror", "insufficient privileges", "tool failed",
+            "tool call failed", "connectionerror", "timeouterror",
+            "valueerror", "tool execution error", "api error",
+        )
+        memory_signals = (
+            "wrong document", "stale embedding", "wrong chunk",
+            "metadata mismatch", "irrelevant context", "outdated embedding",
+            "retrieval mismatch", "incorrect retrieval",
+        )
+        blind_spot_signals = (
+            "knowledge gap", "not found in knowledge", "no relevant",
+            "i don't have information", "outside my knowledge",
+            "no documentation available", "unable to find",
+        )
+
+        if any(k in content for k in hallucination_signals):
             return FailureType.HALLUCINATION
-        if any(k in content for k in ("permissionerror", "insufficient privileges", "tool failed", "tool call failed", "update_user_record")):
+        if any(k in content for k in tool_failure_signals):
             return FailureType.TOOL_MISFIRE
-        if any(k in content for k in ("wrong document", "stale embedding", "retrieval system", "wrong chunk", "metadata mismatch")):
+        if any(k in content for k in memory_signals):
             return FailureType.MEMORY
-        if any(k in content for k in ("0 results", "no results", "knowledge gap", "zephyr module", "not found in knowledge")):
+        if any(k in content for k in blind_spot_signals):
             return FailureType.BLIND_SPOT
 
-        # 4. Structural heuristics
-        if any(t.status == ToolCallStatus.FAILED for t in tool_calls):
-            return FailureType.TOOL_MISFIRE
-        if any(r.chunks_returned == 0 for r in retrieval_events):
-            return FailureType.BLIND_SPOT
+        # 4. Structural heuristics — multi-signal scoring for better accuracy
+        score: dict[FailureType, float] = {
+            FailureType.TOOL_MISFIRE: 0.0,
+            FailureType.BLIND_SPOT: 0.0,
+            FailureType.MEMORY: 0.0,
+            FailureType.HALLUCINATION: 0.0,
+        }
+
+        # Tool failure signals
+        failed_tools = [t for t in tool_calls if t.status == ToolCallStatus.FAILED]
+        timed_out_tools = [t for t in tool_calls if t.status == ToolCallStatus.TIMEOUT]
+        if failed_tools:
+            score[FailureType.TOOL_MISFIRE] += 0.6
+        if timed_out_tools:
+            score[FailureType.TOOL_MISFIRE] += 0.4
+        if len(failed_tools) > 1:
+            score[FailureType.TOOL_MISFIRE] += 0.2  # Cascading failures
+
+        # Blind spot signals
+        zero_chunk_retrievals = [r for r in retrieval_events if r.chunks_returned == 0]
+        if zero_chunk_retrievals:
+            score[FailureType.BLIND_SPOT] += 0.6
+        if len(zero_chunk_retrievals) > 1:
+            score[FailureType.BLIND_SPOT] += 0.2  # Repeated gaps
+
+        # Memory signals
         for r in retrieval_events:
             if r.expected_doc_ids and r.actual_doc_ids and set(r.expected_doc_ids) != set(r.actual_doc_ids):
-                return FailureType.MEMORY
+                score[FailureType.MEMORY] += 0.6
+            if r.relevance_scores and max(r.relevance_scores) < 0.5:
+                score[FailureType.MEMORY] += 0.4
+            if r.relevance_scores and r.chunks_returned > 0 and sum(r.relevance_scores) / len(r.relevance_scores) < 0.4:
+                score[FailureType.MEMORY] += 0.3  # Low average relevance
+
+        # Hallucination signals
+        for lc in llm_calls:
+            if lc.hallucination_flag:
+                score[FailureType.HALLUCINATION] += 0.8
+            if lc.response and not lc.source_documents:
+                # Long response with no source docs is suspicious
+                if len(lc.response) > 200:
+                    score[FailureType.HALLUCINATION] += 0.2
+
+        # Return highest-scoring type if it exceeds threshold
+        if score:
+            best_type = max(score, key=score.get)
+            if score[best_type] >= 0.4:
+                return best_type
 
         return None
 

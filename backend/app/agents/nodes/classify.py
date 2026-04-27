@@ -95,12 +95,6 @@ def _session_to_evidence_text(state: AgentState) -> str:
                 parts.append(f"  Prompt: {lc.prompt[:300]}")
             if lc.response:
                 parts.append(f"  Response: {lc.response[:300]}")
-            # Include prompt/response text so the classifier can detect hallucinations
-            # from content even when hallucination_flag is not explicitly set
-            if lc.prompt:
-                parts.append(f"  Prompt: {lc.prompt[:300]}")
-            if lc.response:
-                parts.append(f"  Response: {lc.response[:300]}")
 
     return "\n".join(parts)
 

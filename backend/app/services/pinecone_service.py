@@ -34,7 +34,11 @@ class PineconeService:
     async def upsert_session(self, session: Session, namespace: str = "traces") -> int:
         """Embed and store a session's trace events in Pinecone.
 
-        Returns the number of vectors upserted.
+        Stores vectors in two namespaces:
+        - "traces": Individual trace step embeddings (LLM calls, tool calls, retrievals)
+        - "failure_patterns": Session-level failure summary embeddings for pattern matching
+
+        Returns the number of vectors upserted (across both namespaces).
         """
         if not self.is_available:
             raise RuntimeError("PineconeService not initialized")
@@ -83,19 +87,80 @@ class PineconeService:
                 "outcome": session.outcome,
             })
 
-        if not texts:
-            return 0
+        total_upserted = 0
 
-        # Embed and upsert
-        embeddings = await embedding_service.embed_batch(texts)
-        vectors = [
-            {"id": vid, "values": emb, "metadata": meta}
-            for vid, emb, meta in zip(ids, embeddings, metadata_list)
-        ]
-        self._index.upsert(vectors=vectors, namespace=namespace)
+        if texts:
+            # Embed and upsert trace steps
+            embeddings = await embedding_service.embed_batch(texts)
+            vectors = [
+                {"id": vid, "values": emb, "metadata": meta}
+                for vid, emb, meta in zip(ids, embeddings, metadata_list)
+            ]
+            self._index.upsert(vectors=vectors, namespace=namespace)
+            total_upserted += len(vectors)
+            logger.info("pinecone_traces_upserted", session_id=session.session_id, count=len(vectors))
 
-        logger.info("pinecone_upserted", session_id=session.session_id, count=len(vectors))
-        return len(vectors)
+        # ── Also store session-level failure pattern embedding ─────────
+        # This goes in a separate "failure_patterns" namespace so that
+        # vector_retrieve can search failures-against-failures (matching
+        # semantic intent) instead of failures-against-trace-steps.
+        if session.outcome == "failure" and session.failure_summary:
+            pattern_text = self._build_failure_pattern_text(session)
+            pattern_embedding = await embedding_service.embed_text(pattern_text)
+            pattern_meta = {
+                "session_id": session.session_id,
+                "agent_id": session.agent_id,
+                "failure_type": session.failure_type or "",
+                "failure_summary": session.failure_summary[:500],
+                "outcome": session.outcome,
+                "llm_call_count": len(session.llm_calls),
+                "tool_call_count": len(session.tool_calls),
+                "retrieval_count": len(session.retrieval_events),
+            }
+            self._index.upsert(
+                vectors=[{
+                    "id": f"{session.session_id}:pattern",
+                    "values": pattern_embedding,
+                    "metadata": pattern_meta,
+                }],
+                namespace="failure_patterns",
+            )
+            total_upserted += 1
+            logger.info("pinecone_pattern_upserted", session_id=session.session_id)
+
+        return total_upserted
+
+    @staticmethod
+    def _build_failure_pattern_text(session: Session) -> str:
+        """Build a rich text summary of a session's failure for embedding.
+
+        Combines the failure summary with key signals so that similar failures
+        cluster together in vector space (e.g., "tool timeout" failures match
+        other "tool timeout" failures, not random trace steps).
+        """
+        parts = [session.failure_summary or ""]
+
+        # Add retrieval query context
+        for evt in session.retrieval_events[:3]:
+            if evt.query:
+                parts.append(f"Query: {evt.query[:200]}")
+            if evt.chunks_returned == 0:
+                parts.append("No chunks retrieved")
+            elif evt.relevance_scores:
+                avg_score = sum(evt.relevance_scores) / len(evt.relevance_scores)
+                parts.append(f"Avg relevance: {avg_score:.2f}")
+
+        # Add tool error context
+        for tc in session.tool_calls[:3]:
+            if tc.error:
+                parts.append(f"Tool error ({tc.tool_name}): {tc.error[:200]}")
+
+        # Add LLM hallucination context
+        for lc in session.llm_calls[:2]:
+            if lc.hallucination_flag:
+                parts.append(f"Hallucinated response from {lc.model}")
+
+        return " | ".join(p for p in parts if p)
 
     async def query_similar(
         self,

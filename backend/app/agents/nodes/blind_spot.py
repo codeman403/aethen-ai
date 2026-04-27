@@ -110,5 +110,10 @@ async def blind_spot(state: AgentState) -> dict:
         {"role": "user", "content": context},
     ])
 
-    logger.info("blind_spot_complete", session_id=state["session"].session_id)
-    return {"analysis": response.content}
+    raw = response.content if hasattr(response, "content") else str(response)
+    from app.agents.nodes.diagnostic_utils import parse_diagnostic_output
+    validated = parse_diagnostic_output(raw, "blind_spot")
+
+    logger.info("blind_spot_complete", session_id=state["session"].session_id,
+                findings_count=len(validated["findings"]))
+    return {"analysis": raw, "_validated": validated}

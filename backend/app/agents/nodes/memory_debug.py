@@ -81,6 +81,8 @@ def _build_memory_context(state: AgentState) -> str:
 
 async def memory_debug(state: AgentState) -> dict:
     """Analyze retrieval failures using GPT-4o-mini."""
+    from app.agents.nodes.diagnostic_utils import parse_diagnostic_output
+
     llm = get_openai_llm(temperature=0, max_tokens=1500)
 
     context = _build_memory_context(state)
@@ -90,5 +92,9 @@ async def memory_debug(state: AgentState) -> dict:
         {"role": "user", "content": context},
     ])
 
-    logger.info("memory_debug_complete", session_id=state["session"].session_id)
-    return {"analysis": response.content}
+    raw = response.content if hasattr(response, "content") else str(response)
+    validated = parse_diagnostic_output(raw, "memory_debug")
+
+    logger.info("memory_debug_complete", session_id=state["session"].session_id,
+                findings_count=len(validated["findings"]))
+    return {"analysis": raw, "_validated": validated}
