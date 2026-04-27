@@ -265,7 +265,15 @@ Classify the user's message into exactly one intent:
    - Query ONLY the sessions table. No system tables (pg_catalog, information_schema).
    - NEVER use SELECT * — name only the columns the answer needs.
    - Allowed columns: session_id, agent_id, failure_type, outcome, failure_summary, session_ts, created_at
-   - NEVER include session_data (too large, contains sensitive trace content).
+   - NEVER select raw session_data column (too large). But you CAN extract specific fields from it
+     using JSONB operators. session_data is a JSONB column with this structure:
+     {{"llm_calls": [{{"prompt": "...", "response": "...", "model": "...", "hallucination_flag": bool}}],
+      "tool_calls": [{{"tool_name": "...", "parameters": {{}}, "result": "...", "error": "...", "status": "..."}}],
+      "retrieval_events": [{{"query": "...", "chunks_returned": N, "relevance_scores": [...]}}]}}
+   - To get LLM prompt/response: session_data->'llm_calls'->0->>'prompt', session_data->'llm_calls'->0->>'response'
+   - To get tool errors: session_data->'tool_calls'->0->>'error'
+   - To iterate all LLM calls: use jsonb_array_elements(session_data->'llm_calls')
+   - Always LIMIT and truncate text with LEFT(..., 500) for large text fields.
    - Always include LIMIT (max 50).
 
    Multi-part questions ("show me oldest X, then oldest Y"): write ONE statement using CTE or UNION ALL.
@@ -318,7 +326,7 @@ _ALLOWED_COLUMNS = frozenset({
     "failure_summary", "session_ts", "created_at",
 })
 _BLOCKED_TOKENS = frozenset({
-    "SESSION_DATA", "PG_CATALOG", "INFORMATION_SCHEMA",
+    "PG_CATALOG", "INFORMATION_SCHEMA",
     "PG_CLASS", "PG_TABLES", "PG_NAMESPACE",
     "DROP", "DELETE", "INSERT", "UPDATE", "CREATE", "ALTER", "GRANT", "REVOKE", "TRUNCATE",
 })
@@ -334,6 +342,10 @@ def _validate_sql(sql: str) -> None:
             raise ValueError(f"Query contains disallowed token: {token}")
     if "SELECT *" in upper.replace(" ", ""):
         raise ValueError("SELECT * is not permitted — use explicit column names")
+    # Block raw session_data column in SELECT but allow JSONB extraction (->>, ->)
+    # "SELECT session_data FROM" is blocked; "session_data->>'llm_calls'" is allowed
+    if re.search(r"\bSESSION_DATA\b", upper) and not re.search(r"SESSION_DATA\s*->>?\s*'", upper):
+        raise ValueError("Raw session_data is not permitted — use JSONB operators (->>, ->) to extract specific fields")
 
 
 def _get_limit(sql: str) -> int | None:
