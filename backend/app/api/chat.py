@@ -253,6 +253,14 @@ Classify the user's message into exactly one intent:
    Write valid PostgreSQL. You already know the language — use CTEs, window functions, EXTRACT,
    date_trunc, ILIKE, HAVING, subqueries as needed.
 
+   SQL correctness rules:
+   - Every non-aggregated column in SELECT must appear in GROUP BY.
+   - Use date_trunc('week', session_ts) or date_trunc('day', session_ts) for time bucketing.
+   - For "improvement over time": compare failure rates between earlier and later time periods
+     using a CTE with two windows (e.g., first half vs second half of sessions by session_ts).
+   - For "which agent is best/worst": use COUNT with FILTER and GROUP BY agent_id.
+   - Always double-check GROUP BY matches SELECT before returning.
+
    Security constraints (enforced in code — violations will be rejected):
    - Query ONLY the sessions table. No system tables (pg_catalog, information_schema).
    - NEVER use SELECT * — name only the columns the answer needs.
@@ -326,6 +334,45 @@ def _get_limit(sql: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+async def _fix_sql(original_sql: str, error_msg: str, user_query: str) -> str | None:
+    """Ask the LLM to fix a failed SQL query based on the error message."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from app.agents.llm import get_openai_llm
+
+    system = (
+        "You are a PostgreSQL expert. The following SQL query failed. "
+        "Fix it and return ONLY the corrected SQL — no explanation, no markdown.\n\n"
+        "Table: sessions (session_id TEXT, agent_id TEXT, failure_type TEXT, "
+        "outcome TEXT, failure_summary TEXT, session_ts TIMESTAMPTZ, created_at TIMESTAMPTZ)\n\n"
+        "Common fixes:\n"
+        "- Every non-aggregated column in SELECT must be in GROUP BY\n"
+        "- Use date_trunc() for time bucketing, not raw timestamps in GROUP BY\n"
+        "- Always include LIMIT (max 50)\n"
+        "- Never use SELECT * or session_data"
+    )
+    prompt = (
+        f"User question: {user_query}\n\n"
+        f"Failed SQL:\n{original_sql}\n\n"
+        f"Error: {error_msg}\n\n"
+        f"Return ONLY the fixed SQL:"
+    )
+
+    try:
+        llm = get_openai_llm(temperature=0, max_tokens=500)
+        resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+        fixed = (resp.content if hasattr(resp, "content") else str(resp)).strip()
+        # Strip markdown fences if present
+        if fixed.startswith("```"):
+            fixed = fixed.split("```")[1]
+            if fixed.lower().startswith("sql"):
+                fixed = fixed[3:]
+            fixed = fixed.strip()
+        return fixed if fixed else None
+    except Exception as exc:
+        logger.warning("fix_sql_failed", error=str(exc))
+        return None
+
+
 async def _handle_text_to_sql(
     query: str, sql: str, history: list[HistoryMessage]
 ) -> AnalysisReport:
@@ -350,11 +397,32 @@ async def _handle_text_to_sql(
         _validate_sql(stmt)
 
     # Execute — combine rows from all statements (usually just one)
+    # On SQL error: let the LLM fix the query once before failing
     all_rows: list = []
-    async with postgres_service._pool.acquire() as conn:
-        for stmt in statements:
-            rows = await conn.fetch(stmt)
-            all_rows.extend(rows)
+    try:
+        async with postgres_service._pool.acquire() as conn:
+            for stmt in statements:
+                rows = await conn.fetch(stmt)
+                all_rows.extend(rows)
+    except Exception as sql_err:
+        logger.warning("text_to_sql_first_attempt_failed", error=str(sql_err), sql=sql[:200])
+        # Ask the LLM to fix the SQL
+        fixed_sql = await _fix_sql(sql, str(sql_err), query)
+        if fixed_sql and fixed_sql != sql:
+            # Re-validate and retry
+            fixed_stmts = [s.strip() for s in fixed_sql.strip().rstrip(";").split(";") if s.strip()]
+            for stmt in fixed_stmts:
+                if not stmt.upper().lstrip().startswith("SELECT") and not stmt.upper().lstrip().startswith("WITH"):
+                    raise ValueError("Only SELECT / CTE queries are permitted")
+                _validate_sql(stmt)
+            async with postgres_service._pool.acquire() as conn:
+                for stmt in fixed_stmts:
+                    rows = await conn.fetch(stmt)
+                    all_rows.extend(rows)
+            sql = fixed_sql  # Update for limit detection below
+            logger.info("text_to_sql_retry_succeeded", fixed_sql=fixed_sql[:200])
+        else:
+            raise sql_err
 
     # Detect whether results were LIMIT-capped (row-returning, not aggregate)
     limit_val = _get_limit(sql)
