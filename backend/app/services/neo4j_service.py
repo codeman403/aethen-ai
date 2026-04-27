@@ -379,4 +379,13 @@ class Neo4jService:
         return {"nodes": nodes, "relationships": rels}
 
 
+    async def execute_read(self, query: str, params: dict | None = None) -> list:
+        """Run a read-only Cypher query and return all records."""
+        if not self.is_available:
+            raise RuntimeError("Neo4jService not initialized")
+        async with self._driver.session() as db:
+            result = await db.run(query, params or {})
+            return await result.data()
+
+
 neo4j_service = Neo4jService()

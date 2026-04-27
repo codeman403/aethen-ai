@@ -127,37 +127,84 @@ def _severity(count: int) -> str:
     return "low"
 
 
-_SESSION_ID_RE = re.compile(r"\b[0-9a-f]{32}\b")
+# Only match session IDs that Aethen explicitly bolded (**hex32**).
+# Data query results bold the label ("**Session ID:**") but not the hex value itself,
+# so plain hex IDs in data listings are never extracted by this regex.
+_SESSION_ID_RE = re.compile(r"\*\*([0-9a-f]{32})\*\*")
 
 def _extract_session_id_from_history(history: list[HistoryMessage]) -> str | None:
-    """Return the most recently mentioned 32-char hex session ID from assistant messages."""
+    """Return the most recently bolded 32-char hex session ID from assistant messages."""
     for msg in reversed(history):
         if msg.role == "assistant":
             m = _SESSION_ID_RE.search(msg.content)
             if m:
-                return m.group()
+                return m.group(1)
     return None
 
 
-_ANALYSIS_SIGNALS = (
-    "could involve", "suggests that", "indicates a", "this failure",
-    "misfire", "retrieval miss", "hallucination", "blind spot", "stale embedding",
-)
+async def _handle_general(query: str, history: list[HistoryMessage]) -> dict:
+    """Focused conversational responder for all general/recall/meta queries.
 
-def _looks_like_analysis(text: str) -> bool:
-    """True when general-path LLM text reads like specific-session analysis."""
-    lower = text.lower()
-    return any(s in lower for s in _ANALYSIS_SIGNALS)
+    Returns one of:
+      {"type": "answer",   "text": "..."}          — normal conversational response
+      {"type": "diagnose", "session_id": "..."}     — user accepted a diagnostic offer;
+                                                       caller should run the pipeline
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from app.agents.llm import get_openai_llm
+
+    history_text = "\n".join(
+        f"{'User' if t.role == 'user' else 'Aethen'}: {t.content[:300]}"
+        for t in history[-12:]
+    ) or "(no prior messages)"
+
+    system = (
+        "You are Aethen, an AI agent failure intelligence assistant.\n"
+        "Your sole purpose is helping users understand and analyze AI agent failures.\n"
+        "You have access to: session metadata — failure type, failure summary, agent ID, timestamps.\n"
+        "You do NOT have access to: raw LLM prompts, model responses, or token-level data "
+        "(those require checking Langfuse directly).\n\n"
+        "Use the conversation history to give specific, contextual answers.\n"
+        "If the query is unrelated to AI agent failure analysis (weather, coding help, creative writing, "
+        "general knowledge), decline in one sentence and offer what you can actually help with.\n"
+        "Brief social exchanges (greetings, thanks, acknowledgments) get a short natural reply — "
+        "no need to force a failure-analysis pivot for these.\n"
+        "IMPORTANT — diagnostic intent detection:\n"
+        "If you determine from the conversation context that the user's current message accepts or "
+        "consents to running a diagnosis that was previously offered by Aethen — respond with ONLY "
+        "this exact token and nothing else: DIAGNOSE:<session_id>\n"
+        "Example: if Aethen said 'ask me to diagnose session **abc123**' and the user now agrees, "
+        "respond with: DIAGNOSE:abc123\n"
+        "If the user is requesting analysis of a session without having run the pipeline, invite them "
+        "to ask for a diagnosis rather than fabricating findings.\n"
+        "Follow any formatting instructions the user gives. If you cannot follow one, say so briefly.\n"
+        "Be concise and direct. No generic capability descriptions."
+    )
+    prompt = f"Conversation history:\n{history_text}\n\nUser: {query}"
+
+    try:
+        llm = get_openai_llm()
+        resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+        text = (resp.content if hasattr(resp, "content") else str(resp)).strip()
+
+        if text.upper().startswith("DIAGNOSE:"):
+            session_id = text.split(":", 1)[1].strip()
+            logger.info("general_handler_implicit_consent", session_id=session_id)
+            return {"type": "diagnose", "session_id": session_id}
+
+        return {"type": "answer", "text": text}
+    except Exception as exc:
+        logger.warning("general_handler_failed", error=str(exc))
+        return {"type": "answer", "text": "I didn't catch that — could you rephrase?"}
 
 
 async def _llm_route(query: str, history: list[HistoryMessage]) -> dict:
-    """Single LLM call: classifies intent, generates SQL for data queries, answers general ones.
+    """Classify query intent only. Does NOT answer — answering is handled by dedicated functions.
 
     Returns one of:
       {"intent": "data",       "sql": "SELECT ..."}
       {"intent": "diagnostic", "failure_type": "memory|...", "session_id": "<optional>"}
-      {"intent": "general",    "answer": "..."}
-    session_id is included in diagnostic when the history references a specific session.
+      {"intent": "general"}
     """
     import json as _json
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -173,19 +220,14 @@ async def _llm_route(query: str, history: list[HistoryMessage]) -> dict:
         for t in history[-15:]
     ) or "(no previous messages)"
 
-    system = f"""You are Aethen, an AI agent failure intelligence assistant.
+    system = f"""You are an intent classifier. Respond with ONLY valid JSON — no prose, no markdown.
 
-Postgres schema (read-only):
-  sessions (
-    session_id    TEXT,
-    agent_id      TEXT,
-    failure_type  TEXT  -- 'memory' | 'tool_misfire' | 'hallucination' | 'blind_spot' | NULL (success)
-    outcome       TEXT  -- 'failed' | 'success'
-    failure_summary TEXT,
-    session_ts    TIMESTAMPTZ,  -- when the agent session occurred
-    created_at    TIMESTAMPTZ   -- when Aethen ingested it
-  )
-  DO NOT use the session_data column (too large).
+Database schema (sessions table, read-only):
+  session_id TEXT, agent_id TEXT,
+  failure_type TEXT ('memory'|'tool_misfire'|'hallucination'|'blind_spot'|NULL),
+  outcome TEXT ('failure'|'success'), failure_summary TEXT,
+  session_ts TIMESTAMPTZ, created_at TIMESTAMPTZ
+  DO NOT query session_data (too large).
 
 Current totals: {total} sessions — {success} successful, {bd.get('memory',0)} memory,
   {bd.get('tool_misfire',0)} tool_misfire, {bd.get('hallucination',0)} hallucination,
@@ -194,33 +236,38 @@ Current totals: {total} sessions — {success} successful, {bd.get('memory',0)} 
 Conversation history:
 {history_text}
 
-Respond with ONLY valid JSON (no markdown). Choose one intent:
+Classify the user's message into exactly one intent:
 
-1. DATA — any question about sessions, counts, ordering, timestamps, filtering.
-   Generate a safe SELECT query. Only SELECT allowed.
-   For "oldest"/"earliest"/"first" → ORDER BY session_ts ASC
-   For "newest"/"latest"/"recent"  → ORDER BY session_ts DESC
-   Always add LIMIT (max 50). Return only useful columns.
-   → {{"intent":"data","sql":"SELECT session_id, agent_id, failure_type, failure_summary, session_ts FROM sessions WHERE ... ORDER BY ... LIMIT ..."}}
+1. DATA — querying, counting, filtering, ordering, searching, or analysis on session metadata.
+   Trigger: "how many", "show me", "list", "find", "oldest", "newest", "trend", "over time",
+            "by day/week/month", "increasing/decreasing", "distribution", "breakdown", "which had most/least".
 
-2. DIAGNOSTIC — root cause analysis, "why is X failing", "diagnose", "analyze", "understand this failure".
-   Pick the failure_type that best fits:
-     memory       → wrong chunks retrieved, retrieval miss, stale embeddings, wrong context surfaced
-     tool_misfire → API errors, tool call failures, timeouts, permission errors, wrong tool params
-     hallucination → LLM fabricated facts, answer not grounded in source documents, made-up data
-     blind_spot   → topic missing from knowledge base, agent can't answer despite data existing
-   Use "unknown" when the failure type genuinely cannot be determined from the query.
+   Write valid PostgreSQL. You already know the language — use CTEs, window functions, EXTRACT,
+   date_trunc, ILIKE, HAVING, subqueries as needed.
 
-   IMPORTANT: If the conversation history shows that a specific session_id was recently
-   mentioned by Aethen (e.g. "session ID **abc123...** was logged") AND this query is asking
-   to understand, analyze, diagnose, or explain that failure — include the session_id:
-   → {{"intent":"diagnostic","failure_type":"tool_misfire","session_id":"abc123..."}}
+   Security constraints (enforced in code — violations will be rejected):
+   - Query ONLY the sessions table. No system tables (pg_catalog, information_schema).
+   - NEVER use SELECT * — name only the columns the answer needs.
+   - Allowed columns: session_id, agent_id, failure_type, outcome, failure_summary, session_ts, created_at
+   - NEVER include session_data (too large, contains sensitive trace content).
+   - Always include LIMIT (max 50).
 
-   If no specific session is referenced, omit session_id:
-   → {{"intent":"diagnostic","failure_type":"memory|tool_misfire|hallucination|blind_spot|unknown"}}
+   Multi-part questions ("show me oldest X, then oldest Y"): write ONE statement using CTE or UNION ALL.
+   Never separate statements with a semicolon.
 
-3. GENERAL — identity, capabilities, conversation history, anything not answerable by SQL.
-   → {{"intent":"general","answer":"your full response here using the totals above"}}"""
+   → {{"intent":"data","sql":"..."}}
+
+2. DIAGNOSTIC — the user wants to understand WHY a session failed: root cause, findings, deep analysis.
+   Use the full conversation context to determine this intent — explicit requests and implicit ones alike.
+   For example, if Aethen previously offered to run a diagnosis and the user is accepting that offer,
+   that is DIAGNOSTIC intent even without explicit trigger words.
+   Pick failure_type: memory | tool_misfire | hallucination | blind_spot | unknown
+   If the conversation context identifies a specific session_id (**hex32** bolded by Aethen),
+   include it: {{"intent":"diagnostic","failure_type":"...","session_id":"..."}}
+   Otherwise: {{"intent":"diagnostic","failure_type":"..."}}
+
+3. GENERAL — everything else: conversation, recall, frustration, off-topic, vague, social, capabilities.
+   → {{"intent":"general"}}"""
 
     try:
         llm = get_openai_llm()
@@ -233,40 +280,81 @@ Respond with ONLY valid JSON (no markdown). Choose one intent:
         return _json.loads(text.strip())
     except Exception as exc:
         logger.warning("llm_route_failed", error=str(exc))
-        return {
-            "intent": "general",
-            "answer": (
-                "I'm Aethen, your AI agent failure intelligence assistant. "
-                f"You have {total} sessions ({success} successful, {total - success} failures). "
-                "Ask me anything about your agent traces."
-            ),
-        }
+        return {"intent": "general"}
+
+
+_ALLOWED_COLUMNS = frozenset({
+    "session_id", "agent_id", "failure_type", "outcome",
+    "failure_summary", "session_ts", "created_at",
+})
+_BLOCKED_TOKENS = frozenset({
+    "SESSION_DATA", "PG_CATALOG", "INFORMATION_SCHEMA",
+    "PG_CLASS", "PG_TABLES", "PG_NAMESPACE",
+    "DROP", "DELETE", "INSERT", "UPDATE", "CREATE", "ALTER", "GRANT", "REVOKE", "TRUNCATE",
+})
+_LIMIT_RE = re.compile(r"\bLIMIT\s+(\d+)", re.IGNORECASE)
+_IS_AGGREGATE_RE = re.compile(r"\b(COUNT|SUM|AVG|MAX|MIN|GROUP\s+BY)\b", re.IGNORECASE)
+
+
+def _validate_sql(sql: str) -> None:
+    """Enforce security constraints on the generated SQL."""
+    upper = sql.upper()
+    for token in _BLOCKED_TOKENS:
+        if re.search(rf"\b{re.escape(token)}\b", upper):
+            raise ValueError(f"Query contains disallowed token: {token}")
+    if "SELECT *" in upper.replace(" ", ""):
+        raise ValueError("SELECT * is not permitted — use explicit column names")
+
+
+def _get_limit(sql: str) -> int | None:
+    """Return the LIMIT value if present, else None."""
+    m = _LIMIT_RE.search(sql)
+    return int(m.group(1)) if m else None
 
 
 async def _handle_text_to_sql(
     query: str, sql: str, history: list[HistoryMessage]
 ) -> AnalysisReport:
-    """Execute the LLM-generated SQL and format results as plain English.
+    """Execute LLM-generated SQL safely and format results as plain English.
 
-    A second LLM call converts raw rows into a conversational answer that
-    includes specific values (timestamps, IDs, counts) so follow-up questions
-    about those values can be answered from the conversation history.
+    Security: validates allowed tokens, blocked columns, no SELECT *.
+    Multi-statement: if the LLM still generates semicolon-separated statements
+    despite instructions, splits and executes each separately.
+    LIMIT: if results are capped, the format response notifies the user.
     """
     import json as _json
     from langchain_core.messages import HumanMessage, SystemMessage
     from app.agents.llm import get_openai_llm
 
-    # Safety: only SELECT is permitted
-    if not sql.strip().upper().startswith("SELECT"):
-        raise ValueError("Only SELECT queries are permitted")
+    # Split on semicolons — handles the rare case the LLM generates multiple statements
+    statements = [s.strip() for s in sql.strip().rstrip(";").split(";") if s.strip()]
 
-    # Execute query
+    # Validate and gate each statement
+    for stmt in statements:
+        if not stmt.upper().lstrip().startswith("SELECT") and not stmt.upper().lstrip().startswith("WITH"):
+            raise ValueError("Only SELECT / CTE queries are permitted")
+        _validate_sql(stmt)
+
+    # Execute — combine rows from all statements (usually just one)
+    all_rows: list = []
     async with postgres_service._pool.acquire() as conn:
-        rows = await conn.fetch(sql.strip())
+        for stmt in statements:
+            rows = await conn.fetch(stmt)
+            all_rows.extend(rows)
 
-    # Serialise rows — skip session_data (too large), convert datetimes
+    # Detect whether results were LIMIT-capped (row-returning, not aggregate)
+    limit_val = _get_limit(sql)
+    is_aggregate = bool(_IS_AGGREGATE_RE.search(sql))
+    limit_note = (
+        f"\n\n*Note: results are limited to the first {limit_val} rows. "
+        "There may be additional matching sessions.*"
+        if limit_val and len(all_rows) >= limit_val and not is_aggregate
+        else ""
+    )
+
+    # Serialise rows — strip any session_data that slipped through
     results: list[dict] = []
-    for row in rows:
+    for row in all_rows:
         r: dict = {}
         for k, v in dict(row).items():
             if k == "session_data":
@@ -274,7 +362,8 @@ async def _handle_text_to_sql(
             r[k] = v.isoformat() if hasattr(v, "isoformat") else (str(v) if v is not None else None)
         results.append(r)
 
-    logger.info("text_to_sql_executed", rows=len(results), sql=sql[:120])
+    logger.info("text_to_sql_executed", rows=len(results), statements=len(statements),
+                sql=sql[:120])
 
     # Format results as natural language
     results_json = _json.dumps(results, indent=2) if results else "[]"
@@ -283,16 +372,23 @@ async def _handle_text_to_sql(
         for t in history[-5:]
     ) or ""
 
+    total_sessions = await postgres_service.compute_stats()
+    total_count = total_sessions.get("total_sessions", 0)
+
     format_system = (
         "You are Aethen. Convert the SQL query results into a clear, conversational answer. "
         "Include all specific values from the results: session IDs, timestamps, failure summaries, counts. "
         "The user may ask follow-up questions about these values, so make sure they appear in your response. "
+        "When 0 results are returned for a keyword/content search: state how many total sessions were "
+        "searched, and note that the value the user is looking for may be in the raw session content "
+        "(LLM prompts/responses) which is not stored in the searchable metadata. "
         "Be concise. Never mention SQL or database internals."
     )
     format_prompt = (
         f"User question: {query}\n\n"
+        f"Total sessions in database: {total_count}\n"
         f"Query returned {len(results)} row(s):\n{results_json}\n\n"
-        "Answer in plain English, citing the actual values."
+        f"Answer in plain English, citing the actual values.{limit_note}"
     )
 
     try:
@@ -339,7 +435,31 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
     request_id = str(uuid.uuid4())
     start = time.perf_counter()
 
-    query = sanitize_input(request.query, "query")
+    # Block or sanitize input before it reaches the LLM
+    try:
+        query = sanitize_input(request.query, "query")
+    except Exception:
+        return ApiResponse(
+            data=AnalysisReport(
+                session_id=f"blocked-{uuid.uuid4().hex[:8]}",
+                failure_type=FailureType.UNKNOWN,
+                summary="That input isn't something I can process. Ask me about AI agent failures — session counts, diagnostics, trends.",
+                findings=[], root_cause="", confidence=0.0,
+            ),
+            metadata=ResponseMetadata(request_id=request_id, duration_ms=0),
+        )
+
+    # Reject empty / whitespace-only input
+    if not query.strip():
+        return ApiResponse(
+            data=AnalysisReport(
+                session_id=f"empty-{uuid.uuid4().hex[:8]}",
+                failure_type=FailureType.UNKNOWN,
+                summary="What would you like to know? You can ask about failure counts, diagnose a session, or explore trends.",
+                findings=[], root_cause="", confidence=0.0,
+            ),
+            metadata=ResponseMetadata(request_id=request_id, duration_ms=0),
+        )
 
     # ── Routing — fully LLM-driven, no keyword matching ────────────────────
     routing = await _llm_route(query, request.history)
@@ -356,27 +476,30 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
 
     try:
         if intent == "general":
-            # LLM already answered — wrap in a plain-text report.
-            # Guard: if there's a referenced session in history and the LLM response looks
-            # like specific-session analysis, redirect rather than surface ungrounded text.
-            answer = routing.get("answer", "I'm Aethen, your AI agent failure intelligence assistant.")
-            referenced_sid = _extract_session_id_from_history(request.history)
-            if referenced_sid and _looks_like_analysis(answer):
-                answer = (
-                    f"I can see session **{referenced_sid}** was mentioned earlier. "
-                    f"To get a grounded analysis with root cause, findings, and confidence score, "
-                    f"ask me to diagnose it — for example: "
-                    f"*\"Diagnose session {referenced_sid}\"* or *\"Analyze that failure\"*."
+            general_result = await _handle_general(query, request.history)
+
+            if general_result["type"] == "diagnose":
+                # User implicitly consented to a diagnosis Aethen previously offered.
+                # Re-route as diagnostic with the identified session_id.
+                logger.info("implicit_diagnostic_consent", session_id=general_result["session_id"])
+                intent = "diagnostic"
+                routing = {
+                    "intent": "diagnostic",
+                    "failure_type": "unknown",
+                    "session_id": general_result["session_id"],
+                }
+                failure_type = None
+                # Fall through to the diagnostic block below
+            else:
+                report = AnalysisReport(
+                    session_id=f"chat-{uuid.uuid4().hex[:8]}",
+                    failure_type=FailureType.UNKNOWN,
+                    summary=general_result["text"],
+                    findings=[],
+                    root_cause="",
+                    confidence=0.0,
+                    raw_analysis=general_result["text"],
                 )
-            report = AnalysisReport(
-                session_id=f"chat-{uuid.uuid4().hex[:8]}",
-                failure_type=FailureType.UNKNOWN,
-                summary=answer,
-                findings=[],
-                root_cause="",
-                confidence=0.0,
-                raw_analysis=answer,
-            )
 
         elif intent == "data":
             # LLM generated a SQL query — execute it and format the results
@@ -385,7 +508,7 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
                 raise ValueError("LLM returned data intent but no SQL query")
             report = await _handle_text_to_sql(query, sql, request.history)
 
-        else:  # diagnostic
+        if intent == "diagnostic":  # explicit or implicit-consent (re-routed from general)
             # Ground the query in a real session from Postgres.
             # Priority 1: LLM returned a specific session_id from conversation history.
             # Priority 2: fetch by failure_type.
@@ -458,7 +581,8 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
 
     except Exception as exc:
         duration_ms = (time.perf_counter() - start) * 1000
-        logger.error("freeform_query_failed", request_id=request_id, error=str(exc))
+        logger.error("freeform_query_failed", request_id=request_id, error=str(exc),
+                     traceback=traceback.format_exc())
         return ApiResponse(
             error=f"Query failed: {exc!s}",
             metadata=ResponseMetadata(request_id=request_id, duration_ms=duration_ms),

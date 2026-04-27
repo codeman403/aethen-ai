@@ -1,7 +1,7 @@
 """Synthesize node — produces the final structured analysis report.
 
 Uses Claude Sonnet 4.6 for high-quality reasoning and report generation.
-Falls back to GPT-4o-mini if Anthropic API key is not configured.
+Falls back to GPT-4o-mini if the Anthropic proxy rejects the request.
 """
 
 import json
@@ -10,9 +10,10 @@ import traceback
 
 import structlog
 
-from app.agents.llm import get_anthropic_llm
+import asyncio
+
+from app.agents.llm import get_anthropic_llm, get_openai_llm
 from app.agents.state import AgentState, AnalysisReport, Finding, ensure_session
-from app.config import settings
 from app.models.trace import FailureType
 
 logger = structlog.get_logger()
@@ -48,9 +49,38 @@ Respond in this exact JSON format:
 """
 
 
-def _get_llm():
-    """Get the synthesis LLM — Claude Sonnet 4.6 preferred, GPT-4o-mini fallback."""
-    return get_anthropic_llm(temperature=0, max_tokens=2000)
+def _extract_content(response) -> str:
+    raw = response.content if hasattr(response, "content") else str(response)
+    if isinstance(raw, list):
+        parts = []
+        for block in raw:
+            if isinstance(block, dict):
+                parts.append(block.get("text", ""))
+            elif hasattr(block, "text"):
+                parts.append(block.text)
+            else:
+                parts.append(str(block))
+        raw = "".join(parts)
+    raw = re.sub(r"^```(?:json)?\s*\n?", "", str(raw).strip())
+    raw = re.sub(r"\n?```\s*$", "", raw)
+    return raw
+
+
+async def _invoke_llm(messages: list[dict]) -> str:
+    """Try Claude Sonnet 4.6 first; fall back to GPT-4o-mini on any failure."""
+    llms = [
+        ("claude-sonnet-4-6", get_anthropic_llm(temperature=0, max_tokens=2000)),
+        ("gpt-4o-mini",       get_openai_llm(temperature=0, max_tokens=2000)),
+    ]
+    for label, llm in llms:
+        try:
+            response = await llm.ainvoke(messages)
+            logger.info("synthesize_llm_used", model=label)
+            return _extract_content(response)
+        except Exception as exc:
+            logger.warning("synthesize_llm_error", model=label, error=str(exc),
+                           tb=traceback.format_exc())
+    return ""
 
 
 async def synthesize(state: AgentState) -> dict:
@@ -59,36 +89,18 @@ async def synthesize(state: AgentState) -> dict:
     failure_type = state.get("failure_type", FailureType.UNKNOWN)
     analysis = state.get("analysis", "")
 
-    llm = _get_llm()
-
     context = (
         f"Session ID: {session.session_id}\n"
         f"Failure Type: {failure_type}\n"
         f"Failure Summary: {session.failure_summary or 'N/A'}\n\n"
         f"=== Raw Analysis from Debug Module ===\n{analysis}"
     )
-
-    response = await llm.ainvoke([
+    messages = [
         {"role": "system", "content": SYNTHESIZE_PROMPT},
         {"role": "user", "content": context},
-    ])
+    ]
 
-    # Extract text content — handle both string and list content block formats
-    raw_content = response.content
-    if isinstance(raw_content, list):
-        parts = []
-        for block in raw_content:
-            if isinstance(block, dict):
-                parts.append(block.get("text", ""))
-            elif hasattr(block, "text"):  # langchain-anthropic TextBlock object
-                parts.append(block.text)
-            else:
-                parts.append(str(block))
-        raw_content = "".join(parts)
-
-    # Strip markdown code fences if the model wrapped the JSON
-    raw_content = re.sub(r"^```(?:json)?\s*\n?", "", raw_content.strip())
-    raw_content = re.sub(r"\n?```\s*$", "", raw_content)
+    raw_content = await _invoke_llm(messages)
 
     # Parse the structured response — catch all exceptions so report is always set
     try:

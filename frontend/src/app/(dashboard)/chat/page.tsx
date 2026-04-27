@@ -330,7 +330,9 @@ export default function ChatPage() {
         role: (m.kind === "user" ? "user" : "assistant") as "user" | "assistant",
         content:
           m.kind === "analysis" && m.report
-            ? `${m.report.summary} Root cause: ${m.report.root_cause}`
+            ? m.report.confidence > 0 && m.report.root_cause
+              ? `${m.report.summary} Root cause: ${m.report.root_cause}`
+              : m.report.summary
             : m.content,
       }));
 
@@ -357,7 +359,7 @@ export default function ChatPage() {
       const report = await sendFreeformQuery(text, history);
       const latency_ms = Math.round(performance.now() - t0);
       setLastReport(report);
-      const analysisEntry: ChatEntry = { id: crypto.randomUUID(), kind: "analysis", content: "", report, latency_ms };
+      const analysisEntry: ChatEntry = { id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms };
       addEntry(analysisEntry);
       saveMessage(sessionId, analysisEntry);
       refreshSessionList();
@@ -397,7 +399,7 @@ export default function ChatPage() {
       const report = await analyzeSession(traceSession);
       const latency_ms = Math.round(performance.now() - t0);
       setLastReport(report);
-      const analysisEntry: ChatEntry = { id: crypto.randomUUID(), kind: "analysis", content: "", report, latency_ms };
+      const analysisEntry: ChatEntry = { id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms };
       addEntry(analysisEntry);
       saveMessage(chatSessionId, analysisEntry);
       refreshSessionList();

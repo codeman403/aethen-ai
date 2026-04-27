@@ -34,27 +34,26 @@ def get_openai_llm(*, temperature: float = 0, max_tokens: int = 1500):
 def get_anthropic_llm(*, temperature: float = 0, max_tokens: int = 2000):
     """Get the synthesis LLM — Claude Sonnet 4.6 via Anthropic proxy.
 
-    Uses ChatAnthropic with model claude-sonnet-4-6 when ANTHROPIC_API_KEY is set.
-    The API key is a proxy key (DataExpert.io Anthropic proxy).
-    Falls back to GPT-4o-mini via OpenAI proxy if no Anthropic key is configured.
+    The DataExpert.io proxy always returns SSE (text/event-stream) regardless of
+    whether streaming is requested. Setting streaming=True tells langchain_anthropic
+    to use its SSE parser, which handles the proxy response correctly.
+    Falls back to GPT-4o-mini if no Anthropic key is configured.
     """
     if settings.anthropic_api_key:
-        try:
-            from langchain_anthropic import ChatAnthropic
+        from langchain_anthropic import ChatAnthropic
 
-            kwargs = {
-                "model": "claude-sonnet-4-6",
-                "api_key": settings.anthropic_api_key,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "default_headers": _DEFAULT_HEADERS,
-            }
-            if settings.anthropic_base_url:
-                kwargs["base_url"] = settings.anthropic_base_url
+        kwargs = {
+            "model": "claude-sonnet-4-6",
+            "api_key": settings.anthropic_api_key,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "streaming": True,
+            "default_headers": _DEFAULT_HEADERS,
+        }
+        if settings.anthropic_base_url:
+            kwargs["base_url"] = settings.anthropic_base_url
 
-            logger.info("Using Claude Sonnet 4.6 for synthesis (via proxy)")
-            return ChatAnthropic(**kwargs)
-        except Exception as e:
-            logger.warning("Failed to initialize Claude, falling back to GPT-4o-mini", error=str(e))
+        logger.info("Using Claude Sonnet 4.6 for synthesis (via proxy, streaming mode)")
+        return ChatAnthropic(**kwargs)
 
     return get_openai_llm(temperature=temperature, max_tokens=max_tokens)

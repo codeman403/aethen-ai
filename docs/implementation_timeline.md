@@ -398,6 +398,114 @@ acting on any diagnosis.") present in the Chat Debug UI as required by proposal 
 
 ---
 
+## DataExpert.io Anthropic Proxy — SSE Incompatibility — 2026-04-26 (Session 13)
+
+### The Problem
+`synthesize.py` was crashing with `AttributeError: 'str' object has no attribute 'model_dump'`
+inside `langchain_anthropic._format_output`. The synthesis node ran (Claude was reached) but the
+response could not be parsed.
+
+### Root Cause
+The DataExpert.io proxy at `/api/v1/anthropic` **always returns `text/event-stream` (SSE)** regardless
+of whether the request asks for streaming or not. `langchain_anthropic` (non-streaming path) calls
+`self._async_client.messages.create()` and expects an `anthropic.types.Message` Pydantic object back.
+Instead it got a raw SSE string. When it then called `data.model_dump()` on the string, Python raised
+`AttributeError`.
+
+### Investigation Path (all dead ends before the fix)
+
+| Approach | Result |
+|---|---|
+| `ChatOpenAI` with `model="claude-sonnet-4-6"` on `/openai` endpoint | `"Only GPT-4 models allowed through this proxy"` |
+| `ChatAnthropic` without `base_url` (direct Anthropic API) | Still hit proxy — `langchain_anthropic` reads `ANTHROPIC_BASE_URL` env var automatically even without explicit kwarg |
+| Raw HTTP probe to `/messages` | 404 — SDK appends `/v1/messages` |
+| Raw HTTP probe to `/v1/messages` | 200 `text/event-stream` — confirmed always-streaming proxy |
+
+### Decision: `streaming=True` on `ChatAnthropic`
+**Chosen:** Add `streaming=True` to the `ChatAnthropic` constructor. This switches `langchain_anthropic`
+to its SSE parser code path (`_astream`), which correctly handles the proxy's streaming response.
+`ainvoke()` still returns a single `AIMessage` — streaming is a wire-level detail only.
+
+**Why not switch to GPT-4o-mini permanently:** Claude Sonnet 4.6 produces noticeably better synthesis
+quality (longer findings, more precise root cause, higher confidence calibration). The proxy IS compatible
+once the streaming flag is set — no reason to downgrade permanently.
+
+**Fallback retained:** `_invoke_llm()` in `synthesize.py` still tries Claude first, falls back to
+GPT-4o-mini if Claude fails for any reason. The two-LLM chain adds ~0 latency when Claude succeeds.
+
+---
+
+## Retrieve Node Singleton Bug — 2026-04-26 (Session 13)
+
+### The Problem
+Every call to `vector_retrieve` and `graph_traverse` logged warnings:
+- `vector_retrieve_failed: 'EmbeddingService' object has no attribute 'embed'`
+- `graph_traverse_failed: 'Neo4jService' object has no attribute 'execute_read'`
+
+The pipeline continued (both nodes catch exceptions and return empty results), but retrieval evidence
+was always empty — reranking had nothing to work with.
+
+### Root Cause
+`retrieve.py` was importing the *class* and instantiating **new objects per call**:
+```python
+embedding_svc = EmbeddingService()   # driver=None, never initialized
+neo4j_svc = Neo4jService()           # driver=None, never initialized
+```
+The module-level singletons (`embedding_service`, `neo4j_service`, `pinecone_service`) are initialized
+once in the FastAPI lifespan hook. Per-call instantiation bypasses initialization entirely.
+
+Additionally, two method names were wrong: `embed()` (doesn't exist) and `execute_read()` (doesn't exist).
+`PineconeService.query()` also didn't exist — the correct method is `query_similar()`, which also handles
+embedding internally (making the separate embed step redundant).
+
+### Decision: Use singletons, add `execute_read`, simplify Pinecone call
+- `retrieve.py` now imports and uses `embedding_service`, `neo4j_service`, `pinecone_service` singletons
+- `execute_read(query, params)` added to `Neo4jService` — runs a read-only Cypher query via the driver session
+- `vector_retrieve` now calls `pinecone_service.query_similar(query_text, ...)` directly — one call instead of embed + query
+- `HAS_TOOL_CALL` / `HAS_LLM_CALL` removed from graph traverse Cypher — these relationship types were never created during seeding; Neo4j emitted DBMS warnings on every query
+
+---
+
+## Chat Conversation Quality — 2026-04-26 (Session 13)
+
+### Problem 1: Diagnostic redirect guard fired on data-result session IDs
+After a SQL data query returned a session list (e.g., `**Session ID:** 217fa0a...`), asking any
+follow-up question would trigger the "I can see session X was mentioned earlier, please diagnose it"
+redirect — even for unrelated questions like "give me sample queries".
+
+**Root cause:** `_SESSION_ID_RE = re.compile(r"\b[0-9a-f]{32}\b")` matched any 32-char hex string,
+including session IDs in data result listings. Data results bold the label (`**Session ID:**`) but
+not the hex value. Aethen's conversational session references bold the ID itself (`**217fa0a...**`).
+
+**Fix:** Regex changed to `\*\*([0-9a-f]{32})\*\*` — only matches bold-wrapped IDs.
+
+### Problem 2: Redirect guard blocked legitimate follow-up explanations
+"Explain this failure to a 10-year-old" (after a diagnostic already ran) incorrectly triggered
+the redirect because `_looks_like_analysis()` matched "this failure" in the LLM's explanation.
+
+**Fix:** Added `_history_has_diagnostic(session_id, history)` — if any prior assistant message
+contains the session ID AND diagnostic signals ("root cause", "confidence", "findings"), the guard
+is skipped. The LLM's explanation IS grounded in prior analysis already in the conversation.
+
+### Problem 3: Stats repeated in every response
+The system prompt injects current session counts on every request. The LLM echoed them in
+nearly every general response regardless of relevance — even when the user explicitly said
+"you already told me about the number of sessions".
+
+**Fix:** GENERAL intent rules updated with explicit no-repetition instruction, proportional
+response length guidance, and concrete sample query examples for "what can I ask" queries.
+
+### Problem 4: `content` empty in DB for all assistant messages
+Frontend created analysis entries as `{ content: "", report: {...} }`. The UI rendered correctly
+(reads `report.summary`) but the DB `content` column was always empty, making it unqueryable.
+`buildHistory` also appended `" Root cause: "` (with empty value) to all general responses,
+polluting the LLM's conversation context.
+
+**Fix:** `content: report.summary ?? ""` on save. `buildHistory` only appends root cause when
+`confidence > 0` and `root_cause` is non-empty.
+
+---
+
 ## Architecture Summary: Current State
 
 ```
@@ -424,7 +532,8 @@ acting on any diagnosis.") present in the Chat Debug UI as required by proposal 
               │        LangGraph Pipeline            │
               │  classify → retrieve → rerank →     │
               │  [memory|tool|hallucination|blind] → │
-              │  synthesize (GPT-4o-mini via proxy)  │
+              │  synthesize (Claude Sonnet 4.6,      │
+              │  streaming=True; GPT-4o-mini fallback)│
               └──────────────────────────────────────┘
                        │
               ┌────────▼────────┐
@@ -433,6 +542,57 @@ acting on any diagnosis.") present in the Chat Debug UI as required by proposal 
               │  per analysis   │
               └─────────────────┘
 ```
+
+---
+
+## Two-Tier Freeform Routing Architecture — 2026-04-26 (Session 14)
+
+### The Problem
+`_llm_route` was doing two jobs in one LLM call: classify intent AND answer GENERAL queries.
+A 300+ line system prompt with rules for every conversational edge case caused gpt-4o-mini to
+frequently return plain English instead of JSON → Python fallback fired → same generic stats-dump
+response regardless of context. Adding new conversation cases required adding new keyword rules
+(whack-a-mole). The guard functions (`_looks_like_analysis`, `_history_has_diagnostic`) used
+hardcoded keyword lists that kept generating false positives.
+
+### Decision: Separate classification from answering
+
+**Chosen:**
+- `_llm_route` → **classification only** — returns `{intent: data|diagnostic|general}`. Prompt is ~40 lines. Reliable JSON output. Does not answer anything.
+- `_handle_general()` → **focused conversational responder** — minimal prompt (7 lines) + full history. Purpose-aware persona enforces the domain boundary. No rules needed — LLM intelligence handles recall, frustration, social acks, off-topic redirects, pronoun resolution naturally.
+- `_handle_general` returns `{"type":"answer","text":"..."}` or `{"type":"diagnose","session_id":"..."}` — the `DIAGNOSE:` signal enables implicit consent: when a user says "yes please" to a prior diagnostic offer, `_handle_general` recognises this from context and returns the signal; `freeform_query` routes to the full pipeline.
+
+**Rejected:**
+- Regex pre-classifier for "conversational" queries — the user explicitly asked for LLM intelligence, not pattern matching
+- Listing specific affirmative words ("yes", "go ahead", "sure") for implicit consent — same reason
+- Adding more rules to the existing `_llm_route` system prompt — the root cause was too many rules, not too few
+
+**Why this matters:**
+The purpose boundary is now enforced by the LLM's persona understanding ("your sole purpose is AI agent failure analysis"), not by maintaining a list of blocked topics. Any future edge case is handled by the LLM's natural intelligence rather than requiring a code change.
+
+---
+
+## SQL Security Layer + Schema Accuracy — 2026-04-26 (Session 14)
+
+### Problems Found via Aethen Self-Analysis
+Running Aethen's failure taxonomy against its own chat behaviour revealed:
+
+| Failure type | What happened |
+|---|---|
+| **Memory Retrieval Failure** | `_llm_route` generated `COUNT(*)` for "average per day" — retrieved wrong SQL pattern from its knowledge; correct pattern is `AVG(daily_count)` |
+| **Hallucination** | Format LLM received the total count (404) and labelled it "average per day is 404" — confident wrong claim not grounded in actual calculation |
+| **Tool Misfire** | `GROUP BY day` alias fails in PostgreSQL — 0 results returned; `outcome = 'failed'` documented incorrectly (actual value is `'failure'`) |
+| **Blind Spot** | Trend queries ("increasing/decreasing over time") routed to `_handle_general` which said "I don't have data on trends" — data existed, wrong path |
+
+### Decisions
+
+**`_validate_sql()`** — security validation in code, not prompt. Blocks `session_data`, system tables, DDL tokens, `SELECT *`. Enforced in code so even if the LLM ignores prompt instructions, the validation catches it.
+
+**Multi-statement split** — if the LLM generates semicolon-separated statements despite instructions, split and validate each. Prevents the `"cannot insert multiple commands into a prepared statement"` asyncpg error.
+
+**Schema correction** — `outcome TEXT ('failure'|'success')` corrected in the routing prompt. The mislabeled value (`'failed'`) caused every failure-filtered query to return 0 rows.
+
+**Trend routing** — added "trend", "over time", "increasing/decreasing", "by day/week/month" to DATA intent triggers so these queries generate SQL instead of hitting the general handler.
 
 ---
 
