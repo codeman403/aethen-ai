@@ -273,10 +273,18 @@ Classify the user's message into exactly one intent:
 
    → {{"intent":"data","sql":"..."}}
 
-2. DIAGNOSTIC — the user wants to understand WHY a session failed: root cause, findings, deep analysis.
-   Use the full conversation context to determine this intent — explicit requests and implicit ones alike.
-   For example, if Aethen previously offered to run a diagnosis and the user is accepting that offer,
-   that is DIAGNOSTIC intent even without explicit trigger words.
+2. DIAGNOSTIC — the user wants to RUN a new deep analysis pipeline on a session.
+   This means actually executing the LangGraph diagnostic pipeline — it takes time and calls multiple LLMs.
+   Use DIAGNOSTIC only when the user explicitly wants to run/trigger/start a diagnosis or analysis.
+   Examples: "diagnose this", "run analysis on", "analyze why session X failed", "debug this session".
+   
+   IMPORTANT — do NOT use DIAGNOSTIC when:
+   - The user says "without diagnosis", "don't diagnose", "no diagnosis", "without running analysis"
+   - The user is asking to LOOK UP or RECALL existing information (use DATA instead)
+   - The user asks about "root cause" or "findings" of an already-analyzed session — that's a DATA
+     lookup on failure_summary, not a new diagnosis
+   
+   If Aethen previously offered to run a diagnosis and the user is accepting, that IS diagnostic.
    Pick failure_type: memory | tool_misfire | hallucination | blind_spot | unknown
    If the conversation context identifies a specific session_id (**hex32** bolded by Aethen),
    include it: {{"intent":"diagnostic","failure_type":"...","session_id":"..."}}
