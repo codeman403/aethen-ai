@@ -167,6 +167,9 @@ async def _handle_general(query: str, history: list[HistoryMessage]) -> dict:
         "Use the conversation history to give specific, contextual answers.\n"
         "If the query is unrelated to AI agent failure analysis (weather, coding help, creative writing, "
         "general knowledge), decline in one sentence and offer what you can actually help with.\n"
+        "If the user asks about agent performance, trends, comparisons, improvement, or statistics "
+        "that you cannot answer from conversation context alone, tell them to rephrase as a specific "
+        "data question (e.g., 'Show me failure rates by agent over time') and you'll query the database.\n"
         "Brief social exchanges (greetings, thanks, acknowledgments) get a short natural reply — "
         "no need to force a failure-analysis pivot for these.\n"
         "IMPORTANT — diagnostic intent detection:\n"
@@ -238,9 +241,14 @@ Conversation history:
 
 Classify the user's message into exactly one intent:
 
-1. DATA — querying, counting, filtering, ordering, searching, or analysis on session metadata.
+1. DATA — querying, counting, filtering, ordering, searching, comparing, or trend analysis on session metadata.
    Trigger: "how many", "show me", "list", "find", "oldest", "newest", "trend", "over time",
-            "by day/week/month", "increasing/decreasing", "distribution", "breakdown", "which had most/least".
+            "by day/week/month", "increasing/decreasing", "distribution", "breakdown", "which had most/least",
+            "improved", "worst", "best", "compare", "performance", "success rate", "failure rate",
+            "which agent", "most failures", "least failures", "changed", "getting better/worse".
+   IMPORTANT: Questions about agent improvement, performance trends, or comparisons between agents
+   are ALWAYS DATA intent — they can be answered by comparing failure/success rates over time using SQL.
+   "Improved" = fewer failures or higher success rate in recent sessions vs older sessions.
 
    Write valid PostgreSQL. You already know the language — use CTEs, window functions, EXTRACT,
    date_trunc, ILIKE, HAVING, subqueries as needed.
@@ -267,7 +275,13 @@ Classify the user's message into exactly one intent:
    Otherwise: {{"intent":"diagnostic","failure_type":"..."}}
 
 3. GENERAL — everything else: conversation, recall, frustration, off-topic, vague, social, capabilities.
-   → {{"intent":"general"}}"""
+   → {{"intent":"general"}}
+
+CRITICAL — context resolution:
+When the user says "try again", "retry", "do that again", "one more time", or similar — look at the
+conversation history to find the MOST RECENT substantive question they asked and classify based on THAT
+question's intent. "Try again" is NEVER general intent — it always refers to the previous request.
+Similarly, "yes", "ok", "do it" after Aethen offered something should be classified as that intent."""
 
     try:
         llm = get_openai_llm()
