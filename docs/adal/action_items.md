@@ -201,6 +201,85 @@
 
 ---
 
+---
+
+## 🔵 RAG Quality Improvements (from `docs/adal/rag_analysis.md`)
+
+> Full analysis and rating in `docs/adal/rag_analysis.md`. Current rating: **6.5/10**.
+> All items below target the weak points identified in that review.
+
+### R1. Improve query formulation in `vector_retrieve`
+**Gap**: Query to Pinecone is built by pipe-joining raw string parts:
+`"billing issue | API key returned | Hallucinated: quantum encryption"`.
+No semantic synthesis — a multi-part concatenation performs worse than a single
+coherent phrase for embedding-based search.
+**Action**: Replace concatenation with a one-sentence synthesized query. Use the
+failure_type (from `state.get("failure_type")`) to shape it — e.g.:
+- `memory` → `"retrieval failure: wrong documents returned, low similarity scores"`
+- `tool_misfire` → `"tool call failed with permission error or timeout"`
+- `hallucination` → `"LLM response contradicts or is unsupported by source documents"`
+- `blind_spot` → `"knowledge gap: query returned zero results for valid topic"`
+Fall back to the current concatenation only when failure_type is unknown.
+**File**: `backend/app/agents/nodes/retrieve.py`
+**Status**: ⬜
+
+### R2. Fix graph result serialization for reranker
+**Gap**: `direct` and `shared_chunk` graph result types are serialized as count
+strings (`"Related sessions: 3, Tool calls: 2, LLM calls: 1"`) which carry no
+semantic content. Cohere cannot score them meaningfully.
+**Action**: In `_evidence_to_documents` (`rerank.py`), extract content fields for
+each graph result type:
+- `direct` → use `session.get("failure_summary", "")` from the session dict
+- `shared_chunk` → include `other_failure_summary` and `shared_doc_id`
+- `systemic_blind_spot` → include `topic` and `affected_agents`
+- `same_query_different_outcome` → include `query_text` and `other_failure_type`
+Drop any result type where no meaningful text field is available.
+**File**: `backend/app/agents/nodes/rerank.py`
+**Status**: ⬜
+
+### R3. Make rerank query failure-type-aware
+**Gap**: Rerank query is `"Analyze failure in session <id>: <summary>"` — the
+session ID adds zero semantic signal to the reranker.
+**Action**: Build the rerank query from the failure_type present in state:
+```python
+failure_type = state.get("failure_type")
+type_queries = {
+    "memory":        "retrieval failure wrong documents low similarity scores",
+    "tool_misfire":  "tool call failed permission error timeout cascading failure",
+    "hallucination": "LLM response unsupported by sources fabricated claims",
+    "blind_spot":    "knowledge gap zero retrieval results missing topic",
+}
+query = type_queries.get(str(failure_type), session.failure_summary or session.outcome)
+```
+**File**: `backend/app/agents/nodes/rerank.py`
+**Status**: ⬜
+
+### R4. Add retrieval quality logging
+**Gap**: No visibility into whether the retrieval step is producing useful evidence.
+Impossible to know if `reranked_evidence` is empty, low-quality, or helping.
+**Action**: In `vector_retrieve`, log: namespace hit counts, score distribution
+(min/max/avg), empty result rate. In `rerank`, log: top relevance score, how many
+results scored above 0.5. In analysis nodes, log whether `reranked_evidence`
+was empty when it was called. These go to structlog — no new infrastructure needed.
+**Files**: `backend/app/agents/nodes/retrieve.py`, `backend/app/agents/nodes/rerank.py`,
+all four analysis nodes
+**Status**: ⬜
+
+### R5. Move retrieved evidence higher in analysis node prompts
+**Gap**: `reranked_evidence` is appended last in every analysis node's context
+string, after all session trace data. LLMs attend more to context at the
+beginning and end of prompts — last-appended means least-attended.
+**Action**: In all four analysis node context builders (`_build_memory_context`,
+`_build_tool_context`, `_build_hallucination_context`, `_build_blind_spot_context`),
+move the `=== Retrieved Evidence (reranked) ===` block to appear immediately
+after the session header and before the session's own trace data. The cross-session
+patterns should prime the LLM before it reads the current session's specifics.
+**Files**: `backend/app/agents/nodes/memory_debug.py`, `tool_debug.py`,
+`hallucination_rca.py`, `blind_spot.py`
+**Status**: ⬜
+
+---
+
 ## Change Log
 
 | Date | Item | Action | Notes |
@@ -208,3 +287,4 @@
 | 2026-04-25 | — | File created from mid-dev review | — |
 | 2026-04-26 | A15 | Added from Session 12 classification audit | `_infer_failure_type` retain decision documented |
 | 2026-04-27 | U1-U5 | Added outstanding UI issues from Sessions 15-16 | Results positioning, analyzing state, search, fonts, layout |
+| 2026-04-28 | R1-R5 | Added RAG improvement items from codebase review | Full analysis in `docs/adal/rag_analysis.md` |
