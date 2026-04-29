@@ -307,19 +307,6 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
                 messages.append(AIMessage(content=turn.content))
         messages.append(HumanMessage(content=request.message))
 
-        invoke_config: dict = {}
-        if handler:
-            invoke_config = {
-                "callbacks": [handler],
-                "tags": ["demo-chat", "user-input"],
-                "run_name": "demo-agent-chat",
-                "metadata": {
-                    "langfuse_user_id": "Demo Agent",
-                    "langfuse_session_id": session_id,
-                    "turn": len(request.history) + 1,
-                },
-            }
-
         # Save user message before LLM call
         await postgres_service.append_demo_message(
             message_id=f"dm-{uuid.uuid4().hex[:12]}",
@@ -329,49 +316,59 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             langfuse_traced=False,
         )
 
-        # ── Agent loop — LLM calls tools until it produces a final text response ──
+        # ── Agent loop — NO Langfuse callbacks during the loop ──────────────────
+        # Passing the callback to every invoke() created one trace per call
+        # (3 traces for a single tool-call turn). Instead, run the loop without
+        # any callbacks and record ONE clean trace manually afterwards.
         def _run_agent() -> str:
             current_messages = list(messages)
-            max_iterations = 5  # guard against infinite tool loops
+            max_iterations = 5
 
             for _ in range(max_iterations):
-                response = llm_with_tools.invoke(
-                    current_messages,
-                    config=invoke_config if invoke_config else {},
-                )
+                response = llm_with_tools.invoke(current_messages)
 
-                # No tool calls → final answer
                 if not getattr(response, "tool_calls", None):
                     return response.content if hasattr(response, "content") else str(response)
 
-                # Execute each tool — invoke_config propagates Langfuse callback
-                # so each execution is captured as a SPAN observation in the trace
                 current_messages.append(response)
                 for tc in response.tool_calls:
-                    tool_name = tc["name"]
-                    tool_args = tc["args"]
-                    tool_fn = DEMO_TOOL_MAP.get(tool_name)
+                    tool_fn = DEMO_TOOL_MAP.get(tc["name"])
                     if tool_fn is None:
-                        content = f"Error: unknown tool '{tool_name}'"
+                        content = f"Error: unknown tool '{tc['name']}'"
                     else:
                         try:
-                            content = tool_fn.invoke(
-                                tool_args,
-                                config=invoke_config if invoke_config else {},
-                            )
+                            content = str(tool_fn.invoke(tc["args"]))
                         except Exception as exc:
                             content = f"Error: {exc}"
                     current_messages.append(
-                        ToolMessage(content=str(content), tool_call_id=tc["id"])
+                        ToolMessage(content=content, tool_call_id=tc["id"])
                     )
 
-            # Fallback if max iterations hit
             return "I've reached the tool call limit. Please try a more specific request."
 
         assistant_text = await asyncio.get_event_loop().run_in_executor(None, _run_agent)
 
+        # ── Record ONE clean trace: user message → final text response ──────────
         if langfuse_client:
-            await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
+            def _record_trace():
+                trace = langfuse_client.trace(
+                    name="demo-agent-chat",
+                    input=request.message,
+                    output=assistant_text,
+                    tags=["demo-chat", "user-input"],
+                    user_id="Demo Agent",
+                    session_id=session_id,
+                    metadata={"turn": len(request.history) + 1},
+                )
+                trace.generation(
+                    name="gpt-4o-mini",
+                    model="gpt-4o-mini",
+                    input=request.message,
+                    output=assistant_text,
+                )
+                langfuse_client.flush()
+
+            await asyncio.get_event_loop().run_in_executor(None, _record_trace)
 
         # Save assistant response
         await postgres_service.append_demo_message(
