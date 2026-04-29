@@ -85,7 +85,14 @@ export default function BlindSpotsPage() {
         ) : null}
 
       {selectedSession && (
-      <div className="space-y-6">
+      <div className="relative space-y-6">
+        {isLoading && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-xl">
+            <Loader2 className="size-10 animate-spin text-primary mb-3" />
+            <p className="text-base font-semibold">Analyzing…</p>
+            <p className="text-xs text-muted-foreground mt-1">Running LangGraph pipeline</p>
+          </div>
+        )}
         {/* Analysis card — same structure as other pages */}
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           {/* Action bar */}

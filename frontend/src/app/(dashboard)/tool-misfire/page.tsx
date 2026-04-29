@@ -86,7 +86,14 @@ export default function ToolMisfirePage() {
         ) : null}
 
       {selectedSession && (
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="relative grid gap-6 lg:grid-cols-3">
+        {isLoading && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-xl">
+            <Loader2 className="size-10 animate-spin text-primary mb-3" />
+            <p className="text-base font-semibold">Analyzing…</p>
+            <p className="text-xs text-muted-foreground mt-1">Running LangGraph pipeline</p>
+          </div>
+        )}
         <div className="lg:col-span-2 rounded-xl border bg-card p-0 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-muted/30 px-6 py-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">

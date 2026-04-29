@@ -56,6 +56,16 @@ def _build_tool_context(state: AgentState) -> str:
         f"Failure summary: {session.failure_summary or 'N/A'}",
     ]
 
+    # Cross-session evidence first — primes the LLM to look for patterns
+    # before reading this session's own trace data.
+    evidence = state.get("reranked_evidence", [])
+    if evidence:
+        parts.append("\n=== Cross-Session Evidence (reranked) ===")
+        for item in evidence:
+            parts.append(f"[score={item['relevance_score']:.3f}] {item['text']}")
+    else:
+        parts.append("\n=== Cross-Session Evidence ===\n  None retrieved.")
+
     if session.tool_calls:
         parts.append("\n=== Tool Calls (chronological) ===")
         for i, tc in enumerate(session.tool_calls, 1):
@@ -67,13 +77,6 @@ def _build_tool_context(state: AgentState) -> str:
                 f"  Error: {tc.error or 'none'}\n"
                 f"  Latency: {tc.latency_ms:.0f}ms"
             )
-
-    # Include reranked evidence
-    evidence = state.get("reranked_evidence", [])
-    if evidence:
-        parts.append("\n=== Retrieved Evidence (reranked) ===")
-        for item in evidence:
-            parts.append(f"[score={item['relevance_score']:.3f}] {item['text']}")
 
     return "\n".join(parts)
 

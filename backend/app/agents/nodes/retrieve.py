@@ -23,18 +23,28 @@ async def vector_retrieve(state: AgentState) -> dict:
     and individual trace step descriptions.
     """
     session = ensure_session(state["session"])
+    failure_type = state.get("failure_type", session.failure_type)
+    ft_key = str(failure_type.value if hasattr(failure_type, "value") else failure_type or "")
 
-    # Build a query from the session's failure context
-    query_parts = []
-    if session.failure_summary:
-        query_parts.append(session.failure_summary)
-    for evt in session.retrieval_events[:3]:
-        query_parts.append(evt.query)
-    for lc in session.llm_calls[:2]:
-        if lc.hallucination_flag:
-            query_parts.append(f"Hallucinated response: {lc.response[:200]}")
+    # Failure-type-aware query phrases produce better semantic matches than
+    # pipe-joined concatenations of raw session strings.
+    _TYPE_QUERIES = {
+        "memory":        "retrieval failure wrong documents returned low similarity scores stale embeddings",
+        "tool_misfire":  "tool call failed permission error timeout connection error invalid parameters",
+        "hallucination": "LLM response unsupported by sources fabricated claims ungrounded assertions",
+        "blind_spot":    "knowledge gap zero retrieval results missing topic not found in knowledge base",
+    }
 
-    query_text = " | ".join(query_parts) if query_parts else f"Session {session.session_id} failure analysis"
+    if ft_key in _TYPE_QUERIES:
+        query_text = _TYPE_QUERIES[ft_key]
+    else:
+        # Unknown failure type — fall back to session content
+        query_parts = []
+        if session.failure_summary:
+            query_parts.append(session.failure_summary)
+        for evt in session.retrieval_events[:3]:
+            query_parts.append(evt.query)
+        query_text = " ".join(query_parts) if query_parts else "agent failure analysis"
 
     vector_results = []
 

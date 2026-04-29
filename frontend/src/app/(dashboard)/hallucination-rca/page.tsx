@@ -115,7 +115,14 @@ export default function HallucinationRCAPage() {
         ) : null}
 
       {selectedSession && (
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="relative rounded-xl border bg-card shadow-sm overflow-hidden">
+        {isLoading && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-xl">
+            <Loader2 className="size-10 animate-spin text-primary mb-3" />
+            <p className="text-base font-semibold">Analyzing…</p>
+            <p className="text-xs text-muted-foreground mt-1">Running LangGraph pipeline</p>
+          </div>
+        )}
         {/* Action bar with Run Analysis button */}
         <div className="px-5 py-3 border-b bg-muted/10 flex items-center justify-between">
           <span className="font-mono text-xs text-muted-foreground truncate">{selectedId}</span>

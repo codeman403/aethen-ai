@@ -78,6 +78,16 @@ def _build_blind_spot_context(state: AgentState) -> str:
                     f"  LLM calls in graph: {len(gr.get('llm_calls', []))}"
                 )
 
+    # Cross-session evidence first — primes the LLM to look for patterns
+    # before reading this session's own trace data.
+    evidence = state.get("reranked_evidence", [])
+    if evidence:
+        parts.append("\n=== Cross-Session Evidence (reranked) ===")
+        for item in evidence:
+            parts.append(f"[score={item['relevance_score']:.3f}] {item['text']}")
+    else:
+        parts.append("\n=== Cross-Session Evidence ===\n  None retrieved.")
+
     # Session's own failure details
     if session.retrieval_events:
         parts.append("\n=== Failed Queries ===")
@@ -88,13 +98,6 @@ def _build_blind_spot_context(state: AgentState) -> str:
         parts.append("\n=== LLM Interactions ===")
         for lc in session.llm_calls:
             parts.append(f"  Prompt: {lc.prompt[:200]}")
-
-    # Reranked evidence
-    evidence = state.get("reranked_evidence", [])
-    if evidence:
-        parts.append("\n=== Retrieved Evidence (reranked) ===")
-        for item in evidence:
-            parts.append(f"[score={item['relevance_score']:.3f}] {item['text']}")
 
     return "\n".join(parts)
 

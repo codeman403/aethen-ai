@@ -31,21 +31,41 @@ def _evidence_to_documents(state: AgentState) -> list[str]:
         documents.append(doc_text.strip())
 
     for gr in state.get("graph_results", []):
-        if gr.get("type") == "related_pattern":
+        gr_type = gr.get("type", "")
+
+        if gr_type == "related_pattern":
             doc_text = (
-                f"[Related session: {gr.get('session_id', 'N/A')}] "
+                f"[Related failure — agent: {gr.get('agent_id', 'unknown')}] "
                 f"{gr.get('failure_summary', '')}"
             )
-        else:
-            session_data = gr.get("session", {})
-            related = gr.get("related_sessions", [])
+        elif gr_type == "shared_chunk":
             doc_text = (
-                f"[Graph context] Session: {session_data.get('session_id', 'N/A')}, "
-                f"Related sessions: {len(related)}, "
-                f"Tool calls: {len(gr.get('tool_calls', []))}, "
-                f"LLM calls: {len(gr.get('llm_calls', []))}"
+                f"[Shared document '{gr.get('shared_doc_id', '?')}'] "
+                f"Also caused {gr.get('other_failure_type', 'failure')} in another session: "
+                f"{gr.get('other_failure_summary', '')}"
             )
-        documents.append(doc_text.strip())
+        elif gr_type == "systemic_blind_spot":
+            agents = ", ".join((gr.get("affected_agents") or [])[:3])
+            doc_text = (
+                f"[Systemic blind spot] Topic: '{gr.get('topic', '')}' — "
+                f"hit {gr.get('total_hits', 0)} times across agents: {agents}"
+            )
+        elif gr_type == "same_query_different_outcome":
+            doc_text = (
+                f"[Unstable query] '{str(gr.get('query_text', ''))[:100]}' — "
+                f"produced {gr.get('other_failure_type', 'different')} failure in another session"
+            )
+        elif gr_type == "direct":
+            # Use failure summary from the session node; skip if no content
+            summary = (gr.get("session") or {}).get("failure_summary", "")
+            if not summary:
+                continue
+            doc_text = f"[Direct context] {summary}"
+        else:
+            continue
+
+        if doc_text.strip():
+            documents.append(doc_text.strip())
 
     return documents[:MAX_EVIDENCE]
 
@@ -56,12 +76,17 @@ async def rerank(state: AgentState) -> dict:
     Falls back to passing through raw evidence if Cohere is unavailable.
     """
     session = ensure_session(state["session"])
+    failure_type = state.get("failure_type", session.failure_type)
+    ft_key = str(failure_type.value if hasattr(failure_type, "value") else failure_type or "")
 
-    # Build the query from the session's failure context
-    query = (
-        f"Analyze failure in session {session.session_id}: "
-        f"{session.failure_summary or session.outcome}"
-    )
+    # Failure-type-aware query gives Cohere a meaningful signal to rank against.
+    _RERANK_QUERIES = {
+        "memory":        "retrieval failure wrong documents low similarity scores stale embeddings",
+        "tool_misfire":  "tool call failed permission error timeout connection error",
+        "hallucination": "LLM response unsupported by sources fabricated ungrounded claims",
+        "blind_spot":    "knowledge gap zero results missing topic not in knowledge base",
+    }
+    query = _RERANK_QUERIES.get(ft_key, session.failure_summary or session.outcome)
 
     documents = _evidence_to_documents(state)
 
@@ -98,12 +123,16 @@ async def rerank(state: AgentState) -> dict:
             for result in response.results
         ]
 
+        scores = [r["relevance_score"] for r in reranked]
         logger.info(
             "rerank_complete",
             session_id=session.session_id,
             input_docs=len(documents),
             output_docs=len(reranked),
-            top_score=reranked[0]["relevance_score"] if reranked else 0.0,
+            top_score=round(scores[0], 3) if scores else 0.0,
+            min_score=round(min(scores), 3) if scores else 0.0,
+            avg_score=round(sum(scores) / len(scores), 3) if scores else 0.0,
+            above_threshold=sum(1 for s in scores if s > 0.5),
         )
         return {"reranked_evidence": reranked}
 

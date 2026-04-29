@@ -55,6 +55,16 @@ def _build_memory_context(state: AgentState) -> str:
         f"Failure summary: {session.failure_summary or 'N/A'}",
     ]
 
+    # Cross-session evidence first — primes the LLM to look for patterns
+    # before reading this session's own trace data.
+    evidence = state.get("reranked_evidence", [])
+    if evidence:
+        parts.append("\n=== Cross-Session Evidence (reranked) ===")
+        for item in evidence:
+            parts.append(f"[score={item['relevance_score']:.3f}] {item['text']}")
+    else:
+        parts.append("\n=== Cross-Session Evidence ===\n  None retrieved.")
+
     if session.retrieval_events:
         parts.append("\n=== Retrieval Events ===")
         for evt in session.retrieval_events:
@@ -68,13 +78,6 @@ def _build_memory_context(state: AgentState) -> str:
                 f"Actual docs: {evt.actual_doc_ids}\n"
                 f"Metadata filters: {evt.metadata_filters}"
             )
-
-    # Include reranked evidence
-    evidence = state.get("reranked_evidence", [])
-    if evidence:
-        parts.append("\n=== Retrieved Evidence (reranked) ===")
-        for item in evidence:
-            parts.append(f"[score={item['relevance_score']:.3f}] {item['text']}")
 
     return "\n".join(parts)
 
