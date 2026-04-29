@@ -79,8 +79,10 @@ class LangfuseTraceAdapter:
         # Infer failure type from trace metadata or output
         failure_type = self._infer_failure_type(trace, llm_calls, tool_calls, retrieval_events)
 
-        # Extract trace-level input/output for filling empty observation fields
-        trace_input  = self._extract_text(trace.get("input"))
+        # Extract trace-level input/output for filling empty observation fields.
+        # Use _extract_human_prompt for input so tool schemas in the messages list
+        # are skipped and the actual user question is used as the fallback prompt.
+        trace_input  = self._extract_human_prompt(trace.get("input"))
         trace_output = self._extract_text(trace.get("output"))
 
         # failure_summary describes WHAT WENT WRONG — kept separate from the user prompt.
@@ -145,7 +147,12 @@ class LangfuseTraceAdapter:
 
         Handles all three LangChain serialization formats so ToolMessages and
         AIMessages with empty content are never mistaken for the user question.
+        Also handles the tool-bound LLM input format {"messages": [...], "tools": [...]}
+        where tool schemas would otherwise be mistaken for the prompt.
         """
+        # Tool-bound LLM stores input as {"messages": [...], "tools": [...]}
+        if isinstance(value, dict) and "messages" in value:
+            return self._extract_human_prompt(value["messages"])
         if not isinstance(value, list):
             return self._extract_text(value)
 
