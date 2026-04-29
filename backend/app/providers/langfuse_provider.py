@@ -123,38 +123,46 @@ class LangfuseTraceAdapter:
             },
         )
 
+    def _msg_class(self, item: dict) -> str:
+        """Return the lowercase message class name from any LangChain serialization format."""
+        # OpenAI wire format: {"role": "user"|"assistant"|"tool"|"system", ...}
+        role = (item.get("role") or "").lower()
+        if role:
+            return role
+        # LangChain constructor format: {"id": ["langchain_core", "messages", "human", "HumanMessage"], ...}
+        id_path = item.get("id")
+        if isinstance(id_path, list) and id_path:
+            return str(id_path[-1]).lower()
+        # LangChain dict format: {"type": "HumanMessage", ...}
+        type_str = (item.get("type") or "").lower()
+        if type_str and type_str != "constructor":
+            return type_str
+        # kwargs-level type hint
+        return (item.get("kwargs") or {}).get("type", "").lower()
+
     def _extract_human_prompt(self, value) -> str:
         """Extract the last human/user message from a messages list.
 
-        When tool calls are present, the messages list includes ToolMessages and
-        AIMessages with empty content. We want the actual human question, not the
-        tool result or a dict dump of the tool call structure.
+        Handles all three LangChain serialization formats so ToolMessages and
+        AIMessages with empty content are never mistaken for the user question.
         """
         if not isinstance(value, list):
             return self._extract_text(value)
 
-        # Walk in reverse — find the last human/user message
-        human_roles = {"user", "human"}
         for item in reversed(value):
             if not isinstance(item, dict):
                 continue
-            role = (
-                item.get("role")
-                or (item.get("data") or {}).get("type", "")
-                or (item.get("kwargs") or {}).get("type", "")
-                or ""
-            ).lower()
-            if role in human_roles or "human" in role:
+            cls = self._msg_class(item)
+            if "human" in cls or cls == "user":
                 c = (
                     item.get("content")
-                    or (item.get("data") or {}).get("content")
                     or (item.get("kwargs") or {}).get("content")
+                    or (item.get("data") or {}).get("content")
                     or ""
                 )
                 if c:
                     return str(c)
 
-        # No human message found — fall back to generic extraction
         return self._extract_text(value)
 
     def _extract_tool_call_response(self, value) -> str:
