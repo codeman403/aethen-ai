@@ -218,6 +218,7 @@ backend/scripts/traces.json
 capstone_proj_proposal_codeman403.md
 existing_product_comparison.md
 proj_plan.md
+docs/adal/session_progrss.md
 
 # Environment (explicit paths)
 backend/.env

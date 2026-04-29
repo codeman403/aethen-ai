@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-04-28 (Session 16)
+> **Last updated**: 2026-04-29 (Session 17)
 
 ---
 
@@ -20,15 +20,15 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 - **Phase**: Week 3 — Final polish + Deployment.
 - **Branch**: `main`
 - **Next action**:
-  1. **🔴 Re-seed database** — All stores were wiped (Postgres, Neo4j, Pinecone). Run: `cd backend && poetry run python scripts/reset_and_reseed.py` to restore 500 synthetic sessions. Neo4j and Pinecone will be re-populated. **Must do before deploying or demoing.**
-  2. **🔴 Clear remaining 48 Langfuse traces** — Rate limit hit (50 deletes/day). Resets ~2026-04-29 20:01 UTC. Then run: `cd backend && poetry run python scripts/clear_langfuse.py`
-  3. **Deploy** — Render (backend) + Vercel (frontend). Configs exist (`render.yaml`, `vercel.json`, `Dockerfile`). Add `CRON_SECRET` env var to Vercel for the auto-pull cron job security.
-  4. **Commit all Session 15+16 changes** before deploying — significant uncommitted work.
-  5. **Record demo GIF** for README/submission.
-- **Tests**: 32 passing (backend), frontend build clean (`pnpm build ✅`)
-- **Stores**: 🔴 ALL WIPED (2026-04-28) — Postgres empty, Neo4j empty, Pinecone empty, Langfuse 48 traces remaining (rate-limited). Re-seed before use.
-- **Chat routing**: All freeform chat functions now use Claude Sonnet 4.6 (switched from GPT-4o-mini in Session 16).
-- **Langfuse pull**: Now incremental — watermark stored in `app_settings` table, `from_timestamp` passed to Langfuse API. Vercel Cron runs every 5 min post-deploy.
+  1. **🔴 Re-seed database** — All stores still wiped (Postgres, Neo4j, Pinecone). Run: `cd backend && poetry run python scripts/reset_and_reseed.py`. Must do before deploying or demoing.
+  2. **🔴 Clear remaining Langfuse traces** — 48 traces were pending rate-limit reset (~2026-04-29 20:01 UTC). Rate limit has now likely reset. Run: `cd backend && poetry run python scripts/clear_langfuse.py`
+  3. **Deploy** — Render (backend) + Vercel (frontend). Configs exist (`render.yaml`, `vercel.json`, `Dockerfile`). Add `CRON_SECRET` env var to Vercel.
+  4. **Record demo GIF** for README/submission.
+- **Tests**: 32 passing (backend), frontend source unchanged and clean.
+- **Stores**: 🔴 ALL WIPED (2026-04-28) — Postgres empty, Neo4j empty, Pinecone empty. Re-seed before use.
+- **Demo Agent chat**: One Langfuse trace per turn. Real tools (`update_user_record` → PermissionError, `query_database` → ConnectionError, `search_knowledge_base` → wrong docs, `create_support_ticket` → success). Agent loop runs without callbacks; one final `llm.invoke()` with callback creates the trace. Prompt and failure_type correctly captured.
+- **Langfuse adapter**: `_extract_human_prompt` and `_extract_tool_call_response` added. Synthetic LLMCall created from trace-level data when SDK observations have no input/output.
+- **Repo**: Cleaned — 20 dev scripts + `blind spot.png` moved to `delete-later/` (gitignored). `.gitignore` updated with `fix_*.py`, `update_*.py`, `refactor_*.py`, `sync_*.py`, `frontend/*.png`, `.claude/settings.local.json`.
 
 ### Architecture (as of Session 10)
 
@@ -45,6 +45,74 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 17 — 2026-04-29 (Claude Code)
+
+**RAG improvements, Demo Agent overhaul, Langfuse trace fixes, repo cleanup**
+
+**Committed Session 15+16 work:**
+- [x] All uncommitted changes (19 files, 1,624 insertions) pushed — `8f8b8d9`
+
+**Chat Debug — general handler scope fix:**
+- [x] `_handle_general` system prompt: replaced example-based off-topic rule with blanket
+  prohibition — math, arithmetic, geography, science, trivia never answered
+
+**RAG improvements (all 5 action items R1–R5):**
+- [x] R1: `vector_retrieve` — failure-type-aware query phrases replace naive pipe-join
+  (memory/tool_misfire/hallucination/blind_spot each get targeted semantic string)
+- [x] R2: `rerank._evidence_to_documents` — all 5 graph result types now produce
+  content-bearing strings (was count-only strings Cohere could not score)
+- [x] R3: rerank query is failure-type-aware (replaces generic session-ID-prefixed query)
+- [x] R4: `rerank_complete` log — added `min_score`, `avg_score`, `above_threshold`
+- [x] R5: cross-session evidence moved to TOP of all 4 analysis node prompts
+  (primes LLM with cross-session patterns before current session trace)
+
+**UI fix:**
+- [x] U2: prominent backdrop-blur analyzing overlay on all 4 module pages
+- [x] U3: confirmed already done — SessionsList has full search + date filter
+
+**Documentation created:**
+- [x] `docs/adal/llm_usage_map.md` — full LLM usage diagram + model table
+- [x] `docs/adal/rag_analysis.md` — RAG rating (6.5/10), strengths, weaknesses, diagram
+- [x] `docs/adal/token_usage_analysis.md` — token breakdown script + results for diagnostic path
+- [x] `docs/scenarios/demo_agent_guide.md` — prompts for each failure scenario + full demo flow
+
+**Demo Agent — real tool calls:**
+- [x] 4 `@tool` functions in `demo.py`: `search_knowledge_base` (wrong docs), `update_user_record`
+  (PermissionError), `create_support_ticket` (success), `query_database` (ConnectionError)
+- [x] Agent loop (Phase 1) runs WITHOUT Langfuse callbacks — no multi-trace problem
+- [x] ONE final `llm.invoke(final_messages, config=invoke_config)` (Phase 2) creates exactly
+  ONE Langfuse trace per turn with correct user prompt and final response
+- [x] `tool_misfire` failure_type correctly inferred from response text
+
+**Langfuse adapter fixes (`backend/app/providers/langfuse_provider.py`):**
+- [x] `_extract_human_prompt` — handles OpenAI wire format, LangChain constructor format,
+  and `{"messages": [...], "tools": [...]}` dict format. Walks list in reverse to find
+  `role:user` message, skipping tool schemas and tool results.
+- [x] `_extract_tool_call_response` — detects `content=null + tool_calls=[...]` output
+  and synthesizes `"Called tool: name(args)"` instead of raw dict dump
+- [x] `trace_input` in `adapt_trace` now uses `_extract_human_prompt` (was `_extract_text`)
+  so even the trace-level fallback correctly extracts the user question
+- [x] Synthetic `LLMCall` created from trace-level `input`/`output` when SDK
+  `observations.get_many()` returns observations with `input=None` (v4.5.1 SDK limitation)
+
+**Root cause found for Langfuse prompt display bug:**
+- Langfuse SDK v4.5.1 `ObservationV2.model_dump()` returns `input=None, output=None`
+  for observations from `client.observations.get_many()`. The trace-level `input` (which
+  DOES have data) was being processed by `_extract_text` which returned the last non-empty
+  message content — the tool schema dict `{'type': 'function', ...}`.
+
+**Repo cleanup:**
+- [x] 20 root-level dev scripts + `frontend/blind spot.png` moved to `delete-later/` (gitignored)
+- [x] `.gitignore` updated: `delete-later/`, `fix_*.py`, `update_*.py`, `refactor_*.py`,
+  `sync_*.py`, `frontend/*.png`, `.claude/settings.local.json`
+- [x] Commit: `427d1a8 clean up folders and files`
+
+**Standing instructions added:**
+- Demo chat: agent loop always in Phase 1 (no callbacks), Phase 2 single traced call
+- `_extract_human_prompt` must handle `{"messages": [...], "tools": [...]}` dict input
+- Do NOT use `create_trace_id()` + `trace_context` approach — executors don't propagate it
+- Langfuse SDK v4.5.1 `observations.get_many()` never has input/output — always use trace-level fallback
 
 ### Session 16 — 2026-04-28 (Claude Code)
 
@@ -598,16 +666,20 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 ## Upcoming Work
 
-### Next — Deployment (final step)
+### Next — Pre-deploy checklist
 
-- [ ] Commit all changes to GitHub (`git add -A && git commit && git push`)
-- [ ] Connect repo to Render → New Blueprint → fill env vars (DATABASE_URL, NEO4J_*, PINECONE_*, OPENAI_*, LANGFUSE_*)
-- [ ] Connect repo to Vercel → set `NEXT_PUBLIC_API_URL` to Render backend URL
-- [ ] After deploy: run Demo Agent scenarios → Pull Langfuse → verify traces display correctly
+- [ ] **Re-seed** — `cd backend && poetry run python scripts/reset_and_reseed.py`
+- [ ] **Clear Langfuse** — `cd backend && poetry run python scripts/clear_langfuse.py` (rate limit reset ~2026-04-29 20:01 UTC)
+- [ ] **Deploy Render** — Connect repo → New Blueprint → fill env vars: `DATABASE_URL`, `NEO4J_*`, `PINECONE_*`, `OPENAI_*`, `ANTHROPIC_*`, `COHERE_*`, `LANGFUSE_*`
+- [ ] **Deploy Vercel** — Set `NEXT_PUBLIC_API_URL` to Render backend URL, set `CRON_SECRET` env var
+- [ ] **Smoke test post-deploy** — Run Demo Agent scenarios → Pull Langfuse → Run analysis on one session
+- [ ] **Record demo GIF** for README/submission
 
-**Nice-to-have**:
-- [ ] Auto-refresh dashboard every 60 seconds
-- [ ] Seed script that seeds all 3 stores in one command (`scripts/reset_and_reseed.py` already does this)
+### Deferred (nice-to-have)
+- [ ] A15 — inline comments on `_infer_failure_type` narrow role
+- [ ] U1/U4/U5 — UI layout/font audit (requires visual inspection)
+- [ ] A10 — GitHub Actions CI pipeline
+- [ ] S1 — Demo GIF in README
 
 ---
 
