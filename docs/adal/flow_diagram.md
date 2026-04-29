@@ -385,3 +385,52 @@ Namespace: "failure_patterns"                                    ← NEW P2
   6. Success with noisy signals (false positive test)
   7. Empty/minimal trace (graceful degradation)
   8. Stale embeddings, correct docs (subtle memory issue)
+
+---
+
+## 9. UI Wireframes (Frontend Modules)
+
+> Merged from `architecture.md` — original design intent for each module page.
+
+### Demo Agent (`/demo-agent`)
+```text
++-------------------------------------------------------------+
+| Header: Demo Agent                                           |
+| Subtitle: Generate real traces → Langfuse → Pull → Analyze  |
++-------------------------------------------------------------+
+| [ Memory Debug ] [ Tool Misfire ] [ Hallucination ] [ Blind Spot ] |
+| Free-form chat panel + session history list                  |
++-------------------------------------------------------------+
+```
+Backend: `POST /api/demo/run` + `POST /api/demo/chat` — LangChain agent with real
+tool calls (`update_user_record`, `search_knowledge_base`, `query_database`,
+`create_support_ticket`). One Langfuse trace per chat turn.
+
+### Memory Debug (`/memory-debug`)
+```text
++-------------------------------------------------------------+
+| Left: SessionsList (sticky)  | Right: Analysis card (top)   |
+|  - filter by failure_type    |  - findings timeline          |
+|  - search + date filter      |  - executive summary          |
+|                              |  - root cause + confidence    |
+|                              | Below: SessionContext         |
++-------------------------------------------------------------+
+```
+
+### Tool Misfire (`/tool-misfire`)
+```text
+Call Sequence (Waterfall view):
+  █ update_user_record (failed) — PermissionError
+  █ query_database (failed) — ConnectionError
+```
+
+### Hallucination RCA (`/hallucination-rca`)
+```text
+Grounding Score | LLM Response | Source Verification | Root Cause
+```
+
+### Blind Spot Discovery (`/blind-spots`)
+```text
+Cross-session patterns from Neo4j graph traversal.
+Knowledge gaps surfaced across multiple agent sessions.
+```
