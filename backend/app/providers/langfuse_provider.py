@@ -123,14 +123,93 @@ class LangfuseTraceAdapter:
             },
         )
 
+    def _extract_human_prompt(self, value) -> str:
+        """Extract the last human/user message from a messages list.
+
+        When tool calls are present, the messages list includes ToolMessages and
+        AIMessages with empty content. We want the actual human question, not the
+        tool result or a dict dump of the tool call structure.
+        """
+        if not isinstance(value, list):
+            return self._extract_text(value)
+
+        # Walk in reverse — find the last human/user message
+        human_roles = {"user", "human"}
+        for item in reversed(value):
+            if not isinstance(item, dict):
+                continue
+            role = (
+                item.get("role")
+                or (item.get("data") or {}).get("type", "")
+                or (item.get("kwargs") or {}).get("type", "")
+                or ""
+            ).lower()
+            if role in human_roles or "human" in role:
+                c = (
+                    item.get("content")
+                    or (item.get("data") or {}).get("content")
+                    or (item.get("kwargs") or {}).get("content")
+                    or ""
+                )
+                if c:
+                    return str(c)
+
+        # No human message found — fall back to generic extraction
+        return self._extract_text(value)
+
+    def _extract_tool_call_response(self, value) -> str:
+        """Synthesize a readable string when the LLM output is a tool call.
+
+        When the LLM decides to call a tool, the GENERATION output has
+        content=null/empty and tool_calls=[...]. _extract_text falls through to
+        str(value) which dumps the raw dict and makes SessionContext show garbage.
+        This method detects that pattern and returns a clean description instead.
+        """
+        if not isinstance(value, dict):
+            return ""
+
+        # Detect tool-call output: content is empty but tool_calls is present
+        content = value.get("content") or ""
+        tool_calls = (
+            value.get("tool_calls")
+            or (value.get("additional_kwargs") or {}).get("tool_calls")
+            or []
+        )
+        if content or not tool_calls:
+            return ""  # not a tool-call output — let _extract_text handle it
+
+        parts = []
+        for tc in tool_calls[:3]:
+            # LangChain format: {"name": "...", "args": {...}, "type": "tool_call"}
+            # OpenAI format:    {"type": "function", "function": {"name": "...", "arguments": "..."}}
+            name = (
+                tc.get("name")
+                or (tc.get("function") or {}).get("name")
+                or "unknown_tool"
+            )
+            args = tc.get("args") or tc.get("arguments") or (tc.get("function") or {}).get("arguments") or {}
+            if isinstance(args, str):
+                import json as _json
+                try:
+                    args = _json.loads(args)
+                except (ValueError, TypeError):
+                    pass
+            args_str = str(args)[:120] if args else ""
+            parts.append(f"Called tool: {name}({args_str})")
+
+        return " | ".join(parts) if parts else ""
+
     def _to_llm_call(self, obs: dict) -> LLMCall:
         """Map a GENERATION observation to LLMCall."""
         usage = obs.get("usage") or {}
         model = obs.get("model") or obs.get("modelId") or "unknown"
 
-        # Extract prompt text from input
-        prompt = self._extract_text(obs.get("input"))
-        response = self._extract_text(obs.get("output"))
+        # Extract prompt — prefer the actual human message over tool results
+        prompt = self._extract_human_prompt(obs.get("input"))
+
+        # Extract response — handle tool-call outputs (content=null + tool_calls)
+        output = obs.get("output")
+        response = self._extract_tool_call_response(output) or self._extract_text(output)
 
         # Extract source documents from observation metadata or input context
         source_documents = self._extract_source_documents(obs)
