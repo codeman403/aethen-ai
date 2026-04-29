@@ -274,20 +274,13 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
         from langchain_openai import ChatOpenAI
 
-        _, langfuse_client = make_langfuse_handler()
-        langfuse_traced = langfuse_client is not None
+        handler, langfuse_client = make_langfuse_handler()
+        langfuse_traced = handler is not None
 
-        # ── One shared trace for all observations in this turn ───────────────────
-        # create_trace_id() allocates a Langfuse trace ID without making any API
-        # call. Passing it via trace_context binds every CallbackHandler observation
-        # (LLM calls + tool SPANs) under ONE root trace — same cost as no tracing.
         invoke_config: dict = {}
-        if langfuse_client:
-            from langfuse.langchain import CallbackHandler
-            trace_id = langfuse_client.create_trace_id()
-            turn_handler = CallbackHandler(trace_context={"traceId": trace_id})
+        if handler:
             invoke_config = {
-                "callbacks": [turn_handler],
+                "callbacks": [handler],
                 "run_name": "demo-agent-chat",
                 "metadata": {
                     "langfuse_user_id": "Demo Agent",
@@ -331,17 +324,16 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             langfuse_traced=False,
         )
 
-        # ── Agent loop — all calls share one trace via trace_context ─────────────
-        # The first GENERATION input is [system, user] — clean for prompt display.
-        # Subsequent calls add tool messages but _extract_human_prompt still finds
-        # the user message by walking the list in reverse.
-        def _run_agent() -> str:
+        # ── Phase 1: tool loop — NO Langfuse callbacks ───────────────────────────
+        # Runs all tool iterations without creating Langfuse observations.
+        # Accumulates the full conversation context (including tool results).
+        def _run_tools() -> tuple[list, bool]:
+            """Return (final_messages, hit_limit)."""
             current_messages = list(messages)
-            cfg = invoke_config if invoke_config else {}
             for _ in range(5):
-                response = llm_with_tools.invoke(current_messages, config=cfg)
+                response = llm_with_tools.invoke(current_messages)
                 if not getattr(response, "tool_calls", None):
-                    return response.content if hasattr(response, "content") else str(response)
+                    return current_messages, False
                 current_messages.append(response)
                 for tc in response.tool_calls:
                     tool_fn = DEMO_TOOL_MAP.get(tc["name"])
@@ -349,15 +341,34 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
                         content = f"Error: unknown tool '{tc['name']}'"
                     else:
                         try:
-                            content = str(tool_fn.invoke(tc["args"], config=cfg))
+                            content = str(tool_fn.invoke(tc["args"]))
                         except Exception as exc:
                             content = f"Error: {exc}"
                     current_messages.append(
                         ToolMessage(content=content, tool_call_id=tc["id"])
                     )
-            return "I've reached the tool call limit. Please try a more specific request."
+            return current_messages, True
 
-        assistant_text = await asyncio.get_event_loop().run_in_executor(None, _run_agent)
+        final_messages, hit_limit = await asyncio.get_event_loop().run_in_executor(
+            None, _run_tools
+        )
+
+        if hit_limit:
+            assistant_text = "I've reached the tool call limit. Please try a more specific request."
+        else:
+            # ── Phase 2: ONE final invoke WITH callback → exactly one Langfuse trace ─
+            # final_messages includes any tool call context so the LLM gives a
+            # response that reflects what the tools returned.
+            def _traced_invoke() -> str:
+                resp = llm.invoke(
+                    final_messages,
+                    config=invoke_config if invoke_config else {},
+                )
+                return resp.content if hasattr(resp, "content") else str(resp)
+
+            assistant_text = await asyncio.get_event_loop().run_in_executor(
+                None, _traced_invoke
+            )
 
         if langfuse_client:
             await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
