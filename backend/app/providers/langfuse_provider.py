@@ -108,6 +108,18 @@ class LangfuseTraceAdapter:
                 if not call.response and trace_output:
                     call.response = trace_output
 
+        # If the SDK returned no observation LLM calls but the trace has input/output
+        # (common when observations.get_many() strips input/output fields), synthesize
+        # one LLMCall so SessionContext always has something to display.
+        if not llm_calls and trace_input and trace_output:
+            llm_calls.append(LLMCall(
+                call_id=f"synthetic-{(trace.get('id') or uuid.uuid4().hex)[:8]}",
+                model=trace.get("model") or "gpt-4o-mini",
+                prompt=trace_input,
+                response=trace_output,
+                latency_ms=self._calc_latency(trace),
+            ))
+
         return Session(
             session_id=trace.get("id", f"lf-{uuid.uuid4().hex[:8]}"),
             agent_id=trace.get("userId") or trace.get("name") or "langfuse-agent",
