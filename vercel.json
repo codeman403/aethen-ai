@@ -3,5 +3,11 @@
   "rootDirectory": "frontend",
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron/pull-langfuse",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

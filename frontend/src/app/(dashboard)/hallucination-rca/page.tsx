@@ -47,14 +47,20 @@ export default function HallucinationRCAPage() {
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSelectSession = async (sessionData: object) => {
+  const handleSelectSession = (sessionData: object) => {
     const s = sessionData as { session_id: string };
     setSelectedId(s.session_id);
     setSelectedSession(sessionData as Record<string, unknown>);
+    setReport(null);
+    setError(null);
+  };
+
+  const handleRunAnalysis = async () => {
+    if (!selectedSession) return;
     setIsLoading(true);
     setError(null);
     try {
-      const result = await analyzeSession(sessionData);
+      const result = await analyzeSession(selectedSession);
       setReport(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
@@ -78,28 +84,49 @@ export default function HallucinationRCAPage() {
         </p>
       </div>
 
-      {isLoading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" /> Analyzing session...
-        </div>
-      )}
-
       {error && (
-        <div className="max-w-2xl rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="max-w-2xl">
-        <SessionsList
-          failureType="hallucination"
-          onSelect={handleSelectSession}
-          selectedId={selectedId}
-        />
-        
-      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        {/* Left: session list */}
+        <div className="xl:col-span-4 sticky top-6 rounded-xl border bg-card shadow-sm overflow-hidden h-[calc(100vh-200px)] flex flex-col">
+          <SessionsList
+            failureType="hallucination"
+            onSelect={handleSelectSession}
+            selectedId={selectedId}
+          />
+        </div>
 
+        {/* Right: empty state or analysis */}
+        <div className="xl:col-span-8">
+        {!selectedSession ? (
+          <div className="flex flex-col items-center justify-center min-h-[400px] text-center border border-dashed rounded-xl bg-muted/5 p-8">
+            <div className="p-4 bg-muted/20 rounded-full mb-4">
+              <ScanSearch className="size-8 text-muted-foreground/40" />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Select a session to begin</h3>
+            <p className="text-sm text-muted-foreground">
+              Choose a trace from the left panel, then click <strong>Run Full Analysis</strong> to see the diagnosis.
+            </p>
+          </div>
+        ) : null}
+
+      {selectedSession && (
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Action bar with Run Analysis button */}
+        <div className="px-5 py-3 border-b bg-muted/10 flex items-center justify-between">
+          <span className="font-mono text-xs text-muted-foreground truncate">{selectedId}</span>
+          <button
+            onClick={handleRunAnalysis}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? <><Loader2 className="size-4 animate-spin" /> Analyzing…</> : "Run Full Analysis"}
+          </button>
+        </div>
         {/* Metric Header */}
         <div className="grid grid-cols-2 md:grid-cols-4 border-b divide-x">
           {report ? (
@@ -261,6 +288,9 @@ export default function HallucinationRCAPage() {
         </div>
           {selectedSession && <SessionContext session={selectedSession} />}
       </div>
+      )}
+        </div>{/* end right col */}
+      </div>{/* end grid */}
     </div>
   );
 }

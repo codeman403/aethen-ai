@@ -426,7 +426,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-5rem)] animate-in fade-in duration-500">
+    <div className="flex gap-4 h-[calc(100vh-9rem)] animate-in fade-in duration-500">
 
       {/* ── Sessions Panel ────────────────────────────────────────────── */}
       <div className="w-52 flex-shrink-0 flex flex-col rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
@@ -625,7 +625,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              placeholder="e.g. 'show top tool failures' or 'why is retrieval failing?' — grounded in your real traces"
+              placeholder="Ask about your agent failures…"
               className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground max-h-32 overflow-y-auto py-1"
               style={{ minHeight: "24px" }}
             />

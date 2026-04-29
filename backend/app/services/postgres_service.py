@@ -90,7 +90,7 @@ ORDER BY created_at DESC LIMIT $1
 _SELECT_BY_TYPE = """
 SELECT session_data FROM sessions
 WHERE failure_type = $1
-ORDER BY created_at DESC LIMIT $2
+ORDER BY COALESCE(session_ts, created_at) DESC LIMIT $2
 """
 
 _SELECT_SUMMARIES = """
@@ -104,7 +104,37 @@ SELECT
     COALESCE(jsonb_array_length(session_data->'tool_calls'), 0)         AS tool_calls,
     COALESCE(jsonb_array_length(session_data->'retrieval_events'), 0)   AS retrieval_events
 FROM sessions
-ORDER BY created_at DESC LIMIT $1
+ORDER BY COALESCE(session_ts, created_at) DESC LIMIT $1
+"""
+
+_CREATE_APP_SETTINGS = """
+CREATE TABLE IF NOT EXISTS app_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+_CREATE_DEMO_TABLES = """
+CREATE TABLE IF NOT EXISTS demo_chat_sessions (
+    id          TEXT PRIMARY KEY,
+    title       TEXT        NOT NULL DEFAULT 'New Demo Chat',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_demo_chat_sessions_updated_at
+    ON demo_chat_sessions (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS demo_chat_messages (
+    id          TEXT PRIMARY KEY,
+    session_id  TEXT        NOT NULL REFERENCES demo_chat_sessions(id) ON DELETE CASCADE,
+    role        TEXT        NOT NULL,
+    content     TEXT        NOT NULL DEFAULT '',
+    langfuse_traced BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_demo_chat_messages_session_id
+    ON demo_chat_messages (session_id, created_at ASC);
 """
 
 _STATS_TOTAL = "SELECT COUNT(*) FROM sessions"
@@ -168,9 +198,11 @@ class PostgresService:
 
     async def _create_schema(self) -> None:
         async with self._pool.acquire() as conn:
+            await conn.execute(_CREATE_APP_SETTINGS)
             await conn.execute(_CREATE_TABLE)
             await conn.execute(_CREATE_CHAT_TABLES)
             await conn.execute(_MIGRATE_CHAT_TABLES)
+            await conn.execute(_CREATE_DEMO_TABLES)
 
     async def close(self) -> None:
         if self._pool:
@@ -386,6 +418,151 @@ class PostgresService:
         async with self._pool.acquire() as conn:
             await conn.execute(
                 "UPDATE chat_sessions SET title = $1, updated_at = NOW() WHERE id = $2",
+                title[:80], session_id,
+            )
+
+    # ── App settings (key-value store) ────────────────────────────────────
+
+    async def get_setting(self, key: str) -> str | None:
+        """Return a stored setting value, or None if not set."""
+        if not self.is_available:
+            return None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT value FROM app_settings WHERE key = $1", key)
+        return row["value"] if row else None
+
+    async def set_setting(self, key: str, value: str) -> None:
+        """Upsert a setting value."""
+        if not self.is_available:
+            return
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO app_settings (key, value)
+                VALUES ($1, $2)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                """,
+                key, value,
+            )
+
+    # ── Demo chat session CRUD ─────────────────────────────────────────────
+
+    async def create_demo_session(self, session_id: str, title: str = "New Demo Chat") -> dict:
+        """Create a new demo chat session row and return it."""
+        if not self.is_available:
+            return {"id": session_id, "title": title, "created_at": None, "updated_at": None, "message_count": 0}
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO demo_chat_sessions (id, title) VALUES ($1, $2)
+                ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
+                RETURNING id, title, created_at, updated_at
+                """,
+                session_id, title,
+            )
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            "message_count": 0,
+        }
+
+    async def list_demo_sessions(self, limit: int = 30) -> list[dict]:
+        """Return demo chat sessions ordered by most recently updated."""
+        if not self.is_available:
+            return []
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT s.id, s.title, s.created_at, s.updated_at,
+                       COUNT(m.id) AS message_count
+                FROM demo_chat_sessions s
+                LEFT JOIN demo_chat_messages m ON m.session_id = s.id
+                GROUP BY s.id, s.title, s.created_at, s.updated_at
+                ORDER BY s.updated_at DESC
+                LIMIT $1
+                """,
+                limit,
+            )
+        return [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "message_count": int(r["message_count"]),
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+            }
+            for r in rows
+        ]
+
+    async def get_demo_messages(self, session_id: str) -> list[dict]:
+        """Return all messages for a demo session in chronological order."""
+        if not self.is_available:
+            return []
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, session_id, role, content, langfuse_traced, created_at
+                FROM demo_chat_messages WHERE session_id = $1
+                ORDER BY created_at ASC
+                """,
+                session_id,
+            )
+        return [
+            {
+                "id": r["id"],
+                "session_id": r["session_id"],
+                "role": r["role"],
+                "content": r["content"],
+                "langfuse_traced": r["langfuse_traced"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            }
+            for r in rows
+        ]
+
+    async def append_demo_message(
+        self,
+        message_id: str,
+        session_id: str,
+        role: str,
+        content: str,
+        langfuse_traced: bool = False,
+    ) -> None:
+        """Append a message and bump session updated_at."""
+        if not self.is_available:
+            return
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO demo_chat_messages (id, session_id, role, content, langfuse_traced)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                message_id, session_id, role, content, langfuse_traced,
+            )
+            await conn.execute(
+                "UPDATE demo_chat_sessions SET updated_at = NOW() WHERE id = $1",
+                session_id,
+            )
+
+    async def update_failure_type(self, session_id: str, failure_type: str) -> None:
+        """Update the failure_type for a session after LangGraph classification."""
+        if not self.is_available:
+            return
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE sessions SET failure_type = $1 WHERE session_id = $2",
+                failure_type, session_id,
+            )
+
+    async def update_demo_session_title(self, session_id: str, title: str) -> None:
+        """Rename a demo session."""
+        if not self.is_available:
+            return
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE demo_chat_sessions SET title = $1, updated_at = NOW() WHERE id = $2",
                 title[:80], session_id,
             )
 

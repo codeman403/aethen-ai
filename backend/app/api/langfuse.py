@@ -1,5 +1,7 @@
 """Langfuse live trace ingestion endpoints."""
 
+from datetime import UTC, datetime
+
 import structlog
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -46,13 +48,25 @@ def _get_provider() -> LangfuseProvider:
 
 @router.post("/langfuse/pull", response_model=ApiResponse[IngestResult])
 async def pull_langfuse_traces(request: LangfusePullRequest) -> ApiResponse[IngestResult]:
-    """Pull traces from Langfuse, adapt them, and ingest into Aethen pipeline.
+    """Pull NEW traces from Langfuse since the last pull, adapt, and ingest.
 
-    This is the live-mode equivalent of POST /api/ingest — it fetches traces
-    directly from Langfuse instead of receiving them as JSON.
+    Uses an incremental watermark stored in Postgres so only traces created
+    after the previous pull are fetched — no re-ingestion of existing sessions.
     """
     provider = _get_provider()
-    sessions = await provider.fetch_traces(limit=request.limit)
+
+    # Read last-pull watermark for incremental ingestion
+    since = None
+    watermark_str = await postgres_service.get_setting("langfuse_last_pull_at")
+    if watermark_str:
+        try:
+            since = datetime.fromisoformat(watermark_str)
+        except ValueError:
+            since = None
+
+    pull_started_at = datetime.now(UTC)
+    sessions = await provider.fetch_traces(limit=request.limit, since=since)
+    logger.info("langfuse_incremental_pull", since=watermark_str or "first-pull", fetched=len(sessions))
 
     if not sessions:
         return ApiResponse(
@@ -95,12 +109,16 @@ async def pull_langfuse_traces(request: LangfusePullRequest) -> ApiResponse[Inge
             logger.error("langfuse_link_patterns_error", error=str(e))
             errors.append(f"Pattern linking error: {e}")
 
+    # Update watermark so next pull only fetches traces created after this pull started
+    await postgres_service.set_setting("langfuse_last_pull_at", pull_started_at.isoformat())
+
     result = IngestResult(
         sessions_ingested=sessions_ok,
         events_processed=total_events,
         errors=errors,
     )
-    logger.info("langfuse_pull_complete", sessions=sessions_ok, events=total_events)
+    logger.info("langfuse_pull_complete", sessions=sessions_ok, events=total_events,
+                watermark=pull_started_at.isoformat())
     return ApiResponse(data=result)
 
 

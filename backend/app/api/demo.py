@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.models.response import ApiResponse
+from app.services.postgres_service import postgres_service
 from app.utils.langfuse_utils import make_langfuse_handler
 from app.utils.sanitize import sanitize_input
 
@@ -84,12 +85,13 @@ class ChatMessage(BaseModel):
 class DemoChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
+    session_id: str | None = None   # None on first turn; backend creates and returns one
 
 
 class DemoChatResult(BaseModel):
     user_message: str
     assistant_response: str
-    session_id: str
+    session_id: str                 # Always returned so frontend persists it
     langfuse_traced: bool
 
 
@@ -169,7 +171,11 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
                 "callbacks": [handler],
                 "tags": scenario["tags"],
                 "run_name": scenario["run_name"],
-                "metadata": {"tags": scenario["tags"], "scenario": scenario["name"]},
+                "metadata": {
+                    "langfuse_user_id": "Demo Agent",
+                    "tags": scenario["tags"],
+                    "scenario": scenario["name"],
+                },
             }
 
         # Run the synchronous LLM call off the event loop
@@ -204,13 +210,23 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
 
 @router.post("/demo/chat", response_model=ApiResponse[DemoChatResult])
 async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
-    """Free-form chat with Langfuse tracing.
+    """Free-form chat with Langfuse tracing and Postgres persistence.
 
-    Accepts the full conversation history so the LLM has context across turns.
-    Each call is traced as a new Langfuse observation.
+    On the first turn (session_id=None) a new demo session is created and the
+    session_id is returned so the frontend can send it on every subsequent turn,
+    keeping all turns of one conversation under the same Postgres session and
+    Langfuse session group.
     """
-    session_id = f"demo-chat-{uuid.uuid4().hex[:8]}"
     request.message = sanitize_input(request.message, "message")
+
+    # Resolve or create session
+    is_new_session = request.session_id is None
+    session_id = request.session_id or f"demo-cs-{uuid.uuid4().hex[:12]}"
+
+    if is_new_session:
+        title = request.message[:60]
+        await postgres_service.create_demo_session(session_id, title)
+
     logger.info("demo_chat_start", session_id=session_id, message_len=len(request.message))
 
     try:
@@ -250,9 +266,22 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             invoke_config = {
                 "callbacks": [handler],
                 "tags": ["demo-chat", "user-input"],
-                "run_name": f"demo-chat-{session_id}",
-                "metadata": {"session_id": session_id, "turn": len(request.history) + 1},
+                "run_name": "demo-agent-chat",
+                "metadata": {
+                    "langfuse_user_id": "Demo Agent",
+                    "langfuse_session_id": session_id,
+                    "turn": len(request.history) + 1,
+                },
             }
+
+        # Save user message before LLM call
+        await postgres_service.append_demo_message(
+            message_id=f"dm-{uuid.uuid4().hex[:12]}",
+            session_id=session_id,
+            role="user",
+            content=request.message,
+            langfuse_traced=False,
+        )
 
         def _invoke():
             return llm.invoke(messages, config=invoke_config if invoke_config else {})
@@ -262,6 +291,15 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
 
         if langfuse_client:
             await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
+
+        # Save assistant response
+        await postgres_service.append_demo_message(
+            message_id=f"dm-{uuid.uuid4().hex[:12]}",
+            session_id=session_id,
+            role="assistant",
+            content=assistant_text,
+            langfuse_traced=langfuse_traced,
+        )
 
         logger.info("demo_chat_complete", session_id=session_id)
 
@@ -277,3 +315,21 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
     except Exception as exc:
         logger.error("demo_chat_failed", error=str(exc))
         return ApiResponse(error=f"Chat failed: {exc!s}")
+
+
+# ---------------------------------------------------------------------------
+# Demo session CRUD endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/demo/sessions", response_model=ApiResponse[list[dict]])
+async def list_demo_sessions() -> ApiResponse[list[dict]]:
+    """Return demo chat sessions ordered by most recent activity."""
+    sessions = await postgres_service.list_demo_sessions()
+    return ApiResponse(data=sessions)
+
+
+@router.get("/demo/sessions/{session_id}/messages", response_model=ApiResponse[list[dict]])
+async def get_demo_messages(session_id: str) -> ApiResponse[list[dict]]:
+    """Return the full message history for a demo session."""
+    messages = await postgres_service.get_demo_messages(session_id)
+    return ApiResponse(data=messages)

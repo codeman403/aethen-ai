@@ -12,10 +12,10 @@ import {
   Clock,
   Cpu,
   Zap,
-  CheckCircle,
-  XCircle,
   AlertCircle,
   ChevronRight,
+  Target,
+  FileText,
 } from "lucide-react";
 import {
   fetchAllSessions,
@@ -29,80 +29,31 @@ import { SessionContext } from "@/components/features/SessionContext";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const FAILURE_TYPE_CONFIG: Record<
-  string,
-  { label: string; color: string; bg: string; icon: React.ElementType }
-> = {
-  memory: {
-    label: "Memory",
-    color: "text-rose-600 dark:text-rose-400",
-    bg: "bg-rose-500/10 border-rose-500/20",
-    icon: BrainCircuit,
-  },
-  tool_misfire: {
-    label: "Tool Misfire",
-    color: "text-amber-600 dark:text-amber-400",
-    bg: "bg-amber-500/10 border-amber-500/20",
-    icon: Wrench,
-  },
-  hallucination: {
-    label: "Hallucination",
-    color: "text-rose-600 dark:text-rose-400",
-    bg: "bg-rose-500/10 border-rose-500/20",
-    icon: ShieldAlert,
-  },
-  blind_spot: {
-    label: "Blind Spot",
-    color: "text-blue-600 dark:text-blue-400",
-    bg: "bg-blue-500/10 border-blue-500/20",
-    icon: ScanSearch,
-  },
-};
+function formatTimestamp(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return d.toLocaleString("en-US", {
+    month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
 
-const SEVERITY_CONFIG = {
-  critical: "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400",
-  high: "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400",
-  medium: "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400",
-  low: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400",
+const FAILURE_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
+  memory:       { label: "Memory",       color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20",   icon: BrainCircuit },
+  tool_misfire: { label: "Tool Misfire", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", icon: Wrench },
+  hallucination:{ label: "Hallucination",color: "text-rose-600 dark:text-rose-400",   bg: "bg-rose-500/10 border-rose-500/20",   icon: ShieldAlert },
+  blind_spot:   { label: "Blind Spot",   color: "text-purple-600 dark:text-purple-400",bg:"bg-purple-500/10 border-purple-500/20",icon: ScanSearch },
 };
 
 function FailureBadge({ type }: { type: string | null }) {
-  if (!type) return <span className="text-sm text-foreground/80">—</span>;
+  if (!type) return <span className="text-xs text-muted-foreground">—</span>;
   const cfg = FAILURE_TYPE_CONFIG[type];
-  if (!cfg) return <span className="text-sm text-foreground/80">{type}</span>;
+  if (!cfg) return <span className="text-xs text-muted-foreground">{type}</span>;
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-sm font-medium ${cfg.bg} ${cfg.color}`}>
-      <Icon className="size-3" />
-      {cfg.label}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+      <Icon className="size-3" />{cfg.label}
     </span>
-  );
-}
-
-function LatencyBar({ ms, maxMs }: { ms: number; maxMs: number }) {
-  const pct = Math.max(4, Math.round((ms / Math.max(maxMs, 1)) * 100));
-  const color =
-    ms > 10000 ? "bg-rose-500" : ms > 3000 ? "bg-amber-500" : "bg-emerald-500";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-sm text-foreground/80 tabular-nums">{ms.toLocaleString()}ms</span>
-    </div>
-  );
-}
-
-function ScoreBar({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
-  const color = value >= 0.7 ? "bg-emerald-500" : value >= 0.4 ? "bg-amber-500" : "bg-rose-500";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 bg-muted rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-sm text-foreground/80 tabular-nums">{pct}%</span>
-    </div>
   );
 }
 
@@ -116,6 +67,7 @@ export default function TracesPage() {
   const [selected, setSelected] = useState<SessionSummary | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState<string>("");
 
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -123,7 +75,6 @@ export default function TracesPage() {
   const [fullSession, setFullSession] = useState<object | null>(null);
 
   useEffect(() => {
-    setLoadingSessions(true);
     fetchAllSessions()
       .then(setSessions)
       .catch((e) => setSessionsError(e.message))
@@ -133,28 +84,27 @@ export default function TracesPage() {
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
       if (filterType !== "all" && s.failure_type !== filterType) return false;
+      if (dateFilter && s.timestamp) {
+        if (new Date(s.timestamp).toISOString().slice(0, 10) !== dateFilter) return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (
           !s.session_id.toLowerCase().includes(q) &&
           !(s.failure_summary ?? "").toLowerCase().includes(q) &&
           !s.agent_id.toLowerCase().includes(q)
-        )
-          return false;
+        ) return false;
       }
       return true;
     });
-  }, [sessions, filterType, search]);
+  }, [sessions, filterType, search, dateFilter]);
 
   const handleSelect = (s: SessionSummary) => {
     setSelected(s);
     setReport(null);
     setFullSession(null);
     setAnalysisError(null);
-    // Auto-fetch full session so prompt/response appear immediately
-    fetchSession(s.session_id).then((data) => {
-      if (data) setFullSession(data);
-    }).catch(() => {});
+    fetchSession(s.session_id).then((data) => { if (data) setFullSession(data); }).catch(() => {});
   };
 
   const handleAnalyze = async () => {
@@ -164,16 +114,9 @@ export default function TracesPage() {
     setReport(null);
     try {
       const data = await fetchSession(selected.session_id);
-      if (!data) {
-        setAnalysisError(
-          "Session data not found in store. Run this session through a module page first to populate the store."
-        );
-        setAnalysisLoading(false);
-        return;
-      }
+      if (!data) { setAnalysisError("Session data not found."); return; }
       setFullSession(data);
-      const result = await analyzeSession(data);
-      setReport(result);
+      setReport(await analyzeSession(data));
     } catch (e) {
       setAnalysisError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
@@ -182,410 +125,294 @@ export default function TracesPage() {
   };
 
   const filterChips = [
-    { key: "all", label: "All" },
-    { key: "memory", label: "Memory" },
-    { key: "tool_misfire", label: "Tool Misfire" },
+    { key: "all",           label: "All" },
+    { key: "memory",        label: "Memory" },
+    { key: "tool_misfire",  label: "Tool Misfire" },
     { key: "hallucination", label: "Hallucination" },
-    { key: "blind_spot", label: "Blind Spot" },
+    { key: "blind_spot",    label: "Blind Spot" },
   ];
-
-  // Compute max latency for timeline bars
-  const sessionAsAny = fullSession as Record<string, unknown> | null;
-  const llmCalls = (sessionAsAny?.llm_calls as Record<string, unknown>[]) ?? [];
-  const toolCalls = (sessionAsAny?.tool_calls as Record<string, unknown>[]) ?? [];
-  const retrievalEvents = (sessionAsAny?.retrieval_events as Record<string, unknown>[]) ?? [];
-  const allLatencies = [
-    ...llmCalls.map((c) => Number(c.latency_ms ?? 0)),
-    ...toolCalls.map((c) => Number(c.latency_ms ?? 0)),
-  ];
-  const maxLatency = Math.max(...allLatencies, 1);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start animate-in fade-in duration-500">
-      {/* ── Left: Session List ─────────────────────────────────────────── */}
-      <div className="xl:col-span-4 sticky top-6 z-10 flex flex-col rounded-xl border bg-card shadow-lg overflow-hidden h-[calc(100vh-140px)]">
-        <div className="p-4 border-b bg-muted/10">
-          <div className="flex items-center gap-2 mb-3">
-            <Eye className="size-4 text-primary" />
-            <h2 className="font-semibold tracking-tight">Trace Explorer</h2>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Page header */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+          <div className="p-2 bg-primary/10 text-primary rounded-lg border border-primary/20">
+            <Eye className="size-6" />
           </div>
-          <div className="relative mb-3">
-            <Search className="absolute left-2.5 top-2.5 size-3.5 text-foreground/80" />
-            <input
-              type="text"
-              placeholder="Search sessions…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-base rounded-xl border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {filterChips.map((chip) => (
-              <button
-                key={chip.key}
-                onClick={() => setFilterType(chip.key)}
-                className={`px-2.5 py-1 rounded-full text-sm font-medium transition-colors border ${
-                  filterType === chip.key
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground/80 border-border hover:bg-muted"
-                }`}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto p-2 space-y-1.5">
-          {loadingSessions ? (
-            <div className="flex items-center justify-center h-32 text-foreground/80">
-              <Loader2 className="size-5 animate-spin mr-2" />
-              <span className="text-base">Loading sessions…</span>
-            </div>
-          ) : sessionsError ? (
-            <div className="p-4 text-base text-destructive">{sessionsError}</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-center text-foreground/80 px-4">
-              <Eye className="size-8 mb-2 opacity-30" />
-              <p className="text-base font-medium">No sessions found</p>
-              <p className="text-sm mt-1">Pull traces from the dashboard to populate this list</p>
-            </div>
-          ) : (
-            filtered.map((s) => (
-              <button
-                key={s.session_id}
-                onClick={() => handleSelect(s)}
-                className={`group w-full text-left p-2.5 rounded-md border transition-all duration-200 ${
-                  selected?.session_id === s.session_id
-                    ? "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20"
-                    : "border-transparent bg-transparent hover:border-border hover:bg-muted/40"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <span className={`text-[11px] font-mono truncate pr-2 ${selected?.session_id === s.session_id ? "text-primary font-medium" : "text-foreground/80 font-normal"}`}>
-                    {s.session_id}
-                  </span>
-                  <FailureBadge type={s.failure_type} />
-                </div>
-                <div className="text-sm text-foreground/80 mb-1.5 line-clamp-2">
-                  {s.failure_summary ?? s.agent_id}
-                </div>
-                <div className="flex items-center gap-2 text-[10px] text-foreground/80">
-                  <span>{s.llm_calls} LLM</span>
-                  <span>·</span>
-                  <span>{s.tool_calls} tools</span>
-                  <span>·</span>
-                  <span>{s.retrieval_events} retrievals</span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-
-        <div className="p-3 border-t bg-muted/10 text-sm text-foreground/80 text-center">
-          {filtered.length} of {sessions.length} sessions
-        </div>
+          Trace Explorer
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          Browse all agent sessions, filter by type or date, and run full diagnostic analysis.
+        </p>
       </div>
 
-      {/* ── Right: Detail Panel ────────────────────────────────────────── */}
-      <div className="xl:col-span-8 space-y-6">
-        {!selected ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center border border-dashed rounded-xl bg-muted/5 p-8">
-            <div className="p-4 bg-muted/20 rounded-full mb-4">
-              <Eye className="size-8 text-foreground/50" />
+      {sessionsError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {sessionsError}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+
+        {/* ── Left: Session List ─────────────────────────────────────────── */}
+        <div className="xl:col-span-4 sticky top-6 flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden h-[calc(100vh-200px)]">
+          <div className="p-4 border-b bg-muted/10 space-y-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search sessions…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
+              />
             </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">Select a session to begin</h3>
-            <p className="text-base text-foreground/70 max-w-md">
-              Choose a trace from the left panel to view its full context, execution timeline, and run diagnostic analyses.
-            </p>
+            {/* Date filter */}
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="flex-1 py-1.5 px-2 text-sm rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-foreground/80"
+              />
+              {dateFilter && (
+                <button onClick={() => setDateFilter("")} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border hover:bg-muted transition-colors">
+                  Clear
+                </button>
+              )}
+            </div>
+            {/* Failure type chips */}
+            <div className="flex flex-wrap gap-1">
+              {filterChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  onClick={() => setFilterType(chip.key)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                    filterType === chip.key
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground/70 border-border hover:bg-muted"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-6 relative">
-            {analysisLoading && (
-              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-md rounded-2xl border shadow-2xl">
-                <div className="p-5 bg-card rounded-2xl shadow-xl flex flex-col items-center gap-4">
-                  <Loader2 className="size-10 animate-spin text-primary" />
-                  <div className="text-center">
-                    <h3 className="text-xl font-bold">Analyzing Trace Data</h3>
-                    <p className="text-foreground/70 text-sm mt-1">Running LangGraph heuristics and vector similarity checks...</p>
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {/* Session Header */}
-            <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-              <div className="px-6 py-4 border-b bg-muted/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="size-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Eye className="size-4 text-primary" />
+          {/* Session cards */}
+          <div className="flex-1 overflow-auto p-2 space-y-1">
+            {loadingSessions ? (
+              <div className="flex items-center justify-center h-32 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin mr-2" /><span className="text-sm">Loading…</span>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 text-center text-muted-foreground px-4">
+                <Eye className="size-7 mb-2 opacity-30" />
+                <p className="text-sm font-medium">No sessions found</p>
+                <p className="text-xs mt-1 opacity-70">Pull traces from the dashboard first</p>
+              </div>
+            ) : (
+              filtered.map((s) => (
+                <button
+                  key={s.session_id}
+                  onClick={() => handleSelect(s)}
+                  className={`group w-full text-left p-2.5 rounded-md border transition-all duration-200 ${
+                    selected?.session_id === s.session_id
+                      ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                      : "border-transparent hover:border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className={`text-[11px] font-mono truncate ${selected?.session_id === s.session_id ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                      {s.session_id}
+                    </span>
+                    <FailureBadge type={s.failure_type} />
                   </div>
-                  <div>
-                    <div className="font-mono text-base font-medium">{selected.session_id}</div>
-                    <div className="text-sm text-foreground/80">Agent: {selected.agent_id}</div>
+                  <div className="text-xs text-muted-foreground mb-1 line-clamp-1">
+                    {s.failure_summary ?? s.agent_id}
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <FailureBadge type={selected.failure_type} />
-                  {selected.timestamp && (
-                    <div className="flex items-center gap-1 text-sm text-foreground/80">
-                      <Clock className="size-3" />
-                      {new Date(selected.timestamp).toLocaleString()}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{s.llm_calls} LLM</span><span>·</span>
+                      <span>{s.tool_calls} tools</span><span>·</span>
+                      <span>{s.retrieval_events} retrievals</span>
                     </div>
-                  )}
-                </div>
-              </div>
+                    {s.timestamp && (
+                      <span className="text-[10px] text-muted-foreground/50">{formatTimestamp(s.timestamp)}</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
 
-              {selected.failure_summary && (
-                <div className="px-6 py-3 border-b bg-amber-500/5 border-amber-500/20">
-                  <p className="text-base text-amber-700 dark:text-amber-400">
-                    {selected.failure_summary}
-                  </p>
+          <div className="px-3 py-2 border-t bg-muted/10 text-xs text-muted-foreground text-center">
+            {filtered.length} of {sessions.length} sessions
+          </div>
+
+        </div>
+
+        {/* ── Right: Analysis Panel ──────────────────────────────────────── */}
+        <div className="xl:col-span-8 space-y-6">
+          {!selected ? (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center border border-dashed rounded-xl bg-muted/5 p-8">
+              <div className="p-4 bg-muted/20 rounded-full mb-4">
+                <Eye className="size-8 text-muted-foreground/40" />
+              </div>
+              <h3 className="text-lg font-bold mb-2">Select a session to begin</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Choose a trace from the left panel, then click <strong>Run Full Analysis</strong> to see the diagnosis.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {analysisError && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {analysisError}
                 </div>
               )}
 
-              <div className="px-6 py-4">
-                <div className="grid grid-cols-3 gap-4 mb-4">
+              {/* ── Analysis card — FIRST thing, session info in header ── */}
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                {/* Session info row — compact, inside the card */}
+                <div className="px-5 py-3 border-b bg-muted/10 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FailureBadge type={selected.failure_type} />
+                    <span className="font-mono text-xs text-muted-foreground truncate">{selected.session_id}</span>
+                    <span className="text-xs text-muted-foreground hidden sm:inline">· {selected.agent_id}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                    {selected.timestamp && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="size-3" />{formatTimestamp(selected.timestamp)}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5">
+                      <Cpu className="size-3" />{selected.llm_calls}
+                      <Zap className="size-3 ml-1" />{selected.tool_calls}
+                      <ScanSearch className="size-3 ml-1" />{selected.retrieval_events}
+                    </span>
+                    <button
+                      onClick={handleAnalyze}
+                      disabled={analysisLoading}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {analysisLoading
+                        ? <><Loader2 className="size-3 animate-spin" /> Analyzing…</>
+                        : "Run Full Analysis"}
+                    </button>
+                  </div>
+                </div>
+
+                {selected.failure_summary && (
+                  <div className="px-5 py-2 border-b bg-amber-500/5">
+                    <p className="text-xs text-amber-700 dark:text-amber-400">{selected.failure_summary}</p>
+                  </div>
+                )}
+
+                {/* Metrics row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 border-b divide-x">
                   {[
-                    { label: "LLM Calls", value: selected.llm_calls, icon: Cpu },
-                    { label: "Tool Calls", value: selected.tool_calls, icon: Zap },
-                    { label: "Retrievals", value: selected.retrieval_events, icon: ScanSearch },
-                  ].map(({ label, value, icon: Icon }) => (
-                    <div key={label} className="rounded-xl border bg-muted/20 p-4 text-center">
-                      <Icon className="size-5 text-foreground/80 mx-auto mb-1" />
-                      <div className="text-2xl font-bold">{value}</div>
-                      <div className="text-sm text-foreground/80">{label}</div>
+                    {
+                      label: "Confidence",
+                      value: report ? `${Math.round(report.confidence * 100)}%` : "—",
+                      cls: report
+                        ? report.confidence >= 0.7 ? "text-emerald-600"
+                        : report.confidence >= 0.4 ? "text-amber-600"
+                        : "text-rose-600"
+                        : "text-muted-foreground/40",
+                    },
+                    { label: "Findings", value: report ? String(report.findings.length) : "—", cls: "text-foreground" },
+                    {
+                      label: "High / Critical",
+                      value: report ? String(report.findings.filter(f => f.severity === "high" || f.severity === "critical").length) : "—",
+                      cls: "text-rose-600",
+                    },
+                    {
+                      label: "Medium / Low",
+                      value: report ? String(report.findings.filter(f => f.severity === "medium" || f.severity === "low").length) : "—",
+                      cls: "text-amber-600",
+                    },
+                  ].map(({ label, value, cls }) => (
+                    <div key={label} className="p-5 bg-muted/10">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+                      <span className={`text-2xl font-bold ${cls}`}>{value}</span>
                     </div>
                   ))}
                 </div>
 
-                <button
-                  onClick={handleAnalyze}
-                  disabled={analysisLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {analysisLoading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ChevronRight className="size-4" />
-                  )}
-                  {analysisLoading ? "Running Analysis…" : "Run Full Analysis"}
-                </button>
-              </div>
-            </div>
-
-            {analysisError && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-6 py-4 text-base text-destructive">
-                {analysisError}
-              </div>
-            )}
-
-            {/* Analysis Results */}
-            {report && (
-              <>
-                <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-                  <div className="px-6 py-4 border-b bg-muted/10 flex items-center justify-between">
-                    <h3 className="font-semibold tracking-tight">Root Cause Analysis</h3>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-foreground/80">Confidence</span>
-                      <span
-                        className={`text-sm font-bold px-2 py-0.5 rounded-full border ${
-                          report.confidence >= 0.7
-                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
-                            : report.confidence >= 0.4
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-600"
-                            : "bg-rose-500/10 border-rose-500/20 text-rose-600"
-                        }`}
-                      >
-                        {Math.round(report.confidence * 100)}%
-                      </span>
+                {/* 2-col: Summary + Root Cause | Findings */}
+                <div className="p-6 grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Target className="size-4 text-primary" />
+                      <h3 className="font-semibold tracking-tight text-sm">Analysis Summary</h3>
                     </div>
+                    <div className="p-4 bg-muted/30 border rounded-xl text-sm leading-relaxed shadow-inner">
+                      {report?.summary ?? (
+                        analysisLoading
+                          ? <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Running analysis…</span>
+                          : "Select a session and click Run Full Analysis to see the root cause assessment."
+                      )}
+                    </div>
+                    {report && (
+                      <div className="pt-3 border-t space-y-1">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Root Cause</p>
+                        <p className="text-sm font-medium text-foreground leading-relaxed">{report.root_cause}</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="px-6 py-4 space-y-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground/80 uppercase tracking-wider mb-1">
-                        Summary
-                      </p>
-                      <p className="text-base">{report.summary}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground/80 uppercase tracking-wider mb-1">
-                        Root Cause
-                      </p>
-                      <p className="text-base font-medium">{report.root_cause}</p>
-                    </div>
-                  </div>
-                </div>
 
-                {report.findings.length > 0 && (
-                  <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-                    <div className="px-6 py-4 border-b bg-muted/10">
-                      <h3 className="font-semibold tracking-tight">
-                        Findings ({report.findings.length})
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <FileText className="size-4 text-primary" />
+                      <h3 className="font-semibold tracking-tight text-sm">
+                        {report ? `Findings (${report.findings.length})` : "Findings"}
                       </h3>
                     </div>
-                    <div className="p-4 space-y-3">
-                      {report.findings.map((f: Finding, i: number) => (
-                        <div
-                          key={i}
-                          className={`rounded-xl border p-4 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20 text-foreground"}`}
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle className="size-4 flex-shrink-0" />
-                              <span className="font-medium text-base">{f.title}</span>
-                            </div>
-                            <span className="text-sm font-semibold uppercase tracking-wider opacity-70">
-                              {f.severity}
-                            </span>
+                    <div className="space-y-3">
+                      {report ? (
+                        report.findings.length === 0 ? (
+                          <div className="p-4 border rounded-xl text-sm border-l-4 border-l-emerald-500 bg-emerald-500/5">
+                            <p className="text-muted-foreground">No issues detected.</p>
                           </div>
-                          <p className="text-sm mb-2 opacity-80">{f.description}</p>
-                          {f.recommendation && (
-                            <p className="text-sm font-medium">→ {f.recommendation}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-
-            {/* Session Context — prompt, response, tool calls, retrievals */}
-            {fullSession && (
-              <SessionContext session={fullSession as Record<string, unknown>} />
-            )}
-
-            {/* Execution Timeline (from full session data) */}
-            {fullSession && (llmCalls.length > 0 || toolCalls.length > 0 || retrievalEvents.length > 0) && (
-              <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-                <div className="px-6 py-4 border-b bg-muted/10">
-                  <h3 className="font-semibold tracking-tight">Execution Timeline</h3>
-                  <p className="text-sm text-foreground/80 mt-0.5">
-                    Step-by-step trace with latency and status
-                  </p>
-                </div>
-                <div className="p-6">
-                  <div className="relative border-l border-muted ml-3 space-y-6">
-                    {retrievalEvents.map((ev, i) => {
-                      const scores = (ev.relevance_scores as number[]) ?? [];
-                      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-                      return (
-                        <div key={`ret-${i}`} className="relative pl-6">
-                          <div className="absolute -left-[9px] top-1 size-4 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
-                            <ScanSearch className="size-2.5 text-blue-600" />
-                          </div>
-                          <div className="rounded-xl border bg-blue-500/5 border-blue-500/20 p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                Retrieval Event
-                              </span>
-                              <span className="text-sm text-foreground/80">
-                                {ev.chunks_returned as number} chunks
-                              </span>
-                            </div>
-                            <p className="text-base font-medium mb-2 line-clamp-2">{ev.query as string}</p>
-                            <div className="flex items-center gap-4">
-                              <div>
-                                <span className="text-sm text-foreground/80">Avg relevance</span>
-                                <ScoreBar value={avg} />
-                              </div>
-                              {(ev.chunks_returned as number) === 0 && (
-                                <span className="text-sm font-medium text-rose-600 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
-                                  No results
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {llmCalls.map((call, i) => (
-                      <div key={`llm-${i}`} className="relative pl-6">
-                        <div className="absolute -left-[9px] top-1 size-4 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-                          <Cpu className="size-2.5 text-primary" />
-                        </div>
-                        <div className="rounded-xl border bg-card p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">
-                              LLM Call
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {Boolean(call.hallucination_flag) && (
-                                <span className="text-sm font-medium text-rose-600 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
-                                  Hallucination ⚠
-                                </span>
-                              )}
-                              <span className="text-sm font-mono text-foreground/80">
-                                {call.model as string}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-base text-foreground/80 mb-2 line-clamp-2">
-                            {call.prompt as string}
-                          </p>
-                          <div className="flex items-center gap-6">
-                            <LatencyBar ms={Number(call.latency_ms ?? 0)} maxMs={maxLatency} />
-                            <span className="text-sm text-foreground/80">
-                              {call.tokens_in as number}↑ / {call.tokens_out as number}↓ tokens
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {toolCalls.map((call, i) => {
-                      const status = call.status as string;
-                      const statusIcon =
-                        status === "success" ? (
-                          <CheckCircle className="size-3 text-emerald-500" />
-                        ) : status === "timeout" ? (
-                          <Clock className="size-3 text-amber-500" />
                         ) : (
-                          <XCircle className="size-3 text-rose-500" />
-                        );
-                      const borderColor =
-                        status === "success"
-                          ? "border-emerald-500/20 bg-emerald-500/5"
-                          : status === "timeout"
-                          ? "border-amber-500/20 bg-amber-500/5"
-                          : "border-rose-500/20 bg-rose-500/5";
-                      return (
-                        <div key={`tool-${i}`} className="relative pl-6">
-                          <div className="absolute -left-[9px] top-1 size-4 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
-                            <Zap className="size-2.5 text-amber-600" />
-                          </div>
-                          <div className={`rounded-xl border p-4 ${borderColor}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                {statusIcon}
-                                <span className="text-sm font-semibold uppercase tracking-wider text-foreground/80">
-                                  Tool Call
-                                </span>
+                          report.findings.map((f: Finding, i: number) => (
+                            <div key={i} className={`p-4 bg-background border rounded-xl text-sm border-l-4 ${
+                              f.severity === "high" || f.severity === "critical"
+                                ? "border-l-rose-500"
+                                : "border-l-amber-400"
+                            }`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-semibold text-foreground">{f.title}</span>
+                                <span className="text-xs font-semibold uppercase tracking-wider opacity-60">{f.severity}</span>
                               </div>
-                              <span className="font-mono text-sm">{call.tool_name as string}</span>
+                              <p className="text-muted-foreground leading-relaxed text-xs">{f.description}</p>
+                              {f.recommendation && (
+                                <p className="mt-1.5 text-xs font-medium text-foreground/80">→ {f.recommendation}</p>
+                              )}
                             </div>
-                            {Boolean(call.error) && (
-                              <p className="text-sm text-rose-600 dark:text-rose-400 mb-2">
-                                {call.error as string}
-                              </p>
-                            )}
-                            <LatencyBar ms={Number(call.latency_ms ?? 0)} maxMs={maxLatency} />
-                          </div>
+                          ))
+                        )
+                      ) : (
+                        <div className="p-4 border rounded-xl text-sm border-l-4 border-l-muted">
+                          <p className="text-muted-foreground">Findings will appear here after analysis.</p>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* Analysis Report */}
-            
-          </div>
-        )}
+              {/* Session Context — below analysis, requires scroll */}
+              {fullSession && (
+                <SessionContext session={fullSession as Record<string, unknown>} />
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

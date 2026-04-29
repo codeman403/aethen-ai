@@ -74,6 +74,14 @@ async def analyze_session(request: ChatRequest) -> ApiResponse[AnalysisReport]:
 
         report = AnalysisReport(**result["report"])
         store.save(report)
+
+        # Persist the LangGraph-classified failure_type back to Postgres so the
+        # session appears correctly on module pages after analysis runs.
+        if report.failure_type and report.failure_type != "unknown":
+            await postgres_service.update_failure_type(
+                request.session_id, str(report.failure_type)
+            )
+
         duration_ms = (time.perf_counter() - start) * 1000
 
         logger.info(
@@ -151,7 +159,7 @@ async def _handle_general(query: str, history: list[HistoryMessage]) -> dict:
                                                        caller should run the pipeline
     """
     from langchain_core.messages import HumanMessage, SystemMessage
-    from app.agents.llm import get_openai_llm
+    from app.agents.llm import get_anthropic_llm
 
     history_text = "\n".join(
         f"{'User' if t.role == 'user' else 'Aethen'}: {t.content[:300]}"
@@ -186,7 +194,7 @@ async def _handle_general(query: str, history: list[HistoryMessage]) -> dict:
     prompt = f"Conversation history:\n{history_text}\n\nUser: {query}"
 
     try:
-        llm = get_openai_llm()
+        llm = get_anthropic_llm()
         resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
         text = (resp.content if hasattr(resp, "content") else str(resp)).strip()
 
@@ -211,7 +219,7 @@ async def _llm_route(query: str, history: list[HistoryMessage]) -> dict:
     """
     import json as _json
     from langchain_core.messages import HumanMessage, SystemMessage
-    from app.agents.llm import get_openai_llm
+    from app.agents.llm import get_anthropic_llm
 
     stats = await postgres_service.compute_stats()
     total   = stats.get("total_sessions", 0)
@@ -307,7 +315,7 @@ question's intent. "Try again" is NEVER general intent — it always refers to t
 Similarly, "yes", "ok", "do it" after Aethen offered something should be classified as that intent."""
 
     try:
-        llm = get_openai_llm()
+        llm = get_anthropic_llm()
         resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=query)])
         text = (resp.content if hasattr(resp, "content") else str(resp)).strip()
         if text.startswith("```"):
@@ -356,7 +364,7 @@ def _get_limit(sql: str) -> int | None:
 async def _fix_sql(original_sql: str, error_msg: str, user_query: str) -> str | None:
     """Ask the LLM to fix a failed SQL query based on the error message."""
     from langchain_core.messages import HumanMessage, SystemMessage
-    from app.agents.llm import get_openai_llm
+    from app.agents.llm import get_anthropic_llm
 
     system = (
         "You are a PostgreSQL expert. The following SQL query failed. "
@@ -377,7 +385,7 @@ async def _fix_sql(original_sql: str, error_msg: str, user_query: str) -> str | 
     )
 
     try:
-        llm = get_openai_llm(temperature=0, max_tokens=500)
+        llm = get_anthropic_llm(temperature=0, max_tokens=500)
         resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
         fixed = (resp.content if hasattr(resp, "content") else str(resp)).strip()
         # Strip markdown fences if present
@@ -408,7 +416,7 @@ async def _handle_text_to_sql(
     """
     import json as _json
     from langchain_core.messages import HumanMessage, SystemMessage
-    from app.agents.llm import get_openai_llm
+    from app.agents.llm import get_anthropic_llm
 
     # Split on semicolons — handles the rare case the LLM generates multiple statements
     statements = [s.strip() for s in sql.strip().rstrip(";").split(";") if s.strip()]
@@ -528,23 +536,42 @@ async def _handle_text_to_sql(
         "You are Aethen. Convert the SQL query results into a clear, conversational answer. "
         "Include all specific values from the results: session IDs, timestamps, failure summaries, counts. "
         "The user may ask follow-up questions about these values, so make sure they appear in your response. "
-        "When 0 results are returned for a keyword/content search: state how many total sessions were "
-        "searched, and note that the value the user is looking for may be in the raw session content "
+        "CRITICAL — conversation history reconciliation: "
+        "Before answering, check the conversation history. If you previously made a statement about "
+        "the topic the user is asking about, and the current SQL results appear to contradict it, "
+        "DO NOT ignore the contradiction. Instead, acknowledge it explicitly and explain the discrepancy. "
+        "For example, if you previously described findings from a session analysis (which may have included "
+        "cross-session evidence from graph traversal), and a keyword SQL search now returns 0 results, "
+        "explain: 'My earlier response described findings from the analysis pipeline which cross-references "
+        "related sessions via graph traversal — those topics came from other sessions in the database, "
+        "not from this session's own metadata.' Never act as if your prior statements in this conversation "
+        "did not happen. "
+        "When 0 results are returned for a keyword/content search with no prior history context: state "
+        "how many total sessions were searched, and note that the value may be in the raw session content "
         "(LLM prompts/responses) which is not stored in the searchable metadata. "
         "If 'Extracted Trace Content' is provided below the query results, use it to answer questions "
         "about what the LLM actually said, prompted, or returned. Quote relevant parts directly. "
         "Be concise. Never mention SQL or database internals."
     )
+    history_ctx = (
+        "\n\nConversation history (most recent last):\n"
+        + "\n".join(
+            f"{'User' if t.role == 'user' else 'Aethen'}: {t.content[:400]}"
+            for t in history[-6:]
+        )
+        if history else ""
+    )
     format_prompt = (
         f"User question: {query}\n\n"
         f"Total sessions in database: {total_count}\n"
         f"Query returned {len(results)} row(s):\n{results_json}"
-        f"{trace_content_block}\n\n"
+        f"{trace_content_block}"
+        f"{history_ctx}\n\n"
         f"Answer in plain English, citing the actual values.{limit_note}"
     )
 
     try:
-        llm = get_openai_llm()
+        llm = get_anthropic_llm()
         resp = await llm.ainvoke([
             SystemMessage(content=format_system),
             HumanMessage(content=format_prompt),

@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-04-26 (Session 14)
+> **Last updated**: 2026-04-28 (Session 16)
 
 ---
 
@@ -17,18 +17,18 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 3 — Production hardening + UI polish.
+- **Phase**: Week 3 — Final polish + Deployment.
 - **Branch**: `main`
 - **Next action**:
-  1. **🔴 UI Fixes (U1-U5)**: Outstanding UI issues from Sessions 15-16 — results positioning (top not bottom), prominent "Analyzing..." state, search boxes on all pages, font/readability audit, general layout fixes. See `docs/adal/action_items.md` §Outstanding UI Issues. **Do a fresh visual audit with user feedback at each step.**
-  2. **P1 fixes**: Hallucination content heuristics, diagnostic output validation, adversarial test traces (see `docs/adal/gap_analysis.md` §2.4, §3.1, §3.3)
-  3. **P2 fixes**: Multi-hop Neo4j queries, vector search namespace separation (see `docs/adal/gap_analysis.md` §3.2, §3.4)
-  4. **Deploy**: Render + Vercel — fill ENV vars, deploy, verify end-to-end.
-  5. **S1**: Record demo GIF for README.
-- **Blocker**: UI issues must be resolved before deployment — user has flagged them multiple times.
-- **Tests**: 32 passing (backend), 3 passing (frontend — Vitest), frontend build clean (`pnpm build ✅`)
-- **Stores**: Postgres (500 sessions, clean plain-English data), Neo4j (synced), Pinecone (1,100 vectors), Langfuse (cleared — re-run Demo Agent to generate fresh traces)
-- **Uncommitted work**: Sessions 13-16 changes — commit before deploying. Includes gap analysis, P0 fixes, and UI refactoring across all diagnostic pages + landing page.
+  1. **🔴 Re-seed database** — All stores were wiped (Postgres, Neo4j, Pinecone). Run: `cd backend && poetry run python scripts/reset_and_reseed.py` to restore 500 synthetic sessions. Neo4j and Pinecone will be re-populated. **Must do before deploying or demoing.**
+  2. **🔴 Clear remaining 48 Langfuse traces** — Rate limit hit (50 deletes/day). Resets ~2026-04-29 20:01 UTC. Then run: `cd backend && poetry run python scripts/clear_langfuse.py`
+  3. **Deploy** — Render (backend) + Vercel (frontend). Configs exist (`render.yaml`, `vercel.json`, `Dockerfile`). Add `CRON_SECRET` env var to Vercel for the auto-pull cron job security.
+  4. **Commit all Session 15+16 changes** before deploying — significant uncommitted work.
+  5. **Record demo GIF** for README/submission.
+- **Tests**: 32 passing (backend), frontend build clean (`pnpm build ✅`)
+- **Stores**: 🔴 ALL WIPED (2026-04-28) — Postgres empty, Neo4j empty, Pinecone empty, Langfuse 48 traces remaining (rate-limited). Re-seed before use.
+- **Chat routing**: All freeform chat functions now use Claude Sonnet 4.6 (switched from GPT-4o-mini in Session 16).
+- **Langfuse pull**: Now incremental — watermark stored in `app_settings` table, `from_timestamp` passed to Langfuse API. Vercel Cron runs every 5 min post-deploy.
 
 ### Architecture (as of Session 10)
 
@@ -45,6 +45,97 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 16 — 2026-04-28 (Claude Code)
+
+**UI Overhaul + Chat Quality + Langfuse Infrastructure**
+
+**All diagnostic pages — layout redesign:**
+- [x] All 4 module pages (memory-debug, tool-misfire, hallucination-rca, blind-spots) now use `grid xl:grid-cols-12` — SessionsList in sticky left column (`xl:col-span-4`), analysis in right column (`xl:col-span-8`)
+- [x] "Select a session to begin" empty state on ALL pages — shows immediately on load with page-specific icon
+- [x] Run Analysis button moved into the analysis card header — no longer below the session list
+- [x] Clicking a session no longer auto-triggers analysis — button required (consistent UX)
+
+**Trace Explorer — full rewrite to match module pages:**
+- [x] Same left/right grid layout as module pages
+- [x] Analysis card at top of right panel (metrics header + 2-col summary/findings) — matches hallucination-rca style
+- [x] Session info integrated into analysis card header — no separate session card above analysis
+- [x] Run Full Analysis button in analysis card header
+- [x] Separate execution timeline removed (was duplicating SessionContext)
+- [x] Sort fixed: `COALESCE(session_ts, created_at) DESC` in `_SELECT_SUMMARIES` + `_SELECT_BY_TYPE` — displayed timestamp matches sort order
+- [x] Timestamps changed from relative ("3h ago") to actual ("Apr 28, 03:58") on all session cards
+- [x] Date filter added to Trace Explorer and SessionsList component
+
+**Blind Spots page cleanup:**
+- [x] Removed hardcoded placeholder content (ClusterNode visualization, "Billing Policies", "14 FAILED QUERIES", "pro-rated refunds" fake data)
+- [x] Replaced with same clean card structure as other pages (metrics header + 2-col summary/findings)
+- [x] Removed unused ClusterNode, FindingDetails components and selectedFinding state
+
+**Demo Agent improvements:**
+- [x] Free-form chat: markdown rendering (`renderContent` — paragraphs, bullet lists, numbered lists, bold) on assistant messages
+- [x] Free-form chat: auto-scroll to bottom on new messages (`messagesEndRef` + `useEffect`)
+- [x] Shorter, cleaner placeholder text in chat input
+
+**Langfuse infrastructure:**
+- [x] `aethen-*` internal traces now skipped during Langfuse pull — they no longer appear in Trace Explorer alongside real agent sessions
+- [x] `fetch_traces` now paginates through multiple pages (not just first batch) and accepts `since: datetime` for incremental pull
+- [x] Incremental pull watermark: `app_settings` Postgres table stores `langfuse_last_pull_at`; pull endpoint reads/writes watermark so only NEW traces are fetched each time
+- [x] Vercel Cron: `vercel.json` cron config + `/api/cron/pull-langfuse` Next.js route — auto-pulls every 5 min post-deploy. Set `CRON_SECRET` env var in Vercel for auth.
+
+**failure_type write-back:**
+- [x] After LangGraph analysis completes, `update_failure_type()` writes the classified type back to Postgres — sessions now appear on the correct module page after first analysis run
+
+**Chat Debug quality:**
+- [x] Chat box height reduced (`h-[calc(100vh-9rem)]` from `h-[calc(100vh-5rem)]`)
+- [x] format LLM in `_handle_text_to_sql` now receives conversation history — prevents contradicting prior statements
+- [x] `format_system` prompt instructs LLM to reconcile with prior conversation context rather than ignore it
+- [x] **All freeform chat functions switched from GPT-4o-mini → Claude Sonnet 4.6** (`get_anthropic_llm` in `chat.py`) — better SQL generation, intent inference, and context-aware responses. GPT-4o-mini fallback still fires if Anthropic proxy unavailable.
+
+**Data clearance (2026-04-28):**
+- [x] All stores wiped: Postgres (sessions, chat, demo tables), Neo4j (all nodes/relationships), Pinecone (traces + failure_patterns namespaces)
+- [x] Langfuse: 49 of 97 traces deleted before rate limit (50/day). 48 remaining — delete tomorrow when limit resets.
+- [x] Database is empty — must re-seed before demo or deployment
+
+**Standing instructions added:**
+- Chat routing uses Claude Sonnet 4.6 (`get_anthropic_llm`) — do NOT revert to `get_openai_llm` in `chat.py`
+- `app_settings` table holds `langfuse_last_pull_at` watermark — do not truncate this table when clearing data
+- Vercel Cron requires `CRON_SECRET` env var set in Vercel dashboard
+
+### Session 15 — 2026-04-28 (Claude Code)
+
+**Adapter Enrichment + Demo Agent Persistence + Trace Explorer Sort**
+
+**LangfuseTraceAdapter enrichment (`backend/app/providers/langfuse_provider.py`):**
+- [x] `_is_langchain_document()` + `_extract_langchain_documents()` — handles LangChain `VectorStoreRetriever` output format `{"page_content": "...", "metadata": {"source": "...", "score": 0.87}, "type": "Document"}`. Integrated as first extraction path in `_to_retrieval_event` before generic dict parsing. Fixes `relevance_scores=[]` and `actual_doc_ids=[]` on real LangChain agent traces.
+- [x] `_parse_dt()` helper — extracted from `_calc_latency`, shared timestamp parser.
+- [x] `_link_retrieval_to_llm()` — temporal linking: for each `LLMCall` with empty `source_documents`, finds all `RetrievalEvent` objects whose `endTime ≤ llm_call.startTime` and backfills `source_documents` from their `actual_doc_ids`. Fixes hallucination heuristics firing as false positives (grounding-without-sources check now correctly distinguishes real hallucinations from cases where sources were retrieved but not logged in the generation span).
+- [x] `adapt_trace` collects `obs_timestamps: dict[obs_id → (start_dt, end_dt)]` in the observation loop, then calls `_link_retrieval_to_llm` before failure type inference.
+
+**Langfuse v4 CallbackHandler fix (`backend/app/utils/langfuse_utils.py`):**
+- [x] Root cause found: `CallbackHandler.__init__` in Langfuse v4.5 only accepts `public_key` and `trace_context` — NOT `user_id` or `session_id`. Passing unknown kwargs threw `TypeError` caught by the outer `except Exception`, returning `(None, None)` → `langfuse_traced=False` on all messages.
+- [x] Fix: `make_langfuse_handler()` reverted to `CallbackHandler()` with no kwargs.
+- [x] `user_id` and `session_id` now passed correctly via LangChain invoke config `metadata["langfuse_user_id"]` and `metadata["langfuse_session_id"]` — the Langfuse v4 documented mechanism.
+- [x] Applied to both `run_demo_scenario` and `demo_chat` endpoints in `demo.py`.
+
+**Demo Agent naming fixes (`backend/app/api/demo.py`):**
+- [x] `run_name` fixed: was `f"demo-chat-{session_id}"` → doubled "demo-chat-demo-chat-..." → now `"demo-agent-chat"` (static, descriptive).
+- [x] `agent_id` now shows "Demo Agent" in Trace Explorer (set via `metadata["langfuse_user_id"]` → `trace.userId` → adapter reads `trace.get("userId")`).
+- [x] `failure_summary` for unclassified demo traces → "Demo Agent — Free Form Chat" (was "Demo Chat Demo Chat 9Abfc3F3").
+
+**Demo Agent session persistence (new feature):**
+- [x] New Postgres tables: `demo_chat_sessions` + `demo_chat_messages` — separate from Chat Debug's `chat_sessions`/`chat_messages`. Demo Agent = agent under test traces; Chat Debug = Aethen's own diagnostic conversations. Tables auto-created in `_create_schema()`.
+- [x] `postgres_service.py` — 5 new methods: `create_demo_session`, `list_demo_sessions`, `get_demo_messages`, `append_demo_message`, `update_demo_session_title`.
+- [x] `demo.py` `POST /api/demo/chat` — accepts `session_id` from frontend (None on first turn → backend creates session → returns session_id). Saves user + assistant turns to Postgres. `langfuse_traced BOOLEAN` column records whether each message was produced by an active Langfuse handler.
+- [x] New endpoints: `GET /api/demo/sessions`, `GET /api/demo/sessions/{id}/messages`.
+- [x] `frontend/src/lib/api.ts` — added `DemoSession`, `DemoStoredMessage` types; `listDemoSessions()`, `getDemoMessages()`; `sendDemoChat` now accepts `sessionId`.
+- [x] `frontend/src/app/(dashboard)/demo-agent/page.tsx` — left session list panel (past chats, relative timestamps, message counts), "New" button, stable `activeSessionId` state, message history restored from Postgres on session click.
+
+**Trace Explorer sort fix:**
+- [x] `_SELECT_SUMMARIES` sort changed from `ORDER BY created_at DESC` to `ORDER BY COALESCE(session_ts, created_at) DESC` — displayed timestamp (`session_ts`) now matches sort order (`created_at` was the ingestion time, creating a mismatch).
+- [x] Relative timestamps added to each session card ("just now", "3m ago", "2h ago") using `session_ts`.
+
+**Key lesson (standing instruction):**
+- Langfuse v4 `CallbackHandler` constructor only accepts `public_key` and `trace_context`. Set `user_id`/`session_id`/`tags` via LangChain invoke config `metadata`: `{"langfuse_user_id": "...", "langfuse_session_id": "..."}`.
 
 ### Session 14 — 2026-04-26 (Claude Code)
 

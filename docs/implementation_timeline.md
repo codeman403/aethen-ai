@@ -12,6 +12,63 @@
 
 ---
 
+## Langfuse v4 CallbackHandler — user_id/session_id API — 2026-04-28 (Session 15)
+
+### The Problem
+`make_langfuse_handler(user_id="Demo Agent", session_id=session_id)` was passing these as
+`CallbackHandler(user_id=..., session_id=...)` constructor kwargs. This caused a `TypeError`
+caught silently by the outer `except Exception`, returning `(None, None)` → every demo chat
+message had `langfuse_traced=False` and traces never reached Langfuse.
+
+### Root Cause
+In Langfuse v4.5, `CallbackHandler.__init__` only accepts `public_key` and `trace_context`.
+`user_id` and `session_id` are NOT constructor parameters. They are set via the LangChain
+invoke config `metadata` dict at call time.
+
+### Decision: Pass via metadata, not constructor
+**Chosen:** `CallbackHandler()` with no kwargs. Pass identity via invoke config:
+```python
+config = {
+    "callbacks": [handler],
+    "metadata": {
+        "langfuse_user_id": "Demo Agent",
+        "langfuse_session_id": session_id,
+    }
+}
+```
+**Rejected:** Constructor kwargs — not valid in Langfuse v4.5.
+
+**Why this matters:** Any future agent that tries to set `user_id` or `session_id` on the
+`CallbackHandler` constructor will silently break Langfuse tracing. Always use metadata.
+
+---
+
+## Demo Agent Session Persistence — Separate Tables — 2026-04-28 (Session 15)
+
+### The Problem
+Demo Agent free-form chat had no persistence: each turn generated a new random `session_id`,
+creating disconnected Langfuse traces and losing conversation history on page refresh.
+
+### Decision: Separate Postgres tables (demo_chat_sessions + demo_chat_messages)
+**Chosen:** Two new tables, separate from Chat Debug's `chat_sessions`/`chat_messages`.
+Backend creates the session on first turn, returns `session_id` to frontend, which reuses it
+for all subsequent turns.
+
+**Rejected:** Using the same `chat_sessions`/`chat_messages` tables.
+
+**Why separate:** The architectural boundary is load-bearing for the product story.
+- `chat_sessions`/`chat_messages` = Aethen's diagnostic conversations (engineer using the tool)
+- `demo_chat_sessions`/`demo_chat_messages` = the agent under test's conversation traces
+
+Mixing them would blur the distinction between the monitoring tool and the monitored agent —
+which is the core differentiator Aethen demonstrates.
+
+**No "Analyze" button on Demo Agent:** Also rejected for the same reason. In production,
+the monitored agent has no awareness of Aethen. The correct flow is:
+Demo Agent → Langfuse → Pull → Module pages → analysis.
+
+---
+
 ## Project Genesis — 2026-04-18
 
 **Proposal written and submitted.**

@@ -129,19 +129,51 @@ export interface DemoChatResult {
   langfuse_traced: boolean;
 }
 
+export interface DemoSession {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface DemoStoredMessage {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  content: string;
+  langfuse_traced: boolean;
+  created_at: string | null;
+}
+
 export async function sendDemoChat(
   message: string,
-  history: DemoChatMessage[] = []
+  history: DemoChatMessage[] = [],
+  sessionId: string | null = null
 ): Promise<DemoChatResult> {
   const res = await fetchWithRetry(`${BASE_URL}/api/demo/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, session_id: sessionId }),
   });
   const body: ApiResponse<DemoChatResult> = await res.json();
   if (body.error) throw new Error(body.error);
   if (!body.data) throw new Error("No data returned from chat");
   return body.data;
+}
+
+export async function listDemoSessions(): Promise<DemoSession[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/sessions`);
+  const body: ApiResponse<DemoSession[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function getDemoMessages(sessionId: string): Promise<DemoStoredMessage[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/sessions/${encodeURIComponent(sessionId)}/messages`);
+  const body: ApiResponse<DemoStoredMessage[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
 }
 
 export async function runDemoScenario(scenario: string): Promise<DemoRunResult> {

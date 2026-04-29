@@ -19,6 +19,10 @@ def make_langfuse_handler():
 
     Gracefully returns (None, None) when Langfuse credentials are absent so
     callers don't need to guard against missing config.
+
+    Note (Langfuse v4): user_id and session_id are NOT constructor params.
+    Pass them via LangChain invoke config metadata:
+        config={"metadata": {"langfuse_user_id": "...", "langfuse_session_id": "..."}}
     """
     if not settings.langfuse_public_key or not settings.langfuse_secret_key:
         return None, None

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Layers, Loader2, Zap, ChevronRight, AlertCircle, Search } from "lucide-react";
+import { Clock, Layers, Loader2, ChevronRight, AlertCircle, Search } from "lucide-react";
 import { fetchSessionsByType } from "@/lib/api";
 
 interface SessionsListProps {
@@ -20,9 +20,19 @@ interface RawSession {
   retrieval_events?: unknown[];
 }
 
+function formatTimestamp(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return d.toLocaleString("en-US", {
+    month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
+
 export function SessionsList({ failureType, onSelect, selectedId }: SessionsListProps) {
   const [sessions, setSessions] = useState<RawSession[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,30 +61,54 @@ export function SessionsList({ failureType, onSelect, selectedId }: SessionsList
     );
   }
 
-  const filteredSessions = sessions.filter(s => 
-    s.session_id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    s.agent_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.failure_summary && s.failure_summary.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredSessions = sessions.filter(s => {
+    if (dateFilter && s.timestamp) {
+      const sessionDate = new Date(s.timestamp).toISOString().slice(0, 10);
+      if (sessionDate !== dateFilter) return false;
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return (
+        s.session_id.toLowerCase().includes(q) ||
+        s.agent_id.toLowerCase().includes(q) ||
+        (s.failure_summary?.toLowerCase().includes(q) ?? false)
+      );
+    }
+    return true;
+  });
 
   return (
     <div className="flex flex-col h-full">
       <div className="px-2 mb-3 space-y-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-foreground/50" />
-          <input 
-            type="text" 
-            placeholder="Search..." 
+          <input
+            type="text"
+            placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all shadow-sm"
           />
         </div>
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-medium text-foreground/60 uppercase tracking-wider">
-            {filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}
-          </p>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="flex-1 py-1 px-2 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-foreground/80"
+          />
+          {dateFilter && (
+            <button
+              onClick={() => setDateFilter("")}
+              className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-1 rounded border hover:bg-muted transition-colors"
+            >
+              Clear
+            </button>
+          )}
         </div>
+        <p className="text-[10px] font-medium text-foreground/60 uppercase tracking-wider">
+          {filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}
+        </p>
       </div>
       
       <div className="flex flex-col gap-1 overflow-y-auto px-1 pb-2">
@@ -105,7 +139,7 @@ export function SessionsList({ failureType, onSelect, selectedId }: SessionsList
                   {s.timestamp && (
                     <span className="text-[10px] text-foreground/50 flex items-center gap-1">
                       <Clock className="size-3" />
-                      {new Date(s.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {formatTimestamp(s.timestamp)}
                     </span>
                   )}
                 </div>

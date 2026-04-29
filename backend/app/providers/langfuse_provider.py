@@ -1,6 +1,7 @@
 """Langfuse live trace provider — pulls and adapts real traces from Langfuse API."""
 
 import uuid
+from datetime import datetime
 
 import structlog
 
@@ -49,10 +50,20 @@ class LangfuseTraceAdapter:
         llm_calls: list[LLMCall] = []
         tool_calls: list[ToolCall] = []
         retrieval_events: list[RetrievalEvent] = []
+        # obs_id → (startTime, endTime) for temporal linking
+        obs_timestamps: dict[str, tuple] = {}
 
         for obs in observations:
+            obs_id = obs.get("id") or ""
             obs_type = (obs.get("type") or "").upper()
             obs_name = (obs.get("name") or "").lower()
+
+            # Collect timestamps keyed by observation ID
+            if obs_id:
+                start_dt = self._parse_dt(obs.get("startTime"))
+                end_dt = self._parse_dt(obs.get("endTime"))
+                if start_dt or end_dt:
+                    obs_timestamps[obs_id] = (start_dt, end_dt)
 
             if obs_type == "GENERATION":
                 llm_calls.append(self._to_llm_call(obs))
@@ -60,6 +71,10 @@ class LangfuseTraceAdapter:
                 retrieval_events.append(self._to_retrieval_event(obs))
             elif obs_type == "SPAN" or self._is_tool(obs_name, obs):
                 tool_calls.append(self._to_tool_call(obs))
+
+        # Backfill LLMCall.source_documents from retrieval events that preceded each call
+        if retrieval_events and llm_calls and obs_timestamps:
+            self._link_retrieval_to_llm(llm_calls, retrieval_events, obs_timestamps)
 
         # Infer failure type from trace metadata or output
         failure_type = self._infer_failure_type(trace, llm_calls, tool_calls, retrieval_events)
@@ -77,7 +92,8 @@ class LangfuseTraceAdapter:
             trace_name = (trace.get("name") or "").replace("-", " ").title()
             failure_summary = f"{label} — {trace_name}" if trace_name else f"{label} detected"
         elif trace.get("name"):
-            failure_summary = (trace.get("name") or "").replace("-", " ").title()
+            name = trace.get("name") or ""
+            failure_summary = "Demo Agent — Free Form Chat" if name.startswith("demo-") else name.replace("-", " ").title()
         else:
             failure_summary = None
 
@@ -183,26 +199,30 @@ class LangfuseTraceAdapter:
 
         if isinstance(output, list):
             chunks = len(output)
-            for item in output:
-                if not isinstance(item, dict):
-                    continue
-                # Extract doc IDs
-                doc_id = item.get("id") or item.get("doc_id") or item.get("document_id") or ""
-                if doc_id:
-                    doc_ids.append(str(doc_id))
-                # Extract relevance/similarity scores from result items
-                score = (
-                    item.get("score")
-                    or item.get("relevance_score")
-                    or item.get("similarity")
-                    or item.get("distance")
-                    or item.get("_score")
-                )
-                if score is not None:
-                    try:
-                        relevance_scores.append(float(score))
-                    except (ValueError, TypeError):
-                        pass
+            # Try LangChain Document format first (most common from LangChain agents)
+            if output and isinstance(output[0], dict) and self._is_langchain_document(output[0]):
+                doc_ids, relevance_scores = self._extract_langchain_documents(output)
+            else:
+                for item in output:
+                    if not isinstance(item, dict):
+                        continue
+                    # Extract doc IDs
+                    doc_id = item.get("id") or item.get("doc_id") or item.get("document_id") or ""
+                    if doc_id:
+                        doc_ids.append(str(doc_id))
+                    # Extract relevance/similarity scores from result items
+                    score = (
+                        item.get("score")
+                        or item.get("relevance_score")
+                        or item.get("similarity")
+                        or item.get("distance")
+                        or item.get("_score")
+                    )
+                    if score is not None:
+                        try:
+                            relevance_scores.append(float(score))
+                        except (ValueError, TypeError):
+                            pass
         elif isinstance(output, dict):
             results = output.get("results") or output.get("documents") or output.get("matches") or []
             chunks = len(results)
@@ -474,6 +494,51 @@ class LangfuseTraceAdapter:
             },
         )
 
+    def _is_langchain_document(self, item: dict) -> bool:
+        """Return True if the dict looks like a serialized LangChain Document."""
+        return "page_content" in item or (item.get("type") == "Document" and "metadata" in item)
+
+    def _extract_langchain_documents(self, output: list) -> tuple[list[str], list[float]]:
+        """Extract doc IDs and scores from a list of LangChain Document objects.
+
+        LangChain's VectorStoreRetriever logs retrieval output as:
+            [{"page_content": "...", "metadata": {"source": "file.pdf", "score": 0.87}, "type": "Document"}]
+        """
+        doc_ids: list[str] = []
+        scores: list[float] = []
+        for item in output:
+            if not isinstance(item, dict) or not self._is_langchain_document(item):
+                continue
+            meta = item.get("metadata") or {}
+            # Doc ID: prefer explicit ID fields, fall back to source path
+            doc_id = (
+                meta.get("id")
+                or meta.get("doc_id")
+                or meta.get("document_id")
+                or meta.get("source")
+                or meta.get("file_path")
+                or ""
+            )
+            if doc_id:
+                # For file paths use just the filename as a stable identifier
+                doc_id = str(doc_id).replace("\\", "/").split("/")[-1]
+                doc_ids.append(doc_id)
+            # Score: LangChain may store it in metadata under various keys
+            score = (
+                meta.get("score")
+                or meta.get("relevance_score")
+                or meta.get("_score")
+                or meta.get("similarity")
+                or meta.get("rank_score")
+            )
+            # distance fields are inverted (lower = better) — skip to avoid confusion
+            if score is not None:
+                try:
+                    scores.append(float(score))
+                except (ValueError, TypeError):
+                    pass
+        return doc_ids, scores
+
     def _is_tool(self, name: str, obs: dict) -> bool:
         return any(kw in name for kw in self.TOOL_KEYWORDS)
 
@@ -570,22 +635,67 @@ class LangfuseTraceAdapter:
 
         return str(value)
 
-    def _calc_latency(self, obs: dict) -> float:
-        """Calculate latency in ms from start/end timestamps."""
-        start = obs.get("startTime")
-        end = obs.get("endTime")
-        if start and end:
+    def _parse_dt(self, value) -> datetime | None:
+        """Parse a Langfuse timestamp (ISO string or datetime) into a datetime object."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
             try:
-                from datetime import datetime
-
-                if isinstance(start, str):
-                    start = datetime.fromisoformat(start.replace("Z", "+00:00"))
-                if isinstance(end, str):
-                    end = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                return max(0.0, (end - start).total_seconds() * 1000)
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
             except (ValueError, TypeError):
                 pass
+        return None
+
+    def _calc_latency(self, obs: dict) -> float:
+        """Calculate latency in ms from start/end timestamps."""
+        start = self._parse_dt(obs.get("startTime"))
+        end = self._parse_dt(obs.get("endTime"))
+        if start and end:
+            return max(0.0, (end - start).total_seconds() * 1000)
         return obs.get("latency") or 0.0
+
+    def _link_retrieval_to_llm(
+        self,
+        llm_calls: list[LLMCall],
+        retrieval_events: list[RetrievalEvent],
+        obs_timestamps: dict[str, tuple],
+    ) -> None:
+        """Backfill LLMCall.source_documents from retrieval events that preceded it.
+
+        In RAG pipelines, the retrieval SPAN always completes before the generation
+        GENERATION begins. The GENERATION observation rarely logs which documents
+        it received as context; the retrieval SPAN always does. Temporal ordering
+        lets us make that link without relying on parentObservationId (unreliable
+        in LangChain's Langfuse callback).
+        """
+        for llm_call in llm_calls:
+            if llm_call.source_documents:
+                continue  # Already populated from the observation itself
+
+            llm_start = (obs_timestamps.get(llm_call.call_id) or (None, None))[0]
+            if not llm_start:
+                continue
+
+            # Collect doc IDs from all retrieval events that finished before this LLM call
+            preceding_docs: list[str] = []
+            for ret_event in retrieval_events:
+                ret_end = (obs_timestamps.get(ret_event.event_id) or (None, None))[1]
+                if ret_end and ret_end <= llm_start and ret_event.actual_doc_ids:
+                    preceding_docs.extend(ret_event.actual_doc_ids)
+
+            if not preceding_docs:
+                continue
+
+            # Deduplicate while preserving order, cap at 20
+            seen: set[str] = set()
+            unique_docs: list[str] = []
+            for doc in preceding_docs:
+                if doc not in seen:
+                    seen.add(doc)
+                    unique_docs.append(doc)
+            llm_call.source_documents = unique_docs[:20]
 
     def _infer_failure_type(
         self,
@@ -741,40 +851,81 @@ class LangfuseProvider(TraceProvider):
             return obj.__dict__
         return obj if isinstance(obj, dict) else {}
 
-    async def fetch_traces(self, limit: int = 50) -> list[Session]:
-        """Fetch recent traces from Langfuse and convert to Aethen Sessions."""
+    async def fetch_traces(
+        self,
+        limit: int = 50,
+        since: "datetime | None" = None,
+    ) -> list[Session]:
+        """Fetch non-internal traces from Langfuse and convert to Aethen Sessions.
+
+        Args:
+            limit: Maximum real agent sessions to return.
+            since: Only fetch traces created after this timestamp (incremental pull).
+
+        Paginates through results, skipping aethen-* internal traces, until `limit`
+        real sessions are collected or there are no more pages.
+        """
         client = self._get_client()
         sessions: list[Session] = []
+        page = 1
+        page_size = 50
 
         try:
-            traces_response = client.trace.list(limit=limit)
-            traces = traces_response.data if hasattr(traces_response, "data") else []
+            while len(sessions) < limit:
+                list_kwargs: dict = {"limit": page_size, "page": page}
+                if since:
+                    list_kwargs["from_timestamp"] = since
 
-            for trace in traces:
-                trace_dict = self._to_dict(trace)
-                trace_id = trace_dict.get("id")
+                traces_response = client.trace.list(**list_kwargs)
+                traces = traces_response.data if hasattr(traces_response, "data") else []
 
-                # Fetch observations for this trace
-                obs_response = client.observations.get_many(trace_id=trace_id)
-                observations = obs_response.data if hasattr(obs_response, "data") else []
-                obs_dicts = [self._to_dict(o) for o in (observations or [])]
+                if not traces:
+                    break
 
-                session = self._adapter.adapt_trace(trace_dict, obs_dicts)
-                sessions.append(session)
+                for trace in traces:
+                    if len(sessions) >= limit:
+                        break
 
-                logger.debug(
-                    "langfuse_trace_adapted",
-                    trace_id=trace_id,
-                    llm_calls=len(session.llm_calls),
-                    tool_calls=len(session.tool_calls),
-                    retrieval_events=len(session.retrieval_events),
-                )
+                    trace_dict = self._to_dict(trace)
+                    trace_id = trace_dict.get("id")
+                    trace_name = (trace_dict.get("name") or "")
+
+                    # Skip Aethen's own internal analysis traces.
+                    if trace_name.startswith("aethen-"):
+                        logger.debug("langfuse_skipping_internal_trace", trace_id=trace_id, name=trace_name)
+                        continue
+
+                    # Fetch observations for this trace
+                    obs_response = client.observations.get_many(trace_id=trace_id)
+                    observations = obs_response.data if hasattr(obs_response, "data") else []
+                    obs_dicts = [self._to_dict(o) for o in (observations or [])]
+
+                    session = self._adapter.adapt_trace(trace_dict, obs_dicts)
+                    sessions.append(session)
+
+                    logger.debug(
+                        "langfuse_trace_adapted",
+                        trace_id=trace_id,
+                        llm_calls=len(session.llm_calls),
+                        tool_calls=len(session.tool_calls),
+                        retrieval_events=len(session.retrieval_events),
+                    )
+
+                if len(traces) < page_size:
+                    break
+
+                page += 1
 
         except Exception as e:
             logger.error("langfuse_fetch_error", error=str(e))
             raise
 
-        logger.info("langfuse_traces_fetched", count=len(sessions))
+        logger.info(
+            "langfuse_traces_fetched",
+            count=len(sessions),
+            pages=page,
+            since=since.isoformat() if since else "all",
+        )
         return sessions
 
     async def health_check(self) -> dict:
