@@ -5,10 +5,12 @@ GET  /api/demo/scenarios
 """
 
 import asyncio
+import json
 import uuid
 
 import structlog
 from fastapi import APIRouter, HTTPException
+from langchain_core.tools import tool
 from pydantic import BaseModel
 
 from app.config import settings
@@ -16,6 +18,45 @@ from app.models.response import ApiResponse
 from app.services.postgres_service import postgres_service
 from app.utils.langfuse_utils import make_langfuse_handler
 from app.utils.sanitize import sanitize_input
+
+
+# ---------------------------------------------------------------------------
+# Demo tools — real LangChain tools that produce Langfuse SPAN observations.
+# These are intentionally wired to fail in realistic ways so demo chat sessions
+# contain structured ToolCall data for tool_debug analysis.
+# ---------------------------------------------------------------------------
+
+@tool
+def search_knowledge_base(query: str, namespace: str = "general") -> str:
+    """Search the internal knowledge base for documentation or policies."""
+    # Returns off-topic documents — simulates a memory retrieval failure
+    return json.dumps([
+        {"doc_id": "api_keys_101.pdf", "content": "API key rotation policy: rotate every 90 days...", "score": 0.81},
+        {"doc_id": "oauth_setup.pdf", "content": "OAuth 2.0 setup guide for third-party integrations...", "score": 0.76},
+    ])
+
+
+@tool
+def update_user_record(user_id: str, field: str, value: str) -> str:
+    """Update a field on a user record in the CRM database."""
+    raise PermissionError("insufficient privileges: caller lacks WRITE access to user_record table")
+
+
+@tool
+def create_support_ticket(title: str, description: str, priority: str = "medium") -> str:
+    """Create a support ticket in the ticketing system."""
+    ticket_id = f"TKT-{uuid.uuid4().hex[:6].upper()}"
+    return json.dumps({"ticket_id": ticket_id, "status": "created", "priority": priority, "title": title})
+
+
+@tool
+def query_database(entity: str, filters: str = "") -> str:
+    """Query the operational database for records."""
+    raise ConnectionError("ConnectionError: database cluster unavailable — retry after 30s")
+
+
+DEMO_TOOLS = [search_knowledge_base, update_user_record, create_support_ticket, query_database]
+DEMO_TOOL_MAP = {t.name: t for t in DEMO_TOOLS}
 
 logger = structlog.get_logger()
 
@@ -230,7 +271,7 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
     logger.info("demo_chat_start", session_id=session_id, message_len=len(request.message))
 
     try:
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
         from langchain_openai import ChatOpenAI
 
         handler, langfuse_client = make_langfuse_handler()
@@ -243,14 +284,19 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             default_headers={"x-session-id": session_id},
         )
 
+        # Bind demo tools so the LLM can call them when appropriate
+        llm_with_tools = llm.bind_tools(DEMO_TOOLS)
+
         # Build message list: system + history + new user message
         messages: list = [
             SystemMessage(
                 content=(
                     "You are a helpful AI assistant demonstrating the Aethen platform. "
-                    "Answer the user's questions clearly and concisely. "
-                    "When relevant, mention that your responses are being traced by Langfuse "
-                    "and can be analyzed by Aethen for failure patterns."
+                    "You have access to the following tools: search_knowledge_base, "
+                    "update_user_record, create_support_ticket, query_database. "
+                    "Use tools when the user's request naturally requires them — "
+                    "e.g. looking up docs, updating a record, creating a ticket, or querying data. "
+                    "Your responses are traced by Langfuse and analyzed by Aethen for failure patterns."
                 )
             )
         ]
@@ -283,11 +329,46 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             langfuse_traced=False,
         )
 
-        def _invoke():
-            return llm.invoke(messages, config=invoke_config if invoke_config else {})
+        # ── Agent loop — LLM calls tools until it produces a final text response ──
+        def _run_agent() -> str:
+            current_messages = list(messages)
+            max_iterations = 5  # guard against infinite tool loops
 
-        response = await asyncio.get_event_loop().run_in_executor(None, _invoke)
-        assistant_text = response.content if hasattr(response, "content") else str(response)
+            for _ in range(max_iterations):
+                response = llm_with_tools.invoke(
+                    current_messages,
+                    config=invoke_config if invoke_config else {},
+                )
+
+                # No tool calls → final answer
+                if not getattr(response, "tool_calls", None):
+                    return response.content if hasattr(response, "content") else str(response)
+
+                # Execute each tool — invoke_config propagates Langfuse callback
+                # so each execution is captured as a SPAN observation in the trace
+                current_messages.append(response)
+                for tc in response.tool_calls:
+                    tool_name = tc["name"]
+                    tool_args = tc["args"]
+                    tool_fn = DEMO_TOOL_MAP.get(tool_name)
+                    if tool_fn is None:
+                        content = f"Error: unknown tool '{tool_name}'"
+                    else:
+                        try:
+                            content = tool_fn.invoke(
+                                tool_args,
+                                config=invoke_config if invoke_config else {},
+                            )
+                        except Exception as exc:
+                            content = f"Error: {exc}"
+                    current_messages.append(
+                        ToolMessage(content=str(content), tool_call_id=tc["id"])
+                    )
+
+            # Fallback if max iterations hit
+            return "I've reached the tool call limit. Please try a more specific request."
+
+        assistant_text = await asyncio.get_event_loop().run_in_executor(None, _run_agent)
 
         if langfuse_client:
             await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
