@@ -238,3 +238,19 @@ assets/
 # Frontend (redundant with frontend/.gitignore but good to have at root)
 node_modules/
 .next/
+
+# Staging folder for files pending review/deletion
+delete-later/
+
+# Temporary dev scripts (one-off UI/layout fixups)
+fix_*.py
+update_*.py
+refactor_*.py
+sync_*.py
+
+# Screenshot / reference images dropped at root or frontend level
+frontend/*.png
+frontend/*.jpg
+
+# Claude Code local state
+.claude/settings.local.json
