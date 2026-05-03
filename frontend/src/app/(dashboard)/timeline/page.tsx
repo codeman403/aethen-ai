@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,7 +9,7 @@ import {
   ArrowRight, BrainCircuit, ShieldAlert, ChevronsDownUp, ChevronsUpDown,
   Info,
 } from "lucide-react";
-import { fetchAllSessions, fetchSession, type SessionSummary } from "@/lib/api";
+import { fetchAllSessions, fetchSession, fetchSessionCount, type SessionSummary } from "@/lib/api";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -277,11 +277,17 @@ export default function TimelinePage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
   const [showOrderNote, setShowOrderNote] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 200;
 
   useEffect(() => {
-    fetchAllSessions()
+    fetchAllSessions(PAGE_SIZE, 0)
       .then(s => {
         setSessions(s);
+        setHasMore(s.length === PAGE_SIZE);
         if (preloadId) {
           const found = s.find(x => x.session_id === preloadId);
           if (found) handleSelect(found);
@@ -289,8 +295,29 @@ export default function TimelinePage() {
       })
       .catch(() => setSessions([]))
       .finally(() => setLoadingSessions(false));
+    fetchSessionCount().then(setTotalCount).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingSessions) {
+        setLoadingMore(true);
+        fetchAllSessions(PAGE_SIZE, sessions.length)
+          .then((data) => {
+            setSessions(prev => [...prev, ...data]);
+            setHasMore(data.length === PAGE_SIZE);
+          })
+          .catch(() => {})
+          .finally(() => setLoadingMore(false));
+      }
+    }, { threshold: 0.1 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loadingSessions, sessions.length]);
 
   const handleSelect = async (s: SessionSummary) => {
     setSelected(s);
@@ -421,9 +448,17 @@ export default function TimelinePage() {
                 })}
               </FadeInStagger>
             )}
+
+            {/* Sentinel inside scrollable container */}
+            <div ref={sentinelRef} className="h-2" />
+            {loadingMore && (
+              <div className="flex items-center justify-center py-2 gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" /> Loading more…
+              </div>
+            )}
           </div>
           <div className="px-3 py-2 border-t bg-muted/5 text-[10px] text-muted-foreground text-center">
-            {filtered.length} of {sessions.length} sessions
+            {filtered.length} of {totalCount ?? sessions.length} sessions{hasMore ? " · scroll for more" : ""}
           </div>
         </div>
 
