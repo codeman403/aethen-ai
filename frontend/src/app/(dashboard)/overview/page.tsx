@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Activity,
@@ -24,7 +25,10 @@ import {
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
+const CHART_TYPES = ["memory", "tool_misfire", "hallucination", "blind_spot"] as const;
+
 export default function HomePage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
@@ -101,6 +105,17 @@ export default function HomePage() {
     fetchTrends(7).then(setTrendData).catch(() => {});
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, []);
+
+  const handleChartClick = useCallback((data: Record<string, unknown>) => {
+    if (!data?.activePayload) return;
+    const payloads = data.activePayload as { dataKey: string; value: number; payload: Record<string, unknown> }[];
+    const isoDate = payloads[0]?.payload?.date as string | undefined;
+    if (!isoDate) return;
+    const nonZero = payloads.filter(p => CHART_TYPES.includes(p.dataKey as typeof CHART_TYPES[number]) && p.value > 0);
+    const params = new URLSearchParams({ dateFrom: isoDate, dateTo: isoDate });
+    if (nonZero.length === 1) params.set("type", nonZero[0].dataKey);
+    router.push(`/traces?${params.toString()}`);
+  }, [router]);
 
   const fb  = stats?.failure_breakdown;
   const dbt = stats?.daily_by_type;
@@ -452,7 +467,8 @@ export default function HomePage() {
               ) : (
                 <div className="flex-1 min-h-[220px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData} margin={{ top: 8, right: 40, left: -20, bottom: 0 }}>
+                    <ComposedChart data={chartData} margin={{ top: 8, right: 40, left: -20, bottom: 0 }}
+                      onClick={handleChartClick} style={{ cursor: "pointer" }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                       <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
