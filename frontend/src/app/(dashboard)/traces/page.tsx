@@ -10,7 +10,7 @@ import {
   FileSearch, Cpu, ChevronDown, SlidersHorizontal,
 } from "lucide-react";
 import {
-  fetchAllSessions, fetchSession, analyzeSession,
+  fetchAllSessions, fetchSession, fetchSessionCount, analyzeSession,
   type SessionSummary, type AnalysisReport, type Finding,
 } from "@/lib/api";
 import { AILoadingOverlay } from "@/components/ui/ai-loader";
@@ -99,6 +99,7 @@ export default function TracesPage() {
   const filterBarRef = useRef<HTMLDivElement>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 200;
 
@@ -113,6 +114,7 @@ export default function TracesPage() {
       .then((data) => { setSessions(data); setHasMore(data.length === PAGE_SIZE); })
       .catch((e) => setSessionsError(e.message))
       .finally(() => setLoadingSessions(false));
+    fetchSessionCount().then(setTotalCount).catch(() => {});
   }, []);
 
   // Infinite scroll — load next page when sentinel enters viewport
@@ -442,7 +444,7 @@ export default function TracesPage() {
           </div>
 
           <div className="px-3 py-2 border-t bg-muted/10 text-xs text-muted-foreground text-center">
-            {filtered.length} of {sessions.length} sessions{hasMore ? " · scroll for more" : ""}
+            {filtered.length} of {totalCount ?? sessions.length} sessions{hasMore ? " · scroll for more" : ""}
           </div>
         </div>
 

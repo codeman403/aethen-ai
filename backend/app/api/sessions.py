@@ -37,6 +37,13 @@ async def list_sessions(
     return ApiResponse(data=summaries)
 
 
+@router.get("/sessions/count", response_model=ApiResponse[int])
+async def count_sessions() -> ApiResponse[int]:
+    """Return total number of sessions in Postgres."""
+    total = await postgres_service.count_sessions()
+    return ApiResponse(data=total)
+
+
 @router.get("/sessions/{session_id}", response_model=ApiResponse[dict])
 async def get_session(session_id: str) -> ApiResponse[dict]:
     """Return the full session object for a given session_id."""

@@ -330,6 +330,13 @@ class PostgresService:
             )
         logger.debug("analysis_report_saved", session_id=session_id)
 
+    async def count_sessions(self) -> int:
+        """Return total number of sessions."""
+        if not self.is_available:
+            return 0
+        async with self._pool.acquire() as conn:
+            return (await conn.fetchval("SELECT COUNT(*) FROM sessions")) or 0
+
     async def get_all_summaries(self, limit: int = 200, offset: int = 0) -> list[dict]:
         """Return lightweight session summaries with event counts."""
         if not self.is_available:
