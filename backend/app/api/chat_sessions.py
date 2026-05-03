@@ -20,7 +20,7 @@ logger = structlog.get_logger()
 router = APIRouter(tags=["chat-sessions"])
 
 
-# ── Request / Response models ─────────────────────────────────────────────
+## ── Request / Response models ─────────────────────────────────────────────
 
 class CreateSessionRequest(BaseModel):
     title: str = "New Session"
