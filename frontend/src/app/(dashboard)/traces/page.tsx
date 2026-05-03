@@ -415,9 +415,10 @@ export default function TracesPage() {
                           {s.session_id}
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
-                          {s.has_report && (
-                            <span title="Analysis cached" className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
-                          )}
+                          <span
+                            title={s.has_report ? "Analysis cached" : "Not yet analysed"}
+                            className={`size-1.5 rounded-full shrink-0 ${s.has_report ? "bg-emerald-500" : "bg-rose-400"}`}
+                          />
                           <FailureBadge type={s.failure_type} />
                         </div>
                       </div>
