@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, Area, AreaChart,
@@ -41,7 +42,10 @@ function TrendBadge({ current, prev }: { current: number; prev: number }) {
   );
 }
 
+const CHART_TYPE_KEYS = ["memory", "tool_misfire", "hallucination", "blind_spot"] as const;
+
 export default function TrendsPage() {
+  const router = useRouter();
   const [data, setData] = useState<TrendPoint[]>([]);
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
@@ -71,7 +75,19 @@ export default function TrendsPage() {
     }));
   }, [data]);
 
-  const chartData = data.map(p => ({ ...p, date: fmt(p.date) }));
+  // Preserve isoDate alongside formatted label so click handler can build URLs
+  const chartData = data.map(p => ({ ...p, isoDate: p.date, date: fmt(p.date) }));
+
+  const handleChartClick = useCallback((chartEvent: Record<string, unknown>) => {
+    if (!chartEvent?.activePayload) return;
+    const payloads = chartEvent.activePayload as { dataKey: string; value: number; payload: Record<string, unknown> }[];
+    const isoDate = payloads[0]?.payload?.isoDate as string | undefined;
+    if (!isoDate) return;
+    const nonZero = payloads.filter(p => CHART_TYPE_KEYS.includes(p.dataKey as typeof CHART_TYPE_KEYS[number]) && p.value > 0);
+    const params = new URLSearchParams({ dateFrom: isoDate, dateTo: isoDate });
+    if (nonZero.length === 1) params.set("type", nonZero[0].dataKey);
+    router.push(`/traces?${params.toString()}`);
+  }, [router]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -163,7 +179,8 @@ export default function TrendsPage() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                onClick={handleChartClick} style={{ cursor: "pointer" }}>
                 <defs>
                   {FAILURE_TYPES.map(t => (
                     <linearGradient key={t.key} id={`grad-${t.key}`} x1="0" y1="0" x2="0" y2="1">

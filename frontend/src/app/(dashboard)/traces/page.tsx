@@ -92,14 +92,16 @@ export default function TracesPage() {
     initialType && allowedTypes.slice(1).includes(initialType) ? [initialType] : []
   );
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo]     = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>(searchParams.get("dateFrom") ?? "");
+  const [dateTo, setDateTo]     = useState<string>(searchParams.get("dateTo") ?? "");
   const [sourcesFilter, setSourcesFilter] = useState<string[]>([]);
   const initialOutcome = searchParams.get("outcome");
   const [outcomeFilter, setOutcomeFilter] = useState<string>(
     initialOutcome && ["success", "failure"].includes(initialOutcome) ? initialOutcome : "all"
   );
-  const [showFilters, setShowFilters] = useState(!!initialOutcome);
+  const [showFilters, setShowFilters] = useState(
+    !!initialOutcome || !!searchParams.get("dateFrom") || !!searchParams.get("dateTo")
+  );
   const filterBarRef = useRef<HTMLDivElement>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
