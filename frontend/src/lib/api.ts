@@ -373,6 +373,7 @@ export interface SessionSummary {
   tool_calls: number;
   retrieval_events: number;
   trace_source: string;  // "langfuse" | "langsmith" | "demo" | "synthetic"
+  has_report: boolean;
 }
 
 export async function fetchSessionCount(): Promise<number> {

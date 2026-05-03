@@ -414,7 +414,12 @@ export default function TracesPage() {
                         <span className={`text-[11px] font-mono truncate ${selected?.session_id === s.session_id ? "text-primary font-medium" : "text-muted-foreground"}`}>
                           {s.session_id}
                         </span>
-                        <FailureBadge type={s.failure_type} />
+                        <div className="flex items-center gap-1 shrink-0">
+                          {s.has_report && (
+                            <span title="Analysis cached" className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          )}
+                          <FailureBadge type={s.failure_type} />
+                        </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
