@@ -431,15 +431,15 @@ export default function TracesPage() {
                 ))}
               </FadeInStagger>
             )}
-          </div>
 
-          {/* Infinite scroll sentinel */}
-          <div ref={sentinelRef} className="h-1" />
-          {loadingMore && (
-            <div className="flex items-center justify-center py-2 gap-1.5 text-xs text-muted-foreground">
-              <Loader2 className="size-3 animate-spin" /> Loading more…
-            </div>
-          )}
+            {/* Sentinel must be inside the scrollable container — only visible when user scrolls to bottom */}
+            <div ref={sentinelRef} className="h-2" />
+            {loadingMore && (
+              <div className="flex items-center justify-center py-2 gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" /> Loading more…
+              </div>
+            )}
+          </div>
 
           <div className="px-3 py-2 border-t bg-muted/10 text-xs text-muted-foreground text-center">
             {filtered.length} of {sessions.length} sessions{hasMore ? " · scroll for more" : ""}
