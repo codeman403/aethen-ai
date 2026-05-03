@@ -258,3 +258,11 @@ frontend/*.jpg
 # Stakeholder-facing writeups (not for version control)
 docs/stakeholder_blog.md
 docs/technical_blog.md
+
+# Demo GIF and video artifacts — large files, recorded locally
+demo.gif
+demo.webm
+demo.mp4
+*.gif
+*.webm
+scripts/record_demo.mjs
