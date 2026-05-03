@@ -91,10 +91,16 @@ app = FastAPI(
 # Rate limiting — applied before CORS so it fires first
 app.add_middleware(RateLimitMiddleware, per_minute=100, per_hour=1000)
 
-# CORS — allow frontend origin
+# CORS — allow configured frontend + any Vercel preview deployments
+_cors_origins = [settings.frontend_url]
+if settings.frontend_url != "http://localhost:3000":
+    # Also allow localhost for local dev when a production URL is set
+    _cors_origins.append("http://localhost:3000")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
