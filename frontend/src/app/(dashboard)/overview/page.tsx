@@ -370,7 +370,7 @@ export default function HomePage() {
               {/* Breakdown */}
               <div className="flex-1 grid grid-cols-2 gap-4 w-full">
                 {/* Successful → /traces */}
-                <Link href="/traces"
+                <Link href="/traces?outcome=success"
                   className="rounded-2xl border bg-emerald-500/5 border-emerald-500/20 p-4 hover:bg-emerald-500/10 transition-colors group">
                   <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Successful</p>
                   <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">
@@ -383,7 +383,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* Failures Detected → /traces */}
-                <Link href="/traces"
+                <Link href="/traces?outcome=failure"
                   className="rounded-2xl border bg-rose-500/5 border-rose-500/20 p-4 hover:bg-rose-500/10 transition-colors group">
                   <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">Failures Detected</p>
                   <div className="text-3xl font-bold h-9 flex items-center mt-1 mb-1">

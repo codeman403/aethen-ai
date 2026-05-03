@@ -131,7 +131,7 @@ SELECT
     COALESCE(jsonb_array_length(session_data->'tool_calls'), 0)         AS tool_calls,
     COALESCE(jsonb_array_length(session_data->'retrieval_events'), 0)   AS retrieval_events
 FROM sessions
-ORDER BY COALESCE(session_ts, created_at) DESC LIMIT $1
+ORDER BY COALESCE(session_ts, created_at) DESC LIMIT $1 OFFSET $2
 """
 
 _CREATE_APP_SETTINGS = """
@@ -330,12 +330,19 @@ class PostgresService:
             )
         logger.debug("analysis_report_saved", session_id=session_id)
 
-    async def get_all_summaries(self, limit: int = 200) -> list[dict]:
+    async def count_sessions(self) -> int:
+        """Return total number of sessions."""
+        if not self.is_available:
+            return 0
+        async with self._pool.acquire() as conn:
+            return (await conn.fetchval("SELECT COUNT(*) FROM sessions")) or 0
+
+    async def get_all_summaries(self, limit: int = 200, offset: int = 0) -> list[dict]:
         """Return lightweight session summaries with event counts."""
         if not self.is_available:
             return []
         async with self._pool.acquire() as conn:
-            rows = await conn.fetch(_SELECT_SUMMARIES, limit)
+            rows = await conn.fetch(_SELECT_SUMMARIES, limit, offset)
         return [
             {
                 "session_id": r["session_id"],

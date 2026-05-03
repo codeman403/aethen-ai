@@ -10,7 +10,7 @@ import {
   FileSearch, Cpu, ChevronDown, SlidersHorizontal,
 } from "lucide-react";
 import {
-  fetchAllSessions, fetchSession, analyzeSession,
+  fetchAllSessions, fetchSession, fetchSessionCount, analyzeSession,
   type SessionSummary, type AnalysisReport, type Finding,
 } from "@/lib/api";
 import { AILoadingOverlay } from "@/components/ui/ai-loader";
@@ -91,9 +91,17 @@ export default function TracesPage() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo]     = useState<string>("");
   const [sourcesFilter, setSourcesFilter] = useState<string[]>([]);
-  const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
-  const [showFilters, setShowFilters] = useState(false);
+  const initialOutcome = searchParams.get("outcome");
+  const [outcomeFilter, setOutcomeFilter] = useState<string>(
+    initialOutcome && ["success", "failure"].includes(initialOutcome) ? initialOutcome : "all"
+  );
+  const [showFilters, setShowFilters] = useState(!!initialOutcome);
   const filterBarRef = useRef<HTMLDivElement>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 200;
 
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisRefreshing, setAnalysisRefreshing] = useState(false);
@@ -102,11 +110,32 @@ export default function TracesPage() {
   const [activeTab, setActiveTab] = useState<"context" | "diagnosis" | "retrieval" | "llm_calls" | "tool_calls" | "findings">("context");
 
   useEffect(() => {
-    fetchAllSessions()
-      .then(setSessions)
+    fetchAllSessions(PAGE_SIZE, 0)
+      .then((data) => { setSessions(data); setHasMore(data.length === PAGE_SIZE); })
       .catch((e) => setSessionsError(e.message))
       .finally(() => setLoadingSessions(false));
+    fetchSessionCount().then(setTotalCount).catch(() => {});
   }, []);
+
+  // Infinite scroll — load next page when sentinel enters viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingSessions) {
+        setLoadingMore(true);
+        fetchAllSessions(PAGE_SIZE, sessions.length)
+          .then((data) => {
+            setSessions(prev => [...prev, ...data]);
+            setHasMore(data.length === PAGE_SIZE);
+          })
+          .catch(() => {})
+          .finally(() => setLoadingMore(false));
+      }
+    }, { threshold: 0.1 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loadingSessions, sessions.length]);
 
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
@@ -404,10 +433,18 @@ export default function TracesPage() {
                 ))}
               </FadeInStagger>
             )}
+
+            {/* Sentinel must be inside the scrollable container — only visible when user scrolls to bottom */}
+            <div ref={sentinelRef} className="h-2" />
+            {loadingMore && (
+              <div className="flex items-center justify-center py-2 gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" /> Loading more…
+              </div>
+            )}
           </div>
 
           <div className="px-3 py-2 border-t bg-muted/10 text-xs text-muted-foreground text-center">
-            {filtered.length} of {sessions.length} sessions
+            {filtered.length} of {totalCount ?? sessions.length} sessions{hasMore ? " · scroll for more" : ""}
           </div>
         </div>
 
