@@ -94,6 +94,10 @@ export default function TracesPage() {
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const filterBarRef = useRef<HTMLDivElement>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 200;
 
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisRefreshing, setAnalysisRefreshing] = useState(false);
@@ -102,11 +106,31 @@ export default function TracesPage() {
   const [activeTab, setActiveTab] = useState<"context" | "diagnosis" | "retrieval" | "llm_calls" | "tool_calls" | "findings">("context");
 
   useEffect(() => {
-    fetchAllSessions()
-      .then(setSessions)
+    fetchAllSessions(PAGE_SIZE, 0)
+      .then((data) => { setSessions(data); setHasMore(data.length === PAGE_SIZE); })
       .catch((e) => setSessionsError(e.message))
       .finally(() => setLoadingSessions(false));
   }, []);
+
+  // Infinite scroll — load next page when sentinel enters viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingSessions) {
+        setLoadingMore(true);
+        fetchAllSessions(PAGE_SIZE, sessions.length)
+          .then((data) => {
+            setSessions(prev => [...prev, ...data]);
+            setHasMore(data.length === PAGE_SIZE);
+          })
+          .catch(() => {})
+          .finally(() => setLoadingMore(false));
+      }
+    }, { threshold: 0.1 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loadingSessions, sessions.length]);
 
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
@@ -406,8 +430,16 @@ export default function TracesPage() {
             )}
           </div>
 
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="h-1" />
+          {loadingMore && (
+            <div className="flex items-center justify-center py-2 gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> Loading more…
+            </div>
+          )}
+
           <div className="px-3 py-2 border-t bg-muted/10 text-xs text-muted-foreground text-center">
-            {filtered.length} of {sessions.length} sessions
+            {filtered.length} of {sessions.length} sessions{hasMore ? " · scroll for more" : ""}
           </div>
         </div>
 

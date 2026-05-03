@@ -375,8 +375,8 @@ export interface SessionSummary {
   trace_source: string;  // "langfuse" | "langsmith" | "demo" | "synthetic"
 }
 
-export async function fetchAllSessions(): Promise<SessionSummary[]> {
-  const res = await fetchWithRetry(`${BASE_URL}/api/sessions`);
+export async function fetchAllSessions(limit = 200, offset = 0): Promise<SessionSummary[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/sessions?limit=${limit}&offset=${offset}`);
   const body: ApiResponse<SessionSummary[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
