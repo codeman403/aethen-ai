@@ -82,7 +82,7 @@ def generate_memory_failure() -> dict:
     return {
         "session_id": session_id,
         "agent_id": random.choice(AGENTS),
-        "timestamp": _ts(random.randint(0, 168)),
+        "timestamp": _ts(random.randint(0, 720)),
         "outcome": "failure",
         "failure_type": "memory",
         "failure_summary": f"Retrieved stale/wrong chunks for query: {query}",
@@ -127,7 +127,7 @@ def generate_tool_misfire() -> dict:
     return {
         "session_id": session_id,
         "agent_id": random.choice(AGENTS),
-        "timestamp": _ts(random.randint(0, 168)),
+        "timestamp": _ts(random.randint(0, 720)),
         "outcome": "failure",
         "failure_type": "tool_misfire",
         "failure_summary": f"Tool '{tool}' failed: {error_info['error']}",
@@ -169,7 +169,7 @@ def generate_hallucination() -> dict:
     return {
         "session_id": session_id,
         "agent_id": random.choice(AGENTS),
-        "timestamp": _ts(random.randint(0, 168)),
+        "timestamp": _ts(random.randint(0, 720)),
         "outcome": "failure",
         "failure_type": "hallucination",
         "failure_summary": f"LLM response contradicts source documents for: {prompt}",
@@ -217,7 +217,7 @@ def generate_blind_spot() -> dict:
     return {
         "session_id": session_id,
         "agent_id": random.choice(AGENTS),
-        "timestamp": _ts(random.randint(0, 168)),
+        "timestamp": _ts(random.randint(0, 720)),
         "outcome": "failure",
         "failure_type": "blind_spot",
         "failure_summary": f"No relevant knowledge found for: {gap_topic}",
@@ -269,7 +269,7 @@ def generate_success() -> dict:
     return {
         "session_id": session_id,
         "agent_id": random.choice(AGENTS),
-        "timestamp": _ts(random.randint(0, 168)),
+        "timestamp": _ts(random.randint(0, 720)),
         "outcome": "success",
         "failure_type": None,
         "failure_summary": None,
