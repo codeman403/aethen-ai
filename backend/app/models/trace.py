@@ -63,6 +63,7 @@ class RetrievalEvent(BaseModel):
     metadata_filters: dict = Field(default_factory=dict, description="Metadata filters applied to query")
     expected_doc_ids: list[str] = Field(default_factory=list, description="Doc IDs that should have been retrieved")
     actual_doc_ids: list[str] = Field(default_factory=list, description="Doc IDs actually retrieved")
+    doc_content: list[str] = Field(default_factory=list, description="Text content of retrieved documents")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -79,6 +80,7 @@ class Session(BaseModel):
     tool_calls: list[ToolCall] = Field(default_factory=list, description="All tool calls in this session")
     retrieval_events: list[RetrievalEvent] = Field(default_factory=list, description="All retrieval events")
     metadata: dict = Field(default_factory=dict, description="Additional session metadata")
+    trace_source: str = Field(default="langfuse", description="Trace provider: langfuse | langsmith | demo | synthetic")
 
 
 class IngestRequest(BaseModel):
@@ -92,4 +94,5 @@ class IngestResult(BaseModel):
 
     sessions_ingested: int = Field(description="Number of sessions successfully ingested")
     events_processed: int = Field(description="Total trace events processed")
+    analyses_queued: int = Field(default=0, description="Number of background analysis tasks started")
     errors: list[str] = Field(default_factory=list, description="Any errors encountered during ingestion")

@@ -1,8 +1,8 @@
 """IP-based rate limiting middleware.
 
 Enforces two sliding-window limits per client IP:
-  - 20 requests / minute
-  - 100 requests / hour
+  - 100 requests / minute
+  - 1000 requests / hour
 
 Uses an in-memory store (sufficient for single-process deployment on Render).
 Resets on restart — acceptable for a stateless abuse guard.
@@ -23,7 +23,7 @@ _EXCLUDED = {"/api/health", "/docs", "/openapi.json", "/redoc"}
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Sliding-window rate limiter applied to all non-excluded routes."""
 
-    def __init__(self, app, per_minute: int = 20, per_hour: int = 100) -> None:
+    def __init__(self, app, per_minute: int = 100, per_hour: int = 1000) -> None:
         super().__init__(app)
         self._per_minute = per_minute
         self._per_hour = per_hour
@@ -51,10 +51,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         hour_hits = len(self._hits[ip])
 
         if minute_hits >= self._per_minute:
-            return _limit_response("Rate limit exceeded: 20 requests/minute per IP.")
+            return _limit_response("Rate limit exceeded: 100 requests/minute per IP.")
 
         if hour_hits >= self._per_hour:
-            return _limit_response("Rate limit exceeded: 100 requests/hour per IP.")
+            return _limit_response("Rate limit exceeded: 1000 requests/hour per IP.")
 
         self._hits[ip].append(now)
         return await call_next(request)

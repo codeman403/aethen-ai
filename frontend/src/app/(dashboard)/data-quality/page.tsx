@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   ShieldCheck,
@@ -11,6 +12,7 @@ import {
   ChevronUp,
   ClipboardList,
 } from "lucide-react";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { fetchQualityReport, type DataQualityReport, type SourceReport, type QualityCheck } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,11 @@ function StatusBadge({ status }: { status: "pass" | "warn" | "fail" }) {
 function CheckRow({ check }: { check: QualityCheck }) {
   const cfg = STATUS_CONFIG[check.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.warn;
   const Icon = cfg.icon;
+  const hasPinnedSessions = (check.flagged_session_ids?.length ?? 0) > 0;
+  const flaggedHref = hasPinnedSessions
+    ? `/traces?ids=${check.flagged_session_ids.join(",")}`
+    : null;
+
   return (
     <div className="flex items-start gap-3 py-3 border-b last:border-0">
       <Icon className={`size-4 mt-0.5 shrink-0 ${
@@ -59,16 +66,29 @@ function CheckRow({ check }: { check: QualityCheck }) {
         check.status === "warn" ? "text-amber-500" : "text-rose-500"
       }`} />
       <div className="flex-1 min-w-0">
-        <p className="text-base font-medium">{check.name}</p>
+        <p className="text-base font-medium" title={check.detail}>{check.name}</p>
         <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{check.detail}</p>
+        {(check.status === "warn" || check.status === "fail") && flaggedHref && (
+          <div className="mt-2">
+            <Link
+              href={flaggedHref}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            >
+              Investigate in Trace Explorer
+            </Link>
+          </div>
+        )}
       </div>
       {check.count > 0 && (
         <div className="shrink-0 text-right">
           <p className="text-sm text-muted-foreground">{check.count} checked</p>
-          {check.flagged > 0 && (
-            <p className={`text-sm font-medium ${check.status === "pass" ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
+          {flaggedHref && check.flagged > 0 && (
+            <Link
+              href={flaggedHref}
+              className={`text-sm font-medium hover:underline ${check.status === "pass" ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}
+            >
               {check.flagged} flagged
-            </p>
+            </Link>
           )}
         </div>
       )}
@@ -81,7 +101,7 @@ function SourceCard({ src }: { src: SourceReport }) {
   const cfg = STATUS_CONFIG[src.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.warn;
 
   return (
-    <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+    <SpotlightCard className="p-0 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors"
@@ -90,7 +110,7 @@ function SourceCard({ src }: { src: SourceReport }) {
           <div className={`size-2.5 rounded-full ${cfg.dot}`} />
           <span className="font-semibold tracking-tight">{src.source}</span>
           {src.total > 0 && (
-            <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-lg border">
+            <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-xl border">
               {src.total.toLocaleString()} items
             </span>
           )}
@@ -107,7 +127,7 @@ function SourceCard({ src }: { src: SourceReport }) {
           ))}
         </div>
       )}
-    </div>
+    </SpotlightCard>
   );
 }
 
@@ -133,7 +153,12 @@ export default function DataQualityPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const overallCfg = report ? STATUS_CONFIG[report.overall_status] : null;
 
@@ -143,7 +168,7 @@ export default function DataQualityPage() {
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-foreground flex items-center gap-3">
-            <div className="p-2 bg-primary/10 text-primary rounded-xl border border-primary/20">
+            <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
               <ShieldCheck className="size-6" />
             </div>
             Data Quality Report
@@ -155,14 +180,14 @@ export default function DataQualityPage() {
         <button
           onClick={load}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-base font-medium hover:bg-muted transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl border text-base font-medium hover:bg-muted transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
       {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
           {error}
         </div>
       )}
@@ -177,7 +202,7 @@ export default function DataQualityPage() {
       {report && (
         <>
           {/* Overall status banner */}
-          <div className={`rounded-xl border p-5 flex items-center justify-between ${
+          <div className={`rounded-2xl border p-5 flex items-center justify-between ${
             report.overall_status === "pass"
               ? "bg-emerald-500/5 border-emerald-500/20"
               : report.overall_status === "warn"
@@ -213,7 +238,7 @@ export default function DataQualityPage() {
           </div>
 
           {/* Raw report text */}
-          <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+          <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden">
             <button
               onClick={() => setShowRaw((v) => !v)}
               className="w-full flex items-center gap-3 px-6 py-4 hover:bg-muted/30 transition-colors"

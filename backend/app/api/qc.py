@@ -108,6 +108,7 @@ class QualityCheck(BaseModel):
     detail: str
     count: int = 0        # items checked
     flagged: int = 0      # items with issues
+    flagged_session_ids: list[str] = Field(default_factory=list)  # specific sessions to investigate
 
 
 class SourceReport(BaseModel):
@@ -140,11 +141,12 @@ def _check_agent_traces(sessions: list[dict]) -> SourceReport:
     REQUIRED_FIELDS = {"session_id", "agent_id", "outcome"}
 
     # ── Check 1: Schema Validation ────────────────────────────────────────
-    invalid = 0
+    invalid_ids: list[str] = []
     for data in sessions:
         missing = REQUIRED_FIELDS - set(data.keys())
         if missing or not data.get("session_id"):
-            invalid += 1
+            invalid_ids.append(data.get("session_id", ""))
+    invalid = len(invalid_ids)
     pct = round((len(sessions) - invalid) / max(len(sessions), 1) * 100, 1)
     report.checks.append(QualityCheck(
         name="Schema Validation",
@@ -152,17 +154,24 @@ def _check_agent_traces(sessions: list[dict]) -> SourceReport:
         detail=f"{len(sessions) - invalid}/{len(sessions)} passed schema validation ({pct}%)",
         count=len(sessions),
         flagged=invalid,
+        flagged_session_ids=invalid_ids,
     ))
 
     # ── Check 2: Completeness (sessions with 0 events) ───────────────────
     empty = 0
     missing_summary = 0
+    completeness_ids: list[str] = []
     for data in sessions:
         events = len(data.get("llm_calls", [])) + len(data.get("tool_calls", [])) + len(data.get("retrieval_events", []))
+        flagged = False
         if events == 0:
             empty += 1
+            flagged = True
         if data.get("outcome") == "failure" and not data.get("failure_summary"):
             missing_summary += 1
+            flagged = True
+        if flagged and data.get("session_id"):
+            completeness_ids.append(data["session_id"])
     issues = empty + missing_summary
     report.checks.append(QualityCheck(
         name="Completeness",
@@ -172,7 +181,8 @@ def _check_agent_traces(sessions: list[dict]) -> SourceReport:
             f"{missing_summary} failure sessions missing summary"
         ),
         count=len(sessions),
-        flagged=issues,
+        flagged=len(completeness_ids),
+        flagged_session_ids=completeness_ids,
     ))
 
     return report
@@ -263,21 +273,26 @@ async def _check_vector_db() -> SourceReport:
 
 def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
     """2 checks on tool call data across all ingested sessions."""
-    # Collect all tool calls
-    tool_stats: dict[str, dict] = {}  # tool_name -> {total, failed, latencies}
+    # Collect all tool calls; track which session each call belongs to
+    tool_stats: dict[str, dict] = {}  # tool_name -> {total, failed, latencies, session_ids}
+    # session_id -> list of (tool_name, latency) for outlier linking
+    session_tool_latencies: dict[str, list[float]] = {}
 
     for data in sessions:
+        sid = data.get("session_id", "")
         for tc in data.get("tool_calls", []):
             name = tc.get("tool_name", "unknown")
             if name not in tool_stats:
-                tool_stats[name] = {"total": 0, "failed": 0, "latencies": []}
+                tool_stats[name] = {"total": 0, "failed": 0, "latencies": [], "session_ids": set()}
             tool_stats[name]["total"] += 1
+            tool_stats[name]["session_ids"].add(sid)
             status = tc.get("status", "")
             if status in (ToolCallStatus.FAILED, ToolCallStatus.TIMEOUT, "failed", "timeout"):
                 tool_stats[name]["failed"] += 1
             lat = tc.get("latency_ms")
             if lat is not None:
                 tool_stats[name]["latencies"].append(float(lat))
+                session_tool_latencies.setdefault(sid, []).append(float(lat))
 
     total_calls = sum(s["total"] for s in tool_stats.values())
     report = SourceReport(source="Tool Call Logs", total=total_calls)
@@ -297,11 +312,13 @@ def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
 
     # ── Check 1: Error Rate per tool (>10% → warn) ────────────────────────
     high_error_tools = []
+    error_rate_session_ids: set[str] = set()
     for name, s in tool_stats.items():
         if s["total"] > 0:
             rate = s["failed"] / s["total"]
             if rate > 0.10:
                 high_error_tools.append(f"{name} ({rate:.0%} error rate)")
+                error_rate_session_ids.update(s["session_ids"])
 
     report.checks.append(QualityCheck(
         name="Error Rate Monitoring",
@@ -313,12 +330,14 @@ def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
         ),
         count=len(tool_stats),
         flagged=len(high_error_tools),
+        flagged_session_ids=sorted(error_rate_session_ids),
     ))
 
     # ── Check 2: Latency Outliers (>mean + 3σ) ────────────────────────────
     all_latencies = [lat for s in tool_stats.values() for lat in s["latencies"]]
     outlier_count = 0
     outlier_detail = "Insufficient latency data"
+    outlier_session_ids: set[str] = set()
 
     if len(all_latencies) >= 3:
         mean_lat = sum(all_latencies) / len(all_latencies)
@@ -331,6 +350,10 @@ def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
             f"threshold={threshold_lat:.0f}ms — "
             f"{outlier_count} outlier call(s) flagged"
         )
+        # Collect sessions that have at least one outlier latency call
+        for sid, lats in session_tool_latencies.items():
+            if any(lat > threshold_lat for lat in lats):
+                outlier_session_ids.add(sid)
 
     report.checks.append(QualityCheck(
         name="Latency Outlier Detection (>3σ)",
@@ -338,6 +361,7 @@ def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
         detail=outlier_detail,
         count=len(all_latencies),
         flagged=outlier_count,
+        flagged_session_ids=sorted(outlier_session_ids),
     ))
 
     return report

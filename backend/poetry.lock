@@ -1108,14 +1108,14 @@ orjson = ">=3.11.5"
 
 [[package]]
 name = "langsmith"
-version = "0.7.35"
+version = "0.8.0"
 description = "Client library to connect to the LangSmith Observability and Evaluation Platform."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "langsmith-0.7.35-py3-none-any.whl", hash = "sha256:335738789f324a1854a38c88432696ca97cae6f2f07dadd8db1383b3a6141c19"},
-    {file = "langsmith-0.7.35.tar.gz", hash = "sha256:78ce99a79e7ec4d3b6e3b324fe4378158b5980a64a819aea96a5b11a9af1468e"},
+    {file = "langsmith-0.8.0-py3-none-any.whl", hash = "sha256:12cc4bc5622b835a6d841964d6034df3617bdb912dae0c1381fd0a68a9b3a3ef"},
+    {file = "langsmith-0.8.0.tar.gz", hash = "sha256:59fe5b2a56bbbe14a08aa76691f84b49e8675dd21e11b57d80c6db8c08bac2e3"},
 ]
 
 [package.dependencies]
@@ -1137,6 +1137,7 @@ openai-agents = ["openai-agents (>=0.0.3)"]
 otel = ["opentelemetry-api (>=1.30.0)", "opentelemetry-exporter-otlp-proto-http (>=1.30.0)", "opentelemetry-sdk (>=1.30.0)"]
 pytest = ["pytest (>=7.0.0)", "rich (>=13.9.4)", "vcrpy (>=7.0.0)"]
 sandbox = ["websockets (>=15.0)"]
+strands-agents = ["opentelemetry-api (>=1.30.0)", "opentelemetry-exporter-otlp-proto-http (>=1.30.0)", "opentelemetry-sdk (>=1.30.0)", "strands-agents (>=0.1.0)", "strands-agents-tools (>=0.2.0)"]
 vcr = ["vcrpy (>=7.0.0)"]
 
 [[package]]
@@ -3156,4 +3157,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "b66582091fb599d00bc867537972525d4f14f75d49233702d2920176c6b5217d"
+content-hash = "bd78e78a6b890dd1659492a4e992abcccc9c80cffdd577ad0fe5bd0a64636760"

@@ -15,7 +15,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ children }: any) => <div>{children}</div>
+  default: ({ children }: unknown) => <div>{children}</div>
 }));
 
 // Mock lucide-react icons

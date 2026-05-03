@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   MessageSquare,
   BrainCircuit,
@@ -10,12 +12,18 @@ import {
   Send,
   Loader2,
   Zap,
+  ChevronDown,
   AlertCircle,
   ChevronRight,
   Copy,
   Check,
   Plus,
   Clock,
+  CheckCircle2,
+  Cpu,
+  Trash2,
+  Search,
+  Sparkles,
 } from "lucide-react";
 import {
   sendFreeformQuery,
@@ -24,16 +32,19 @@ import {
   buildToolMisfireSession,
   buildHallucinationSession,
   buildBlindSpotSession,
+  fetchSessionsByType,
   createChatSession,
   listChatSessions,
   loadChatSession,
   appendChatMessage,
   renameChatSession,
+  fetchModelSettings,
   type AnalysisReport,
   type Finding,
   type ChatHistoryMessage,
   type ChatSessionSummary,
   type ChatMessageRecord,
+  type ModelOption,
 } from "@/lib/api";
 
 // ── Copy button — appears on hover beside each message ─────────────────────
@@ -68,6 +79,7 @@ interface ChatEntry {
   langfuseTraced?: boolean;
   report?: AnalysisReport;
   latency_ms?: number;
+  model?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -86,14 +98,34 @@ const FAILURE_TYPE_COLORS: Record<string, string> = {
   blind_spot: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400",
 };
 
-function renderText(text: string) {
-  return text.split("\n").map((line, i) => (
-    <span key={i}>
-      {line}
-      {i < text.split("\n").length - 1 && <br />}
-    </span>
-  ));
+function MarkdownContent({ text }: { text: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        code: ({ children, className }) => {
+          const isBlock = className?.includes("language-");
+          return isBlock
+            ? <code className="block bg-background/80 border rounded-lg px-3 py-2 text-xs font-mono my-2 overflow-x-auto">{children}</code>
+            : <code className="bg-background/80 border rounded px-1 py-0.5 text-xs font-mono">{children}</code>;
+        },
+        pre: ({ children }) => <pre className="my-2">{children}</pre>,
+        ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        h3: ({ children }) => <h3 className="font-semibold text-sm mt-3 mb-1">{children}</h3>,
+        h4: ({ children }) => <h4 className="font-semibold text-sm mt-2 mb-1">{children}</h4>,
+        blockquote: ({ children }) => <blockquote className="border-l-2 border-primary/40 pl-3 italic text-muted-foreground my-2">{children}</blockquote>,
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
 }
+
 
 function AnalysisCard({ report }: { report: AnalysisReport }) {
   const [copied, setCopied] = useState(false);
@@ -118,7 +150,7 @@ function AnalysisCard({ report }: { report: AnalysisReport }) {
   };
 
   return (
-    <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden mt-2">
+    <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden mt-2">
       <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
           {showTypeBadge && (
@@ -161,7 +193,7 @@ function AnalysisCard({ report }: { report: AnalysisReport }) {
         {report.findings.slice(0, 10).map((f: Finding, i: number) => (
           <div
             key={i}
-            className={`rounded-xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
+            className={`rounded-2xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
           >
             <div className="flex items-center gap-1.5 mb-1">
               <AlertCircle className="size-3 flex-shrink-0" />
@@ -189,7 +221,7 @@ const SUGGESTED_QUERIES = [
     builder: buildMemorySession,
     color: "text-rose-600 dark:text-rose-400",
     bg: "bg-rose-500/5 border-rose-500/20 hover:bg-rose-500/10",
-    href: "/memory-debug",
+    href: "/traces?type=memory",
   },
   {
     icon: Wrench,
@@ -199,7 +231,7 @@ const SUGGESTED_QUERIES = [
     builder: buildToolMisfireSession,
     color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10",
-    href: "/tool-misfire",
+    href: "/traces?type=tool_misfire",
   },
   {
     icon: ShieldAlert,
@@ -209,7 +241,7 @@ const SUGGESTED_QUERIES = [
     builder: buildHallucinationSession,
     color: "text-rose-600 dark:text-rose-400",
     bg: "bg-rose-500/5 border-rose-500/20 hover:bg-rose-500/10",
-    href: "/hallucination-rca",
+    href: "/traces?type=hallucination",
   },
   {
     icon: ScanSearch,
@@ -219,7 +251,7 @@ const SUGGESTED_QUERIES = [
     builder: buildBlindSpotSession,
     color: "text-blue-600 dark:text-blue-400",
     bg: "bg-blue-500/5 border-blue-500/20 hover:bg-blue-500/10",
-    href: "/blind-spots",
+    href: "/traces?type=blind_spot",
   },
 ];
 
@@ -241,6 +273,13 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-4-6");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [modelOpen, setModelOpen] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState("");
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const [lastReport, setLastReport] = useState<AnalysisReport | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -250,13 +289,20 @@ export default function ChatPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval>;
     if (isLoading) {
-      setElapsed(0);
-      timerRef.current = setInterval(() => setElapsed(p => p + 100), 100);
+      setTimeout(() => setElapsed(0), 0);
+      intervalId = setInterval(() => {
+        setElapsed((p) => p + 100);
+      }, 100);
+      timerRef.current = intervalId;
     } else {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [isLoading]);
 
   // ── Session state ────────────────────────────────────────────────────────
@@ -271,6 +317,24 @@ export default function ChatPage() {
       .then(setSessions)
       .catch(() => {/* graceful — Postgres may not be running locally */})
       .finally(() => setLoadingSessions(false));
+    fetchModelSettings().then((data) => {
+      const synthesisRole = data.roles.find((r) => r.role === "synthesis");
+      if (synthesisRole) {
+        setModelOptions(synthesisRole.options);
+        setSelectedModel(synthesisRole.current_model);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Close model dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setModelOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   // Auto-scroll
@@ -348,7 +412,9 @@ export default function ChatPage() {
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
     }
 
-    const userEntry: ChatEntry = { id: crypto.randomUUID(), kind: "user", content: text };
+     
+    const userEntry: ChatEntry = {  
+        id: crypto.randomUUID(), kind: "user", content: text };
     addEntry(userEntry);
     saveMessage(sessionId, userEntry);
     setInput("");
@@ -356,16 +422,21 @@ export default function ChatPage() {
     const t0 = performance.now();
 
     try {
-      const report = await sendFreeformQuery(text, history);
+      const report = await sendFreeformQuery(text, history, selectedModel || undefined);
       const latency_ms = Math.round(performance.now() - t0);
       setLastReport(report);
-      const analysisEntry: ChatEntry = { id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms };
+      const analysisEntry: ChatEntry = {
+        id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms,
+        model: selectedModel,
+      };
       addEntry(analysisEntry);
       saveMessage(sessionId, analysisEntry);
       refreshSessionList();
     } catch (e) {
-      const latency_ms = Math.round(performance.now() - t0);
+       
+      const latency_ms = Math.round(Date.now() - t0);
       const errEntry: ChatEntry = {
+         
         id: crypto.randomUUID(),
         kind: "assistant",
         content: `Analysis failed: ${e instanceof Error ? e.message : "Unknown error"}`,
@@ -386,26 +457,46 @@ export default function ChatPage() {
       setSessions(prev => prev.map(s => s.id === chatSessionId ? { ...s, title: query.title } : s));
     }
 
-    const traceSessionId = `chat-${query.failureType}-${Math.random().toString(36).slice(2, 8)}`;
-    const traceSession = query.builder(traceSessionId);
+    // Try to fetch a real session of this failure type first; fall back to synthetic
+    let traceSession: ReturnType<typeof query.builder>;
+    try {
+      const realSessions = await fetchSessionsByType(query.failureType);
+      if (realSessions.length > 0) {
+        traceSession = realSessions[0] as ReturnType<typeof query.builder>;
+      } else {
+        const traceSessionId = `chat-${query.failureType}-${crypto.randomUUID().slice(0, 8)}`;
+        traceSession = query.builder(traceSessionId);
+      }
+    } catch {
+      const traceSessionId = `chat-${query.failureType}-${crypto.randomUUID().slice(0, 8)}`;
+      traceSession = query.builder(traceSessionId);
+    }
 
-    const userEntry: ChatEntry = { id: crypto.randomUUID(), kind: "user", content: query.description };
+     
+    const userEntry: ChatEntry = {  
+        id: crypto.randomUUID(), kind: "user", content: query.description };
     addEntry(userEntry);
     saveMessage(chatSessionId, userEntry);
     setIsLoading(true);
-    const t0 = performance.now();
+    // eslint-disable-next-line
+    const t0 = Date.now();
 
     try {
       const report = await analyzeSession(traceSession);
-      const latency_ms = Math.round(performance.now() - t0);
+      // eslint-disable-next-line
+      const latency_ms = Math.round(Date.now() - t0);
       setLastReport(report);
-      const analysisEntry: ChatEntry = { id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms };
+       
+      const analysisEntry: ChatEntry = {  
+        id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms };
       addEntry(analysisEntry);
       saveMessage(chatSessionId, analysisEntry);
       refreshSessionList();
     } catch (e) {
-      const latency_ms = Math.round(performance.now() - t0);
+      // eslint-disable-next-line
+      const latency_ms = Math.round(Date.now() - t0);
       const errEntry: ChatEntry = {
+         
         id: crypto.randomUUID(),
         kind: "assistant",
         content: `Analysis failed: ${e instanceof Error ? e.message : "Unknown error"}`,
@@ -416,6 +507,23 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEditSubmit = async (msgId: string) => {
+    if (!editText.trim() || isLoading) return;
+    // Truncate messages up to (not including) this user message, then resend
+    const idx = messages.findIndex(m => m.id === msgId);
+    const trimmed = messages.slice(0, idx);
+    setMessages(trimmed);
+    setEditingId(null);
+    await sendFreeform(editText.trim());
+  };
+
+  const handleClearChat = () => {
+    setMessages([]);
+    setLastReport(null);
+    setCurrentSessionId(null);
+    isFirstMessageRef.current = true;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -429,21 +537,34 @@ export default function ChatPage() {
     <div className="flex gap-4 h-[calc(100vh-9rem)] animate-in fade-in duration-500">
 
       {/* ── Sessions Panel ────────────────────────────────────────────── */}
-      <div className="w-52 flex-shrink-0 flex flex-col rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+      <div className="w-52 flex-shrink-0 flex flex-col rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden">
         <div className="px-3 py-3 border-b bg-muted/10 flex items-center justify-between">
           <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
-          <button
-            onClick={handleNewChat}
-            className="size-6 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            title="New chat"
-          >
-            <Plus className="size-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <button onClick={handleClearChat} title="Clear current chat"
+                className="size-6 rounded-xl flex items-center justify-center hover:bg-rose-500/10 transition-colors text-muted-foreground hover:text-rose-500">
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
+            <button onClick={handleNewChat} title="New chat"
+              className="size-6 rounded-xl flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+        </div>
+        <div className="px-2 py-1.5 border-b bg-muted/5">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+            <input type="text" placeholder="Search sessions…" value={sessionSearch}
+              onChange={e => setSessionSearch(e.target.value)}
+              className="w-full pl-6 pr-2 py-1 text-xs rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" />
+          </div>
         </div>
         <div className="flex-1 overflow-auto p-1.5 space-y-0.5">
           {/* Current unsaved session */}
           {currentSessionId === null && messages.length > 0 && (
-            <div className="px-2.5 py-2 rounded-xl text-sm bg-primary/10 text-primary font-medium truncate">
+            <div className="px-2.5 py-2 rounded-2xl text-sm bg-primary/10 text-primary font-medium truncate">
               Current session
             </div>
           )}
@@ -452,11 +573,11 @@ export default function ChatPage() {
               Start typing to begin a session
             </p>
           )}
-          {sessions.map((s) => (
+          {sessions.filter(s => !sessionSearch || s.title.toLowerCase().includes(sessionSearch.toLowerCase())).map((s) => (
             <button
               key={s.id}
               onClick={() => handleSelectSession(s.id)}
-              className={`w-full text-left px-2.5 py-2 rounded-xl transition-colors group ${
+              className={`w-full text-left px-2.5 py-2 rounded-2xl transition-colors group ${
                 s.id === currentSessionId
                   ? "bg-primary/10 text-primary"
                   : "hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -473,15 +594,15 @@ export default function ChatPage() {
       </div>
 
       {/* ── Chat Interface ─────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+      <div className="flex-1 flex flex-col rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden">
         <div className="px-6 py-4 border-b bg-muted/10 flex items-center gap-3">
-          <div className="size-9 rounded-xl bg-primary/10 flex items-center justify-center">
+          <div className="size-9 rounded-2xl bg-primary/10 flex items-center justify-center">
             <MessageSquare className="size-4 text-primary" />
           </div>
           <div>
             <h2 className="font-semibold tracking-tight">Chat Debug</h2>
             <p className="text-sm text-muted-foreground">
-              Freeform diagnostic queries · LangGraph analysis · Langfuse traced
+              Freeform diagnostic queries
             </p>
           </div>
         </div>
@@ -502,17 +623,39 @@ export default function ChatPage() {
 
           {messages.map((msg) => {
             if (msg.kind === "user") {
+              const isEditing = editingId === msg.id;
               return (
                 <div key={msg.id} className="flex justify-end group">
                   <div className="max-w-[80%] flex flex-col items-end gap-1">
-                    {/* inline style guarantees selection even if a parent sets user-select:none */}
-                    <div
-                      className="rounded-2xl rounded-tr-sm px-4 py-3 bg-primary text-primary-foreground text-base cursor-text"
-                      style={{ userSelect: "text" }}
-                    >
-                      {msg.content}
-                    </div>
-                    <CopyButton text={msg.content} />
+                    {isEditing ? (
+                      <div className="w-full space-y-1.5">
+                        <textarea
+                          value={editText}
+                          onChange={e => setEditText(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEditSubmit(msg.id); } if (e.key === "Escape") setEditingId(null); }}
+                          className="w-full rounded-2xl rounded-tr-sm px-4 py-3 bg-primary/10 border border-primary/40 text-base resize-none focus:outline-none focus:ring-1 focus:ring-primary/60"
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <button onClick={() => setEditingId(null)} className="text-xs px-2.5 py-1 rounded-lg border hover:bg-muted transition-colors text-muted-foreground">Cancel</button>
+                          <button onClick={() => handleEditSubmit(msg.id)} className="text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Resend</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="rounded-2xl rounded-tr-sm px-4 py-3 bg-primary text-primary-foreground text-base cursor-text" style={{ userSelect: "text" }}>
+                          {msg.content}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => { setEditingId(msg.id); setEditText(msg.content); }}
+                            className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded border hover:bg-muted transition-colors">
+                            Edit
+                          </button>
+                          <CopyButton text={msg.content} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -540,10 +683,9 @@ export default function ChatPage() {
                         </span>
                       )}
                       {msg.latency_ms != null && (
-                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-lg">
-                          {msg.latency_ms >= 1000
-                            ? `${(msg.latency_ms / 1000).toFixed(1)}s`
-                            : `${msg.latency_ms}ms`}
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-xl">
+                          {msg.latency_ms >= 1000 ? `${(msg.latency_ms / 1000).toFixed(1)}s` : `${msg.latency_ms}ms`}
+                          {msg.model && ` · ${msg.model}`}
                         </span>
                       )}
                       <CopyButton text={copyText} />
@@ -553,7 +695,7 @@ export default function ChatPage() {
                         className="rounded-2xl rounded-tl-sm px-4 py-3 border bg-muted/30 text-base leading-relaxed cursor-text"
                         style={{ userSelect: "text" }}
                       >
-                        {renderText(msg.report.summary)}
+                        <MarkdownContent text={msg.report.summary} />
                       </div>
                     ) : (
                       <AnalysisCard report={msg.report} />
@@ -570,17 +712,10 @@ export default function ChatPage() {
                       <MessageSquare className="size-3 text-primary" />
                     </div>
                     <span className="text-sm font-medium text-muted-foreground">Aethen</span>
-                    {msg.langfuseTraced && (
-                      <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
-                        <Zap className="size-2.5 inline mr-0.5" />
-                        Traced to Langfuse ✓
-                      </span>
-                    )}
                     {msg.latency_ms != null && (
-                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-lg">
-                        {msg.latency_ms >= 1000
-                          ? `${(msg.latency_ms / 1000).toFixed(1)}s`
-                          : `${msg.latency_ms}ms`}
+                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-xl">
+                        {msg.latency_ms >= 1000 ? `${(msg.latency_ms / 1000).toFixed(1)}s` : `${msg.latency_ms}ms`}
+                        {msg.model && ` · ${msg.model}`}
                       </span>
                     )}
                     <CopyButton text={msg.content} />
@@ -589,7 +724,7 @@ export default function ChatPage() {
                     className="rounded-2xl rounded-tl-sm px-4 py-3 border bg-muted/30 text-base leading-relaxed cursor-text"
                     style={{ userSelect: "text" }}
                   >
-                    {renderText(msg.content)}
+                    <MarkdownContent text={msg.content} />
                   </div>
                 </div>
               </div>
@@ -618,7 +753,7 @@ export default function ChatPage() {
 
         {/* Input */}
         <div className="px-4 pb-4 pt-2 border-t bg-muted/5">
-          <div className="flex items-end gap-2 rounded-xl border bg-background px-3 py-2 focus-within:ring-1 focus-within:ring-primary/40">
+          <div className="flex items-end gap-2 rounded-2xl border bg-background px-3 py-2 focus-within:ring-1 focus-within:ring-primary/40">
             <textarea
               ref={textareaRef}
               value={input}
@@ -632,7 +767,7 @@ export default function ChatPage() {
             <button
               onClick={() => input.trim() && !isLoading && sendFreeform(input.trim())}
               disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 size-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40"
+              className="flex-shrink-0 size-8 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40"
             >
               {isLoading ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -641,20 +776,66 @@ export default function ChatPage() {
               )}
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5 px-1">
-            AI-generated analysis. Verify before acting on any diagnosis.
-          </p>
+          <div className="flex items-center justify-between mt-1.5 px-1">
+            <p className="text-[10px] text-muted-foreground">
+              AI-generated analysis. Verify before acting on any diagnosis.
+            </p>
+            <div className="relative" ref={modelDropdownRef}>
+              <button
+                onClick={() => setModelOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border bg-background hover:bg-muted/50 transition-colors text-xs font-medium"
+              >
+                <Cpu className="size-3 text-muted-foreground" />
+                <span className="max-w-[120px] truncate">{modelOptions.find(o => o.id === selectedModel)?.label ?? selectedModel}</span>
+                <ChevronDown className={`size-3 text-muted-foreground transition-transform ${modelOpen ? "rotate-180" : ""}`} />
+              </button>
+              {modelOpen && modelOptions.length > 0 && (
+                <div className="absolute z-50 bottom-full mb-1 right-0 w-64 rounded-xl border bg-card shadow-xl overflow-hidden">
+                  {(["anthropic", "openai"] as const).map((prov) => {
+                    const provModels = modelOptions.filter((o) => o.provider === prov);
+                    if (!provModels.length) return null;
+                    const provLabel = prov === "openai" ? "OpenAI" : "Anthropic";
+                    const provColor = prov === "openai"
+                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                      : "text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20";
+                    return (
+                      <div key={prov}>
+                        <div className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${provColor} border-b`}>
+                          {provLabel}
+                        </div>
+                        {provModels.map((opt) => (
+                          <button key={opt.id}
+                            onClick={() => { setSelectedModel(opt.id); setModelOpen(false); }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/50 transition-colors border-b last:border-0 ${opt.id === selectedModel ? "bg-primary/5" : ""}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{opt.label}</p>
+                              <p className="text-muted-foreground truncate">{opt.description}</p>
+                            </div>
+                            {opt.id === selectedModel && <CheckCircle2 className="size-3.5 text-primary shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ── Right: Suggested Queries + Evidence ───────────────────────── */}
       <div className="w-72 flex-shrink-0 flex flex-col gap-4 overflow-auto">
-        {/* Suggested Queries */}
-        <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+        {/* Structured Analysis shortcuts */}
+        <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/10">
-            <h3 className="font-semibold tracking-tight text-base">Suggested Queries</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Click to run a structured LangGraph analysis
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-primary" />
+              <h3 className="font-semibold tracking-tight text-sm">Structured Analysis</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              One click → full LangGraph pipeline on a synthetic trace
             </p>
           </div>
           <div className="p-3 space-y-2">
@@ -665,7 +846,7 @@ export default function ChatPage() {
                   key={q.failureType}
                   onClick={() => !isLoading && runSuggestedQuery(q)}
                   disabled={isLoading}
-                  className={`w-full text-left rounded-xl border p-3 transition-all ${q.bg} disabled:opacity-50`}
+                  className={`w-full text-left rounded-2xl border p-3 transition-all ${q.bg} disabled:opacity-50`}
                 >
                   <div className="flex items-start gap-2">
                     <Icon className={`size-4 flex-shrink-0 mt-0.5 ${q.color}`} />
@@ -682,56 +863,61 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Evidence Panel */}
-        {lastReport && (
-          <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-            <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
-              <h3 className="font-semibold tracking-tight text-base">Evidence</h3>
-              <span
-                className={`text-sm font-bold px-2 py-0.5 rounded-full border ${
-                  lastReport.confidence >= 0.7
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
-                    : lastReport.confidence >= 0.4
-                    ? "bg-amber-500/10 border-amber-500/20 text-amber-600"
-                    : "bg-rose-500/10 border-rose-500/20 text-rose-600"
-                }`}
-              >
-                {Math.round(lastReport.confidence * 100)}%
+        {/* Evidence Panel — always visible */}
+        <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex-1">
+          <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
+            <h3 className="font-semibold tracking-tight text-sm">Latest Evidence</h3>
+            {lastReport && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                lastReport.confidence >= 0.7
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+                  : lastReport.confidence >= 0.4
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-600"
+                  : "bg-rose-500/10 border-rose-500/20 text-rose-600"
+              }`}>
+                {Math.round(lastReport.confidence * 100)}% confidence
               </span>
-            </div>
-            <div className="p-3 space-y-2">
-              {lastReport.findings.slice(0, 3).map((f: Finding, i: number) => (
-                <div
-                  key={i}
-                  className={`rounded-xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <AlertCircle className="size-3 flex-shrink-0" />
-                    <span className="text-sm font-medium line-clamp-1">{f.title}</span>
-                  </div>
-                  <p className="text-sm opacity-70 line-clamp-2">{f.description}</p>
-                </div>
-              ))}
-              {lastReport.findings.length > 3 && (
-                <p className="text-sm text-muted-foreground text-center">
-                  +{lastReport.findings.length - 3} more findings in the analysis above
-                </p>
-              )}
-            </div>
-            <div className="px-3 pb-3">
-              <a
-                href={
-                  SUGGESTED_QUERIES.find((q) => q.failureType === lastReport.failure_type)?.href ??
-                  "/"
-                }
-                className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl border text-sm font-medium hover:bg-muted transition-colors"
-              >
-                View Full Report
-                <ChevronRight className="size-3" />
-              </a>
-            </div>
+            )}
           </div>
-        )}
+          {lastReport ? (
+            <>
+              <div className="p-3 space-y-2">
+                {lastReport.findings.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">No findings in last analysis.</p>
+                ) : (
+                  lastReport.findings.slice(0, 3).map((f: Finding, i: number) => (
+                    <div key={i} className={`rounded-xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <AlertCircle className="size-3 flex-shrink-0" />
+                        <span className="text-xs font-semibold line-clamp-1">{f.title}</span>
+                      </div>
+                      <p className="text-xs opacity-70 line-clamp-2 leading-relaxed">{f.description}</p>
+                    </div>
+                  ))
+                )}
+                {lastReport.findings.length > 3 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    +{lastReport.findings.length - 3} more in chat above
+                  </p>
+                )}
+              </div>
+              <div className="px-3 pb-3">
+                <a href={`/traces?type=${lastReport.failure_type ?? ""}`}
+                  className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl border text-xs font-medium hover:bg-muted transition-colors">
+                  Explore in Trace Explorer <ChevronRight className="size-3" />
+                </a>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-2">
+              <AlertCircle className="size-8 text-muted-foreground/20" />
+              <p className="text-xs font-medium text-muted-foreground">No analysis yet</p>
+              <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
+                Ask a question or run a structured analysis — findings will appear here.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

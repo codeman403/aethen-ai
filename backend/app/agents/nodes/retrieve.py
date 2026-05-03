@@ -72,6 +72,7 @@ async def vector_retrieve(state: AgentState) -> dict:
                 query_text=query_text,
                 namespace="traces",
                 top_k=7,
+                filters={"session_id": {"$ne": session.session_id}},
             )
             for m in trace_matches:
                 vector_results.append({

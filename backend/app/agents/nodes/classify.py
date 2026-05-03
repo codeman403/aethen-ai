@@ -15,40 +15,87 @@ from app.models.trace import FailureType
 logger = structlog.get_logger()
 
 CLASSIFY_SYSTEM_PROMPT = """\
-You are an AI agent failure classifier. Read the session evidence carefully and
-classify the PRIMARY failure type into exactly one of these categories:
+You are an AI agent failure classifier. Read the session evidence and classify
+the PRIMARY failure type into exactly one of these categories.
 
-memory
-  Signals: retrieval events returning wrong/mismatched docs, low similarity scores
-  (<0.5), expected docs not in actual docs, chunks_returned=0 when docs exist,
-  stale or irrelevant context passed to the LLM.
+━━━ CATEGORY DEFINITIONS ━━━
 
 tool_misfire
-  Signals: tool calls with status=failed or status=timeout, PermissionError,
-  ValueError in tool parameters, ConnectionError, repeated identical tool calls
-  (loop), cascading failures across multiple tools.
+  The agent attempted a tool call and it failed structurally.
+  Signals: status=failed/timeout, PermissionError, ConnectionError, ValueError,
+  cascading failures, repeated identical tool calls (loop).
+  → Classify tool_misfire if ANY tool call has status=failed regardless of retrieval.
 
-hallucination
-  Signals: LLM response contradicts or is unsupported by retrieved source docs,
-  LLM states facts not present in its prompt context, hallucination_flag=True,
-  response contains fabricated citations, numbers, or policies not in sources,
-  LLM says "based on the documents" but sources=none.
+memory
+  Retrieval ran and returned docs, but the docs are from the WRONG SPECIFIC CONTENT
+  within the SAME BROAD DOMAIN. The knowledge base HAS the relevant domain covered,
+  but the retrieval system fetched the wrong specific document.
+  Signals: low scores (<0.5) AND doc_content covers the same product/functional area
+  as the query but the wrong specific topic within it; expected_doc_ids ≠ actual_doc_ids.
+  Example: user asks about enterprise pricing → docs show standard/pro pricing (same
+  product domain, wrong specific tier).
 
 blind_spot
-  Signals: retrieval returns 0 chunks for a valid query, the LLM responds with
-  "I don't have information about X" or "not found in knowledge base",
-  consistent failure on a specific topic or domain that clearly exists but is
-  not in the knowledge base.
+  The knowledge base contains NO content covering the query topic at all. Whatever
+  was retrieved is from a CATEGORICALLY DIFFERENT functional area.
+  Signals: chunks_returned=0; OR doc_content functional category is entirely different
+  from the query (billing/legal/policy query → docs are about API/authentication/
+  technical setup); LLM says "couldn't find information" without adding specific claims.
+  KEY RULE: Ask "are the retrieved docs from the same functional category as the query?"
+    • Query about billing/refund/cancellation → docs about API/auth/setup → BLIND SPOT
+    • Query about API limits (enterprise) → docs about API limits (standard) → MEMORY
+  Scores do NOT decide memory vs blind_spot — the subject category does.
+
+hallucination
+  Retrieval ran successfully (docs found, reasonable scores) but the LLM response
+  includes specific facts, numbers, or claims that are NOT present in the retrieved
+  doc_content AND are stated with confidence.
+  Signals: high retrieval scores (>0.5) with non-empty doc_content; LLM response
+  introduces specifics (exact numbers, policies, thresholds) not found in the
+  retrieved content; hallucination_flag=True.
+
+  ⚠ CRITICAL PATTERN — HEDGE-THEN-ASSERT:
+  When the LLM says "I couldn't find specific documentation... HOWEVER, a common
+  practice is X" or "typically X" or "usually X" — this IS hallucination, NOT
+  blind_spot. The LLM is adding specific technical claims (X) from training
+  knowledge even though those claims are absent from the retrieved documents.
+  The initial hedge does NOT change the classification — what matters is whether
+  the response introduces concrete specifics not in the doc_content.
+
+  Compare doc_content carefully against the LLM response. If ANY specific claim
+  in the response (a number, a time period, a recommendation, a technical detail)
+  is absent from doc_content, classify hallucination — even if the LLM hedged first.
 
 unknown
-  Use only when there is genuinely insufficient evidence to distinguish between
-  the categories above.
+  Use only when evidence is genuinely insufficient to distinguish the above.
 
-Base your decision on the EVIDENCE in the session trace — tool call statuses,
-retrieval scores, LLM prompts and responses — not on labels or summaries alone.
+━━━ DECISION GUIDE ━━━
 
-Respond with ONLY a JSON object (no markdown):
-{"failure_type": "<category>", "reasoning": "<one sentence citing the key evidence>"}
+Step 1: Tool failures first.
+  ANY tool status=failed → tool_misfire (done).
+
+Step 2: No tools failed — check retrieval.
+  No retrieval events → check LLM response for unsupported claims → hallucination or unknown.
+
+Step 3: Retrieval ran. Compare query topic vs doc_content topic:
+  doc_content covers a COMPLETELY different subject than the query → blind_spot.
+  doc_content is same domain but wrong specific content + low scores (<0.5) → memory.
+  doc_content is relevant but LLM response adds specific facts not in docs → hallucination.
+  doc_content is relevant and LLM response stays within it but LLM says "not found" → blind_spot.
+
+Step 4: Compare scores:
+  All scores < 0.5: lean toward memory (wrong docs) or blind_spot (unrelated docs).
+  Scores ≥ 0.5: docs were likely relevant → lean toward hallucination if LLM added claims.
+
+Step 5: Check for hedge-then-assert BEFORE finalising blind_spot:
+  If you are about to classify blind_spot, re-read the LLM response for phrases like
+  "however", "typically", "usually", "common practice is", "generally" followed by
+  specific technical claims. If present, reclassify as hallucination — the LLM is
+  supplementing absent doc content with training knowledge.
+
+━━━ OUTPUT FORMAT ━━━
+Respond with ONLY a JSON object (no markdown, no extra text):
+{"failure_type": "<category>", "reasoning": "<one sentence citing the key discriminating evidence>"}
 """
 
 
@@ -66,12 +113,17 @@ def _session_to_evidence_text(state: AgentState) -> str:
         parts.append("\n--- Retrieval Events ---")
         for evt in session.retrieval_events:
             scores = ", ".join(f"{s:.3f}" for s in evt.relevance_scores[:5])
+            max_score = max(evt.relevance_scores) if evt.relevance_scores else 0.0
+            score_signal = "HIGH (docs likely relevant)" if max_score >= 0.5 else "LOW (docs likely wrong/missing)"
             expected = ", ".join(evt.expected_doc_ids[:5]) or "N/A"
             actual = ", ".join(evt.actual_doc_ids[:5]) or "N/A"
+            # Full doc content for domain mismatch analysis (key for memory vs blind_spot)
+            content_snippet = " | ".join(c[:200] for c in evt.doc_content[:3]) or "N/A"
             parts.append(
                 f"  Query: {evt.query[:200]}\n"
-                f"  Chunks: {evt.chunks_returned}, Scores: [{scores}]\n"
-                f"  Expected docs: [{expected}], Actual docs: [{actual}]"
+                f"  Chunks: {evt.chunks_returned}, Scores: [{scores}] — {score_signal}\n"
+                f"  Expected docs: [{expected}], Actual docs: [{actual}]\n"
+                f"  Retrieved content (compare to query topic): {content_snippet}"
             )
 
     if session.tool_calls:
@@ -94,7 +146,8 @@ def _session_to_evidence_text(state: AgentState) -> str:
             if lc.prompt:
                 parts.append(f"  Prompt: {lc.prompt[:300]}")
             if lc.response:
-                parts.append(f"  Response: {lc.response[:300]}")
+                # Full response is critical for hallucination detection — compare against doc_content
+                parts.append(f"  Response: {lc.response[:600]}")
 
     return "\n".join(parts)
 

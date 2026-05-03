@@ -77,7 +77,7 @@ export default function LandingPage() {
       <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'border-b border-white/10 bg-background/80 backdrop-blur-md py-3' : 'bg-transparent py-5'}`}>
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="size-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-white shadow-lg shadow-primary/20">
+            <div className="size-8 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-white shadow-lg shadow-primary/20">
               Ae
             </div>
             <span className="font-bold tracking-tight text-xl">Aethen-AI</span>
@@ -121,7 +121,7 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="max-w-5xl mx-auto text-center mt-8 mb-24">
           <ScrollReveal delay={0}>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-sm font-medium mb-8 text-primary shadow-sm">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-sm font-medium mb-8 text-primary shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
               <Zap className="size-4" />
               <span>Agent Reliability Studio v1.0</span>
             </div>
@@ -153,7 +153,7 @@ export default function LandingPage() {
               </Link>
               <a
                 href="#features"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border bg-card/50 backdrop-blur-sm font-semibold text-lg hover:bg-muted transition-all duration-300 w-full sm:w-auto"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border border-border/50 bg-card hover:border-primary/20 transition-all duration-300/50 backdrop-blur-sm font-semibold text-lg hover:bg-muted transition-all duration-300 w-full sm:w-auto"
               >
                 Explore Features
               </a>
@@ -180,8 +180,8 @@ export default function LandingPage() {
                     { title: "Memory & Context Loss", desc: "Spot when the agent forgets instructions from earlier in the session." },
                     { title: "Knowledge Blind Spots", desc: "Find topics where your vector database lacks sufficient information." }
                   ].map((item, i) => (
-                    <li key={i} className="flex items-start gap-4 p-3 rounded-xl hover:bg-muted/50 transition-colors">
-                      <div className="p-2 bg-primary/10 rounded-lg shrink-0 mt-0.5">
+                    <li key={i} className="flex items-start gap-4 p-3 rounded-2xl hover:bg-muted/50 transition-colors">
+                      <div className="p-2 bg-primary/10 rounded-xl shrink-0 mt-0.5">
                         <ShieldCheck className="size-5 text-primary" />
                       </div>
                       <div>
@@ -195,7 +195,7 @@ export default function LandingPage() {
             </div>
             
             <ScrollReveal delay={200} className="relative h-full w-full flex items-center justify-center">
-              <div className="w-full h-full min-h-[450px] rounded-xl border border-border/50 bg-[#1E1E1E] shadow-2xl overflow-hidden relative group flex flex-col font-mono text-sm">
+              <div className="w-full h-full min-h-[450px] rounded-2xl border border-border/50 bg-[#1E1E1E] shadow-2xl overflow-hidden relative group flex flex-col font-mono text-sm">
                 {/* macOS style title bar */}
                 <div className="w-full h-10 bg-[#2D2D2D] flex items-center px-4 shrink-0">
                   <div className="flex gap-2">
@@ -241,7 +241,7 @@ export default function LandingPage() {
                 </div>
 
                 {/* Floating element - Moved inside container bounds to prevent hanging */}
-                <div className="absolute right-4 bottom-4 p-3 rounded-lg border border-emerald-500/30 bg-[#2D2D2D]/95 backdrop-blur-md shadow-xl flex items-center gap-3 transition-transform hover:-translate-y-1 duration-300 z-20">
+                <div className="absolute right-4 bottom-4 p-3 rounded-xl border border-emerald-500/30 bg-[#2D2D2D]/95 backdrop-blur-md shadow-xl flex items-center gap-3 transition-transform hover:-translate-y-1 duration-300 z-20">
                   <div className="size-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
                     <ShieldCheck className="size-4 text-emerald-400" />
                   </div>
@@ -297,7 +297,7 @@ export default function LandingPage() {
               }
             ].map((feature, i) => (
               <ScrollReveal key={i} delay={feature.delay}>
-                <div className="h-full p-8 rounded-3xl border bg-card/40 backdrop-blur-md hover:bg-card/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 group cursor-default">
+                <div className="h-full p-8 rounded-3xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300/40 backdrop-blur-md hover:bg-card/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 group cursor-default">
                   <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 text-primary">
                     <feature.icon className="size-7" />
                   </div>
@@ -317,7 +317,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
             <div className="col-span-2 lg:col-span-2">
               <div className="flex items-center gap-3 mb-6">
-                <div className="size-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-white shadow-sm">
+                <div className="size-8 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                   Ae
                 </div>
                 <span className="font-bold tracking-tight text-xl">Aethen-AI</span>
@@ -326,10 +326,10 @@ export default function LandingPage() {
                 The leading platform for diagnosing, understanding, and resolving AI agent failures in production environments.
               </p>
               <div className="flex items-center gap-4">
-                <a href="#" className="p-2 bg-background border rounded-lg hover:bg-muted transition-colors"><Code className="size-4 text-foreground" /></a>
-                <a href="#" className="p-2 bg-background border rounded-lg hover:bg-muted transition-colors"><Terminal className="size-4 text-foreground" /></a>
-                <a href="#" className="p-2 bg-background border rounded-lg hover:bg-muted transition-colors"><Activity className="size-4 text-foreground" /></a>
-                <a href="#" className="p-2 bg-background border rounded-lg hover:bg-muted transition-colors"><Globe className="size-4 text-foreground" /></a>
+                <a href="#" className="p-2 bg-background border rounded-xl hover:bg-muted transition-colors"><Code className="size-4 text-foreground" /></a>
+                <a href="#" className="p-2 bg-background border rounded-xl hover:bg-muted transition-colors"><Terminal className="size-4 text-foreground" /></a>
+                <a href="#" className="p-2 bg-background border rounded-xl hover:bg-muted transition-colors"><Activity className="size-4 text-foreground" /></a>
+                <a href="#" className="p-2 bg-background border rounded-xl hover:bg-muted transition-colors"><Globe className="size-4 text-foreground" /></a>
               </div>
             </div>
             

@@ -80,6 +80,27 @@ See `docs/scenarios/aethen_self_analysis.md` for the full self-analysis walkthro
 
 ---
 
+## How Aethen classifies failures (no KB access required)
+
+A common evaluator question: *"How does Aethen know this is a hallucination and not a memory failure if it doesn't have access to the agent's knowledge base?"*
+
+Aethen never accesses the knowledge base directly. It reasons entirely from the **trace data**:
+
+| Failure Type | Signal used | KB needed? |
+|---|---|---|
+| **Tool Misfire** | `tool_call.status` (`failed`/`timeout`) + error message | No — structural |
+| **Blind Spot** | `retrieval_event.chunks_returned == 0` | No — structural |
+| **Memory** | `max(relevance_scores) < 0.5` — retrieved docs had low similarity | No — heuristic |
+| **Hallucination** | LLM response contains specific claims absent from `doc_content` (retrieved text) | No — compares retrieved text vs response |
+
+**Key insight:** For hallucination detection, Aethen compares the *retrieved chunk text* (`doc_content`) against the *LLM response*. If the LLM asserts facts not present in what was retrieved, it's a hallucination — regardless of what the "correct" answer should be.
+
+**Known edge case:** If wrong docs are retrieved (memory failure) *and* the LLM also hallucinates beyond those docs, the classification may lean toward hallucination rather than memory. Both signals overlap; the LangGraph classifier uses the full evidence picture to make the best call.
+
+**For any AI agent:** As long as traces include retrieval scores and retrieved text (`doc_content`), Aethen requires zero domain knowledge of the agent's use case to classify failures accurately.
+
+---
+
 ## Architecture reference
 
 | Store | Role |

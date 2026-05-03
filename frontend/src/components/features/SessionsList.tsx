@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { Clock, Layers, Loader2, ChevronRight, AlertCircle, Search } from "lucide-react";
 import { fetchSessionsByType } from "@/lib/api";
+import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
 
 interface SessionsListProps {
   failureType: string;
   onSelect: (sessionData: object) => void;
   selectedId?: string | null;
+  showFilters?: boolean;
 }
 
 interface RawSession {
@@ -18,6 +20,23 @@ interface RawSession {
   llm_calls?: unknown[];
   tool_calls?: unknown[];
   retrieval_events?: unknown[];
+  trace_source?: string;
+}
+
+const TRACE_SOURCE_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  langfuse:   { label: "Langfuse",   color: "text-indigo-600 dark:text-indigo-400",  bg: "bg-indigo-500/10",  border: "border-indigo-500/20"  },
+  langsmith:  { label: "LangSmith",  color: "text-orange-600 dark:text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-500/20"  },
+  demo:       { label: "Demo",       color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+  synthetic:  { label: "Synthetic",  color: "text-slate-600 dark:text-slate-400",    bg: "bg-slate-500/10",   border: "border-slate-500/20"   },
+};
+
+function SourceBadge({ source }: { source?: string }) {
+  const s = TRACE_SOURCE_STYLE[source ?? "langfuse"] ?? TRACE_SOURCE_STYLE.langfuse;
+  return (
+    <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${s.bg} ${s.border} ${s.color}`}>
+      {s.label}
+    </span>
+  );
 }
 
 function formatTimestamp(ts: string | null | undefined): string {
@@ -29,7 +48,12 @@ function formatTimestamp(ts: string | null | undefined): string {
   });
 }
 
-export function SessionsList({ failureType, onSelect, selectedId }: SessionsListProps) {
+export function SessionsList({
+  failureType,
+  onSelect,
+  selectedId,
+  showFilters = true,
+}: SessionsListProps) {
   const [sessions, setSessions] = useState<RawSession[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<string>("");
@@ -79,41 +103,45 @@ export function SessionsList({ failureType, onSelect, selectedId }: SessionsList
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-2 mb-3 space-y-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-foreground/50" />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all shadow-sm"
-          />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="flex-1 py-1 px-2 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-foreground/80"
-          />
-          {dateFilter && (
-            <button
-              onClick={() => setDateFilter("")}
-              className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-1 rounded border hover:bg-muted transition-colors"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        <p className="text-[10px] font-medium text-foreground/60 uppercase tracking-wider">
+      <div className="px-3 pt-3 mb-3 space-y-2">
+        {showFilters && (
+          <>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-foreground/50" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="flex-1 py-1 px-2 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-foreground/80"
+              />
+              {dateFilter && (
+                <button
+                  onClick={() => setDateFilter("")}
+                  className="text-xs text-muted-foreground hover:text-foreground px-1.5 py-1 rounded border hover:bg-muted transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        <p className="text-xs font-medium text-foreground/60 uppercase tracking-wider">
           {filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}
         </p>
       </div>
       
-      <div className="flex flex-col gap-1 overflow-y-auto px-1 pb-2">
+      <FadeInStagger className="flex flex-col gap-1 overflow-y-auto px-1 pb-2">
         {filteredSessions.length === 0 ? (
-          <div className="text-center py-4 text-xs text-foreground/50">No matches</div>
+          <FadeInItem><div className="text-center py-4 text-xs text-foreground/50">No matches</div></FadeInItem>
         ) : (
           filteredSessions.map((s) => {
             const isSelected = s.session_id === selectedId;
@@ -123,21 +151,24 @@ export function SessionsList({ failureType, onSelect, selectedId }: SessionsList
               (s.retrieval_events?.length ?? 0);
               
             return (
-              <button
-                key={s.session_id}
-                onClick={() => onSelect(s)}
-                className={`group flex flex-col text-left rounded-md border p-2.5 transition-all duration-200 ${
-                  isSelected
-                    ? "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20"
-                    : "border-transparent bg-transparent hover:border-border hover:bg-muted/40"
-                }`}
-              >
+              <FadeInItem key={s.session_id}>
+                <button
+                  onClick={() => onSelect(s)}
+                  className={`w-full group flex flex-col text-left rounded-md border p-2.5 transition-all duration-200 ${
+                    isSelected
+                      ? "border-primary/50 bg-primary/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-primary/20"
+                      : "border-transparent bg-transparent hover:border-border hover:bg-muted/40"
+                  }`}
+                >
                 <div className="flex items-center justify-between w-full mb-1.5">
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider ${isSelected ? 'bg-primary/20 text-primary' : 'bg-muted text-foreground/70 group-hover:text-primary'}`}>
-                    {s.agent_id}
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium uppercase tracking-wider shrink-0 ${isSelected ? 'bg-primary/20 text-primary' : 'bg-muted text-foreground/70 group-hover:text-primary'}`}>
+                      {s.agent_id}
+                    </span>
+                    <SourceBadge source={s.trace_source} />
+                  </div>
                   {s.timestamp && (
-                    <span className="text-[10px] text-foreground/50 flex items-center gap-1">
+                    <span className="text-xs text-foreground/50 flex items-center gap-1 shrink-0">
                       <Clock className="size-3" />
                       {formatTimestamp(s.timestamp)}
                     </span>
@@ -145,25 +176,23 @@ export function SessionsList({ failureType, onSelect, selectedId }: SessionsList
                 </div>
                 
                 <div className="flex items-center justify-between w-full mb-1">
-                  <span className={`text-[11px] font-mono truncate pr-2 ${isSelected ? 'text-primary font-medium' : 'text-foreground/70 font-normal'}`}>
+                  <span className={`text-xs font-mono truncate pr-2 ${isSelected ? 'text-primary font-medium' : 'text-foreground/70 font-normal'}`}>
                     {s.session_id}
                   </span>
                   <ChevronRight className={`size-3 shrink-0 transition-transform duration-300 ${isSelected ? 'text-primary translate-x-0.5' : 'text-foreground/30 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5'}`} />
                 </div>
                 
-                <div className="flex items-center justify-between w-full mt-1.5">
-                  <p className={`text-[11px] line-clamp-1 pr-2 ${isSelected ? 'text-foreground/90' : 'text-foreground/50'}`}>
-                    {s.failure_summary ? s.failure_summary.split('\\n')[0] : "No summary"}
-                  </p>
-                  <span className="flex items-center gap-1 text-[10px] text-foreground/50 shrink-0">
+                <div className="flex items-center justify-end w-full mt-1.5">
+                  <span className="flex items-center gap-1 text-xs text-foreground/50 shrink-0">
                     <Layers className="size-3" /> {eventCount}
                   </span>
                 </div>
-              </button>
+                </button>
+              </FadeInItem>
             );
           })
         )}
-      </div>
+      </FadeInStagger>
     </div>
   );
 }

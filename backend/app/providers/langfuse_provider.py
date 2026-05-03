@@ -1,5 +1,6 @@
 """Langfuse live trace provider — pulls and adapts real traces from Langfuse API."""
 
+import json
 import uuid
 from datetime import datetime
 
@@ -32,7 +33,7 @@ class LangfuseTraceAdapter:
     """
 
     TOOL_KEYWORDS = {"search", "query", "fetch", "lookup", "call", "execute", "invoke", "tool", "api"}
-    RETRIEVAL_KEYWORDS = {"retrieve", "retrieval", "vector", "search_kb", "pinecone", "similarity", "embedding"}
+    RETRIEVAL_KEYWORDS = {"retrieve", "retrieval", "vector", "search_kb", "search_knowledge", "knowledge_base", "pinecone", "similarity", "embedding"}
 
     def adapt_trace(self, trace: dict, observations: list[dict]) -> Session:
         """Convert a single Langfuse trace + its observations into an Aethen Session."""
@@ -76,6 +77,21 @@ class LangfuseTraceAdapter:
         if retrieval_events and llm_calls and obs_timestamps:
             self._link_retrieval_to_llm(llm_calls, retrieval_events, obs_timestamps)
 
+        # Backfill retrieval events from ToolMessages in the trace-level message history.
+        # Demo agent Phase 1 runs without Langfuse callbacks, so search_knowledge_base
+        # never creates an observation — its output only exists in trace.input as a ToolMessage.
+        # Also covers real agents where Langfuse SDK v4.5.1 returns observation output=None.
+        if not retrieval_events or all(r.chunks_returned == 0 for r in retrieval_events):
+            trace_retrieval = self._extract_retrieval_from_trace_messages(trace.get("input"))
+            if trace_retrieval:
+                retrieval_events = trace_retrieval
+
+        # Backfill tool calls from ToolMessages when no SPAN observations were found.
+        if not tool_calls:
+            trace_tool_calls = self._extract_tool_calls_from_trace_messages(trace.get("input"))
+            if trace_tool_calls:
+                tool_calls = trace_tool_calls
+
         # Infer failure type from trace metadata or output
         failure_type = self._infer_failure_type(trace, llm_calls, tool_calls, retrieval_events)
 
@@ -85,17 +101,13 @@ class LangfuseTraceAdapter:
         trace_input  = self._extract_human_prompt(trace.get("input"))
         trace_output = self._extract_text(trace.get("output"))
 
-        # failure_summary describes WHAT WENT WRONG — kept separate from the user prompt.
-        # Priority: explicit error → failure type label → trace name → None
+        # failure_summary describes WHAT WENT WRONG — only set when there is an actual failure.
         if isinstance(trace.get("output"), dict) and trace["output"].get("error"):
             failure_summary: str | None = str(trace["output"]["error"])
         elif failure_type:
             label = failure_type.value.replace("_", " ").title()
             trace_name = (trace.get("name") or "").replace("-", " ").title()
             failure_summary = f"{label} — {trace_name}" if trace_name else f"{label} detected"
-        elif trace.get("name"):
-            name = trace.get("name") or ""
-            failure_summary = "Demo Agent — Free Form Chat" if name.startswith("demo-") else name.replace("-", " ").title()
         else:
             failure_summary = None
 
@@ -120,9 +132,17 @@ class LangfuseTraceAdapter:
                 latency_ms=self._calc_latency(trace),
             ))
 
+        _raw_agent_id = (
+            trace.get("userId")
+            or (trace.get("metadata") or {}).get("langfuse_user_id")
+            or trace.get("name")
+            or "langfuse-agent"
+        )
+        _agent_id = "Demo Agent" if str(_raw_agent_id).lower().startswith("demo-") else _raw_agent_id
+
         return Session(
             session_id=trace.get("id", f"lf-{uuid.uuid4().hex[:8]}"),
-            agent_id=trace.get("userId") or trace.get("name") or "langfuse-agent",
+            agent_id=_agent_id,
             **({"timestamp": trace["timestamp"]} if trace.get("timestamp") else {}),
             outcome="failure" if failure_type else "success",
             failure_type=failure_type,
@@ -302,6 +322,13 @@ class LangfuseTraceAdapter:
         chunks = 0
         doc_ids: list[str] = []
         relevance_scores: list[float] = []
+
+        # Tool outputs arrive as JSON strings — parse before the isinstance checks
+        if isinstance(output, str):
+            try:
+                output = json.loads(output)
+            except (json.JSONDecodeError, ValueError):
+                pass
 
         if isinstance(output, list):
             chunks = len(output)
@@ -650,6 +677,150 @@ class LangfuseTraceAdapter:
 
     def _is_retrieval(self, name: str, obs: dict) -> bool:
         return any(kw in name for kw in self.RETRIEVAL_KEYWORDS)
+
+    def _extract_retrieval_from_trace_messages(self, trace_input) -> list[RetrievalEvent]:
+        """Build RetrievalEvents from ToolMessages embedded in the trace's message history.
+
+        Demo agent Phase 1 runs without Langfuse callbacks so search_knowledge_base never
+        creates a Langfuse SPAN observation — the tool output only exists inside the full
+        message list captured at trace level. Also handles Langfuse SDK v4.5.1 where
+        observation output=None for all observations from observations.get_many().
+
+        Matches ToolMessages to their tool name via the preceding AIMessage's tool_calls
+        list, then parses scored document lists into RetrievalEvents.
+        """
+        if not trace_input:
+            return []
+
+        messages: list = trace_input if isinstance(trace_input, list) else []
+        if isinstance(trace_input, dict):
+            messages = trace_input.get("messages") or []
+
+        # Build tool_call_id -> (tool_name, query_arg) from AIMessage tool_calls
+        tool_call_info: dict[str, tuple[str, str]] = {}
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if (msg.get("role") or "").lower() != "assistant":
+                continue
+            for tc in (msg.get("tool_calls") or []):
+                if isinstance(tc, dict) and tc.get("id"):
+                    name = (tc.get("name") or "").lower()
+                    args = tc.get("args") or {}
+                    query_arg = args.get("query") or args.get("q") or args.get("text") or ""
+                    tool_call_info[tc["id"]] = (name, str(query_arg))
+
+        events: list[RetrievalEvent] = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if (msg.get("role") or "").lower() != "tool":
+                continue
+
+            tool_name, query_arg = tool_call_info.get(msg.get("tool_call_id") or "", ("", ""))
+            if not self._is_retrieval(tool_name, msg):
+                continue
+
+            content = msg.get("content") or ""
+            if isinstance(content, str):
+                try:
+                    parsed = json.loads(content)
+                except json.JSONDecodeError:
+                    continue
+            else:
+                parsed = content
+
+            if not isinstance(parsed, list):
+                continue
+
+            doc_ids, scores, doc_texts = [], [], []
+            for item in parsed:
+                if not isinstance(item, dict):
+                    continue
+                doc_id = item.get("doc_id") or item.get("id") or item.get("document_id") or ""
+                if doc_id:
+                    doc_ids.append(str(doc_id))
+                score = (
+                    item.get("score")
+                    or item.get("relevance_score")
+                    or item.get("similarity")
+                    or item.get("_score")
+                )
+                if score is not None:
+                    try:
+                        scores.append(float(score))
+                    except (ValueError, TypeError):
+                        pass
+                text = item.get("content") or item.get("text") or item.get("page_content") or ""
+                if text:
+                    doc_texts.append(str(text))
+
+            events.append(RetrievalEvent(
+                event_id=f"ret-trace-{uuid.uuid4().hex[:8]}",
+                query=query_arg or tool_name,
+                namespace="default",
+                chunks_returned=len(parsed),
+                relevance_scores=sorted(scores, reverse=True),
+                actual_doc_ids=doc_ids,
+                doc_content=doc_texts,
+            ))
+
+        return events
+
+    def _extract_tool_calls_from_trace_messages(self, trace_input) -> list[ToolCall]:
+        """Extract ToolCall events from non-retrieval ToolMessages in the trace message history.
+
+        Mirrors _extract_retrieval_from_trace_messages for tool calls that are not
+        retrieval operations (e.g. function calls that errored, API tool calls, etc.).
+        """
+        if not trace_input:
+            return []
+
+        messages: list = trace_input if isinstance(trace_input, list) else []
+        if isinstance(trace_input, dict):
+            messages = trace_input.get("messages") or []
+
+        # Build tool_call_id -> (tool_name, args) from AIMessage tool_calls
+        tool_call_info: dict[str, tuple[str, dict]] = {}
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if (msg.get("role") or "").lower() != "assistant":
+                continue
+            for tc in (msg.get("tool_calls") or []):
+                if isinstance(tc, dict) and tc.get("id"):
+                    name = (tc.get("name") or "").lower()
+                    args = tc.get("args") or {}
+                    tool_call_info[tc["id"]] = (name, dict(args) if isinstance(args, dict) else {})
+
+        tool_calls: list[ToolCall] = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if (msg.get("role") or "").lower() != "tool":
+                continue
+
+            tool_call_id = msg.get("tool_call_id") or ""
+            tool_name, tool_args = tool_call_info.get(tool_call_id, ("unknown_tool", {}))
+
+            # Skip retrieval tools — handled by _extract_retrieval_from_trace_messages
+            if self._is_retrieval(tool_name, msg):
+                continue
+
+            content = str(msg.get("content") or "")
+            is_error = content.lower().startswith("error:")
+            status = ToolCallStatus.FAILED if is_error else ToolCallStatus.SUCCESS
+
+            tool_calls.append(ToolCall(
+                call_id=tool_call_id or f"tc-trace-{uuid.uuid4().hex[:8]}",
+                tool_name=tool_name,
+                parameters=tool_args,
+                result=content[:400] if not is_error else None,
+                error=content[:300] if is_error else None,
+                status=status,
+            ))
+
+        return tool_calls
 
     def _extract_text(self, value) -> str:
         """Extract a human-readable string from any Langfuse input/output format.

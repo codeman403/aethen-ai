@@ -48,6 +48,8 @@ class PineconeService:
         ids: list[str] = []
         metadata_list: list[dict] = []
 
+        failure_summary_short = (session.failure_summary or "")[:300]
+
         for llm_call in session.llm_calls:
             texts.append(f"LLM call: {llm_call.prompt[:500]} -> {llm_call.response[:500]}")
             ids.append(f"{session.session_id}:llm:{llm_call.call_id}")
@@ -58,12 +60,15 @@ class PineconeService:
                 "model": llm_call.model,
                 "hallucination_flag": llm_call.hallucination_flag,
                 "failure_type": session.failure_type or "",
+                "failure_summary": failure_summary_short,
                 "outcome": session.outcome,
+                "text": f"LLM: {llm_call.prompt[:200]} → {llm_call.response[:200]}",
             })
 
         for tool_call in session.tool_calls:
             texts.append(f"Tool call: {tool_call.tool_name}({tool_call.parameters}) -> {tool_call.status}")
             ids.append(f"{session.session_id}:tool:{tool_call.call_id}")
+            error_snippet = f" | error: {tool_call.error[:150]}" if tool_call.error else ""
             metadata_list.append({
                 "session_id": session.session_id,
                 "agent_id": session.agent_id,
@@ -71,12 +76,19 @@ class PineconeService:
                 "tool_name": tool_call.tool_name,
                 "status": tool_call.status,
                 "failure_type": session.failure_type or "",
+                "failure_summary": failure_summary_short,
                 "outcome": session.outcome,
+                "text": f"Tool {tool_call.tool_name}: {str(tool_call.parameters)[:100]} → {tool_call.status}{error_snippet}",
             })
 
         for retrieval in session.retrieval_events:
             texts.append(f"Retrieval: {retrieval.query[:500]} -> {retrieval.chunks_returned} chunks")
             ids.append(f"{session.session_id}:retrieval:{retrieval.event_id}")
+            avg_score = (
+                round(sum(retrieval.relevance_scores) / len(retrieval.relevance_scores), 3)
+                if retrieval.relevance_scores else None
+            )
+            score_part = f", avg_score={avg_score}" if avg_score is not None else ""
             metadata_list.append({
                 "session_id": session.session_id,
                 "agent_id": session.agent_id,
@@ -84,7 +96,9 @@ class PineconeService:
                 "namespace": retrieval.namespace,
                 "chunks_returned": retrieval.chunks_returned,
                 "failure_type": session.failure_type or "",
+                "failure_summary": failure_summary_short,
                 "outcome": session.outcome,
+                "text": f"Query: '{retrieval.query[:250]}' → {retrieval.chunks_returned} chunks{score_part}",
             })
 
         total_upserted = 0

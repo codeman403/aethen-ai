@@ -17,7 +17,34 @@ from app.config import settings
 from app.models.response import ApiResponse
 from app.services.postgres_service import postgres_service
 from app.utils.langfuse_utils import make_langfuse_handler
+from app.utils.langsmith_utils import make_langsmith_handler
 from app.utils.sanitize import sanitize_input
+
+
+def _build_callbacks(trace_destination: str, session_id: str) -> tuple[list, object | None]:
+    """Build the callbacks list and Langfuse client based on trace_destination.
+
+    Returns:
+        (callbacks, langfuse_client) — callbacks passed to LangChain invoke config,
+        langfuse_client used for flushing (None if Langfuse not used).
+    """
+    callbacks = []
+    langfuse_client = None
+
+    use_langfuse = trace_destination in ("langfuse", "both")
+    use_langsmith = trace_destination in ("langsmith", "both")
+
+    if use_langfuse:
+        handler, langfuse_client = make_langfuse_handler()
+        if handler:
+            callbacks.append(handler)
+
+    if use_langsmith:
+        tracer = make_langsmith_handler()
+        if tracer:
+            callbacks.append(tracer)
+
+    return callbacks, langfuse_client
 
 
 # ---------------------------------------------------------------------------
@@ -29,11 +56,78 @@ from app.utils.sanitize import sanitize_input
 @tool
 def search_knowledge_base(query: str, namespace: str = "general") -> str:
     """Search the internal knowledge base for documentation or policies."""
-    # Returns off-topic documents — simulates a memory retrieval failure
-    return json.dumps([
-        {"doc_id": "api_keys_101.pdf", "content": "API key rotation policy: rotate every 90 days...", "score": 0.81},
-        {"doc_id": "oauth_setup.pdf", "content": "OAuth 2.0 setup guide for third-party integrations...", "score": 0.76},
-    ])
+    q = query.lower()
+
+    # ── Route 1: HALLUCINATION
+    # API/auth queries → retrieves relevant docs (high scores 0.81/0.76).
+    # Each doc contains ONE real fact + ONE gap. Multi-part questions cause the LLM
+    # to answer both parts smoothly — the real fact from the doc, the missing fact
+    # from training knowledge — without realising it has gone beyond the source.
+    _hallucination_kws = ("api key", "oauth", "token", "authentication", "credential",
+                          "rate limit", "rate_limit", "rotate", "pkce", "signing",
+                          "expire", "expiry", "expiration")
+    if any(kw in q for kw in _hallucination_kws):
+        return json.dumps([
+            {
+                "doc_id": "api_keys_101.pdf",
+                "content": (
+                    "API Key Security: All API keys use HMAC-SHA256 request signing for "
+                    "authentication. Keys must be stored securely and should be regenerated "
+                    "periodically according to your organisation's security policy. "
+                    "Standard plan supports 3 keys; Pro plan supports 10 keys."
+                ),
+                "score": 0.81,
+            },
+            {
+                "doc_id": "oauth_setup.pdf",
+                "content": (
+                    "OAuth 2.0 Setup: Access tokens are issued using the authorization code "
+                    "flow. PKCE (Proof Key for Code Exchange) is supported for enhanced "
+                    "security. Tokens are invalidated upon password change or account "
+                    "suspension. Refresh tokens are single-use and replaced on each refresh."
+                ),
+                "score": 0.76,
+            },
+        ])
+
+    # ── Route 2: MEMORY
+    # Billing/payment queries → retrieves billing docs but for the WRONG tier.
+    # Doc content is about the correct domain (billing/refunds) but the WRONG specific policy
+    # (Standard monthly plan) when the user asked about annual subscriptions or enterprise.
+    # Scores are medium-low: retrieval tried but fetched the wrong specific document.
+    _memory_kws = ("refund", "billing", "invoice", "payment", "annual subscription",
+                   "monthly plan", "pricing", "cost", "cancel my subscription",
+                   "reset.*password", "password reset")
+    if any(kw in q for kw in _memory_kws):
+        return json.dumps([
+            {
+                "doc_id": "billing_policy_standard.pdf",
+                "content": (
+                    "Standard Plan Billing Policy: Monthly subscriptions are billed on the 1st of "
+                    "each month. Cancellations take effect at the end of the current billing period. "
+                    "No refunds are issued for partial months on Standard monthly plans. "
+                    "Standard plan minimum commitment is 1 month."
+                ),
+                "score": 0.47,
+            },
+            {
+                "doc_id": "refund_faq.pdf",
+                "content": (
+                    "Refund FAQ: Q: Can I get a refund for a cancelled Standard plan? "
+                    "A: Standard monthly plans are non-refundable for partial months. "
+                    "Q: What about annual plan refunds? A: Contact support for annual plan requests. "
+                    "Q: How long do refunds take? A: Approved refunds process in 5-10 business days."
+                ),
+                "score": 0.41,
+            },
+        ])
+
+    # ── Route 3: BLIND SPOT (default)
+    # All other queries (enterprise account policies, compliance, SLA, cancellation, etc.)
+    # → returns zero results. The knowledge base has no content covering these topics.
+    # chunks_returned=0 is an unambiguous structural signal for blind_spot — no
+    # interpretation required. Both heuristic and classify_intent agree immediately.
+    return json.dumps([])
 
 
 @tool
@@ -127,6 +221,7 @@ class DemoChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
     session_id: str | None = None   # None on first turn; backend creates and returns one
+    trace_destination: str = "langfuse"  # "langfuse" | "langsmith" | "both"
 
 
 class DemoChatResult(BaseModel):
@@ -134,10 +229,13 @@ class DemoChatResult(BaseModel):
     assistant_response: str
     session_id: str                 # Always returned so frontend persists it
     langfuse_traced: bool
+    langsmith_traced: bool = False
+    trace_destination: str = "langfuse"
 
 
 class DemoRunRequest(BaseModel):
     scenario: str
+    trace_destination: str = "langfuse"  # "langfuse" | "langsmith" | "both"
 
 
 class DemoRunResult(BaseModel):
@@ -147,6 +245,8 @@ class DemoRunResult(BaseModel):
     assistant_response: str
     session_id: str
     langfuse_traced: bool
+    langsmith_traced: bool = False
+    trace_destination: str = "langfuse"
 
 
 class ScenarioInfo(BaseModel):
@@ -189,17 +289,16 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
 
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
-        from langchain_openai import ChatOpenAI
+        from app.agents.llm import get_demo_llm
 
-        handler, langfuse_client = make_langfuse_handler()
-        langfuse_traced = handler is not None
-
-        llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            base_url=settings.openai_base_url or None,
-            api_key=settings.openai_api_key,
-            default_headers={"x-session-id": session_id},
+        dest = request.trace_destination
+        callbacks, langfuse_client = _build_callbacks(dest, session_id)
+        langfuse_traced = langfuse_client is not None
+        langsmith_traced = dest in ("langsmith", "both") and any(
+            "LangChainTracer" in type(c).__name__ for c in callbacks
         )
+
+        llm = get_demo_llm()
 
         messages = [
             SystemMessage(content=scenario["system"]),
@@ -207,9 +306,9 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
         ]
 
         invoke_config: dict = {}
-        if handler:
+        if callbacks:
             invoke_config = {
-                "callbacks": [handler],
+                "callbacks": callbacks,
                 "tags": scenario["tags"],
                 "run_name": scenario["run_name"],
                 "metadata": {
@@ -226,12 +325,13 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
         response = await asyncio.get_event_loop().run_in_executor(None, _invoke)
         assistant_text = response.content if hasattr(response, "content") else str(response)
 
-        # Flush traces to Langfuse
+        # Flush Langfuse traces
         if langfuse_client:
             await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
             logger.info("langfuse_flushed", scenario=scenario_key, session_id=session_id)
 
-        logger.info("demo_run_complete", scenario=scenario_key, session_id=session_id)
+        logger.info("demo_run_complete", scenario=scenario_key, session_id=session_id,
+                    trace_destination=dest)
 
         return ApiResponse(
             data=DemoRunResult(
@@ -241,6 +341,8 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
                 assistant_response=assistant_text,
                 session_id=session_id,
                 langfuse_traced=langfuse_traced,
+                langsmith_traced=langsmith_traced,
+                trace_destination=dest,
             )
         )
 
@@ -266,21 +368,25 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
 
     if is_new_session:
         title = request.message[:60]
-        await postgres_service.create_demo_session(session_id, title)
+        await postgres_service.create_demo_session(session_id, title, request.trace_destination)
 
     logger.info("demo_chat_start", session_id=session_id, message_len=len(request.message))
 
     try:
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-        from langchain_openai import ChatOpenAI
+        from app.agents.llm import get_demo_llm
 
-        handler, langfuse_client = make_langfuse_handler()
-        langfuse_traced = handler is not None
+        dest = request.trace_destination
+        callbacks, langfuse_client = _build_callbacks(dest, session_id)
+        langfuse_traced = langfuse_client is not None
+        langsmith_traced = dest in ("langsmith", "both") and any(
+            "LangChainTracer" in type(c).__name__ for c in callbacks
+        )
 
         invoke_config: dict = {}
-        if handler:
+        if callbacks:
             invoke_config = {
-                "callbacks": [handler],
+                "callbacks": callbacks,
                 "run_name": "demo-agent-chat",
                 "metadata": {
                     "langfuse_user_id": "Demo Agent",
@@ -289,12 +395,7 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
                 },
             }
 
-        llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            base_url=settings.openai_base_url or None,
-            api_key=settings.openai_api_key,
-            default_headers={"x-session-id": session_id},
-        )
+        llm = get_demo_llm()
         llm_with_tools = llm.bind_tools(DEMO_TOOLS)
 
         messages: list = [
@@ -390,6 +491,8 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
                 assistant_response=assistant_text,
                 session_id=session_id,
                 langfuse_traced=langfuse_traced,
+                langsmith_traced=langsmith_traced,
+                trace_destination=dest,
             )
         )
 

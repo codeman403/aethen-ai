@@ -1,5 +1,15 @@
 """Aethen-AI Backend — FastAPI application."""
 
+import os
+
+# Disable LangSmith auto-tracing BEFORE any LangChain imports.
+# Auto-tracing floods LangSmith with every internal Aethen pipeline call
+# (LangGraph nodes, analysis, classify, synthesize).
+# Aethen uses explicit LangChainTracer callbacks only — those still work
+# regardless of this setting.
+os.environ["LANGSMITH_TRACING"] = "false"
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -8,11 +18,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
+from app.api.model_settings import router as model_settings_router
 from app.api.chat_sessions import router as chat_sessions_router
 from app.api.demo import router as demo_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
 from app.api.langfuse import router as langfuse_router
+from app.api.langsmith import router as langsmith_router
 from app.api.qc import router as qc_router
 from app.api.sessions import router as sessions_router
 from app.api.stats import router as stats_router
@@ -47,6 +59,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await neo4j_service.initialize()
     await postgres_service.initialize()
 
+    # Seed LLM model cache from Postgres (persisted selections survive restarts)
+    try:
+        from app.agents.llm import set_active_model
+        for role, key in [
+            ("analysis",  "model_analysis"),
+            ("synthesis", "model_synthesis"),
+            ("demo",      "model_demo"),
+        ]:
+            stored = await postgres_service.get_setting(key)
+            if stored:
+                set_active_model(role, stored)
+        # langsmith_last_pull_at is read per-request — no seeding needed
+    except Exception as exc:
+        logger.warning("model_cache_seed_failed", error=str(exc))
+
     yield
 
     # Shutdown
@@ -61,8 +88,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiting — 40 req/min, 200 req/hr per IP (added before CORS so it fires first)
-app.add_middleware(RateLimitMiddleware, per_minute=40, per_hour=200)
+# Rate limiting — applied before CORS so it fires first
+app.add_middleware(RateLimitMiddleware, per_minute=100, per_hour=1000)
 
 # CORS — allow frontend origin
 app.add_middleware(
@@ -83,3 +110,5 @@ app.include_router(demo_router, prefix="/api")
 app.include_router(langfuse_router, prefix="/api")
 app.include_router(sessions_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
+app.include_router(model_settings_router, prefix="/api")
+app.include_router(langsmith_router, prefix="/api")

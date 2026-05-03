@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, type ComponentType } from "react";
 import { MessageSquare, Cpu, Zap, ScanSearch, ChevronDown } from "lucide-react";
 
 function CollapsibleSection({ 
@@ -11,7 +11,7 @@ function CollapsibleSection({
   defaultOpen = false 
 }: { 
   title: string; 
-  icon: any; 
+  icon: ComponentType<{ className?: string }>; 
   count?: number; 
   children: ReactNode; 
   defaultOpen?: boolean; 
@@ -140,7 +140,6 @@ function isInternalState(prompt: unknown): boolean {
 }
 
 export function SessionContext({ session }: SessionContextProps) {
-  const agentId        = session.agent_id as string | undefined;
   const failureSummary = session.failure_summary as string | undefined;
   const llmCalls       = (session.llm_calls  as Record<string, unknown>[]) ?? [];
   const toolCalls      = (session.tool_calls as Record<string, unknown>[]) ?? [];
@@ -158,7 +157,7 @@ export function SessionContext({ session }: SessionContextProps) {
   if (!hasContent) return null;
 
   return (
-    <div className="rounded-xl border bg-card shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+    <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden">
       <div className="px-6 py-4 border-b bg-muted/10 flex items-center gap-2">
         <MessageSquare className="size-4 text-primary" />
         <div>
@@ -174,7 +173,7 @@ export function SessionContext({ session }: SessionContextProps) {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-2">
               <MessageSquare className="size-3.5" /> Failure Summary
             </p>
-            <p className="text-base text-amber-700 dark:text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3 shadow-inner">
+            <p className="text-base text-amber-700 dark:text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-2xl px-4 py-3 shadow-inner">
               {failureSummary}
             </p>
           </div>
@@ -197,32 +196,32 @@ export function SessionContext({ session }: SessionContextProps) {
                       </span>
                     )}
                     {Boolean(call.hallucination_flag) && (
-                      <span className="ml-auto px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium shadow-sm">
+                      <span className="ml-auto px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                         ⚠ Hallucination flagged
                       </span>
                     )}
                   </div>
 
                   <div>
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 ml-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 ml-1">
                       User Prompt
                     </p>
-                    <div className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-3 text-sm leading-relaxed select-text whitespace-pre-wrap shadow-inner" style={{ userSelect: "text" }}>
+                    <div className="bg-primary/5 border border-primary/10 rounded-2xl px-4 py-3 text-sm leading-relaxed select-text whitespace-pre-wrap shadow-inner" style={{ userSelect: "text" }}>
                       {promptText || <span className="text-muted-foreground italic">Not captured</span>}
                     </div>
                   </div>
 
                   <div>
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 ml-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 ml-1">
                       Agent Response
                     </p>
-                    <div className="bg-card border rounded-xl px-4 py-3 text-sm leading-relaxed select-text whitespace-pre-wrap shadow-sm" style={{ userSelect: "text" }}>
+                    <div className="bg-card border rounded-2xl px-4 py-3 text-sm leading-relaxed select-text whitespace-pre-wrap shadow-[0_8px_30px_rgb(0,0,0,0.04)]" style={{ userSelect: "text" }}>
                       {replyText || <span className="text-muted-foreground italic">Not captured</span>}
                     </div>
                   </div>
 
                   {Boolean(call.tokens_in ?? call.tokens_out ?? call.latency_ms) && (
-                    <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-lg w-fit">
+                    <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-xl w-fit">
                       {call.tokens_in != null && <span>{call.tokens_in as number}↑ in</span>}
                       {call.tokens_out != null && <span>{call.tokens_out as number}↓ out</span>}
                       {call.latency_ms != null && <span>{(call.latency_ms as number).toLocaleString()}ms</span>}
@@ -246,10 +245,10 @@ export function SessionContext({ session }: SessionContextProps) {
                   ? "border-amber-500/20 bg-amber-500/5"
                   : "border-rose-500/20 bg-rose-500/5";
                 return (
-                  <div key={i} className={`rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow ${borderColor}`}>
+                  <div key={i} className={`rounded-2xl border p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-shadow ${borderColor}`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-mono text-xs font-bold truncate pr-2">{tc.tool_name as string}</span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                      <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                         status === "success" ? "bg-emerald-500/10 text-emerald-600" :
                         status === "timeout" ? "bg-amber-500/10 text-amber-600" : "bg-rose-500/10 text-rose-600"
                       }`}>{status}</span>
@@ -257,7 +256,7 @@ export function SessionContext({ session }: SessionContextProps) {
                     {Boolean(tc.error) && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2 bg-rose-500/10 p-2 rounded-md border border-rose-500/20">{extractPlainText(tc.error)}</p>}
                     {tc.latency_ms != null && (
                       <div className="mt-2 text-right">
-                        <span className="text-[10px] font-mono text-muted-foreground bg-background/50 px-2 py-0.5 rounded">{(tc.latency_ms as number).toLocaleString()}ms</span>
+                        <span className="text-xs font-mono text-muted-foreground bg-background/50 px-2 py-0.5 rounded">{(tc.latency_ms as number).toLocaleString()}ms</span>
                       </div>
                     )}
                   </div>
@@ -276,7 +275,7 @@ export function SessionContext({ session }: SessionContextProps) {
                 const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
                 const noResults = (ev.chunks_returned as number) === 0;
                 return (
-                  <div key={i} className={`rounded-xl border p-4 shadow-sm transition-shadow hover:shadow-md ${noResults ? "border-rose-500/20 bg-rose-500/5" : "border-border bg-card"}`}>
+                  <div key={i} className={`rounded-2xl border p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-shadow hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] ${noResults ? "border-rose-500/20 bg-rose-500/5" : "border-border border-border/50 bg-card hover:border-primary/20 transition-all duration-300"}`}>
                     <div className="flex items-start gap-3">
                       <div className="p-1.5 bg-muted rounded-md shrink-0">
                         <ScanSearch className="size-4 text-muted-foreground" />

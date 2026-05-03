@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_base_url: str = "https://us.cloud.langfuse.com"
 
+    # LangSmith
+    langsmith_api_key: str = ""
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_project: str = "Aethen"
+
     # Frontend
     frontend_url: str = "http://localhost:3000"
 

@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 from scripts.generate_traces import generate_traces
-from app.models.trace import Session
+from app.models.trace import FailureType, Session
 from app.services.neo4j_service import neo4j_service
 from app.services.postgres_service import postgres_service
 from app.services.pinecone_service import pinecone_service
@@ -127,20 +127,24 @@ async def seed_pinecone(sessions: list[Session]) -> tuple[int, int]:
     return total, errors
 
 
-async def run(count: int) -> None:
+async def run(count: int, no_reset: bool = False, analyze: bool = False) -> None:
     # Initialise all services
     await postgres_service.initialize()
     await neo4j_service.initialize()
     await embedding_service.initialize()
     await pinecone_service.initialize()
 
-    # ── Reset ─────────────────────────────────────────────────────────────
-    await reset_postgres()
-    await reset_neo4j()
-    await reset_pinecone()
+    # ── Reset (skipped with --no-reset) ───────────────────────────────────
+    if no_reset:
+        print("\n[*] --no-reset: skipping store wipe — appending to existing data")
+    else:
+        await reset_postgres()
+        await reset_neo4j()
+        await reset_pinecone()
 
     # ── Generate fresh sessions ───────────────────────────────────────────
-    print(f"\n[4/6] Generating {count} fresh synthetic sessions …")
+    step = "2" if no_reset else "4"
+    print(f"\n[{step}/6] Generating {count} fresh synthetic sessions …")
     raw = generate_traces(count)
     sessions = [Session(**s) for s in raw]
     print(f"  Sessions generated: {len(sessions)}")
@@ -181,16 +185,66 @@ async def run(count: int) -> None:
 
     print(f"{'─' * 56}\n")
 
+    # ── Optional: run LangGraph analysis on all failure sessions ─────────
+    if analyze:
+        await analyze_sessions(sessions)
+
     await neo4j_service.close()
     await postgres_service.close()
+
+
+async def analyze_sessions(sessions: list[Session]) -> None:
+    """Run LangGraph analysis on all failure sessions and cache the reports.
+
+    Skips success sessions (synthesize returns a clean empty report immediately).
+    Only analyzes sessions with actual failure_type set to avoid wasting LLM calls.
+    """
+    from app.agents.graph import analysis_graph
+    from app.agents.state import AnalysisReport as AgentAnalysisReport
+
+    failure_sessions = [s for s in sessions if s.failure_type is not None]
+    print(f"\n[+] Running analysis on {len(failure_sessions)} failure sessions (skipping {len(sessions) - len(failure_sessions)} success sessions)…")
+    print("    This runs the full LangGraph pipeline — expect ~25s per session.\n")
+
+    ok = 0
+    skipped = 0
+    errors  = 0
+
+    for i, session in enumerate(failure_sessions, 1):
+        try:
+            # Skip if already cached
+            cached = await postgres_service.get_analysis_report(session.session_id)
+            if cached:
+                skipped += 1
+                continue
+
+            result = await analysis_graph.ainvoke({"session": session})
+            report = AgentAnalysisReport(**result["report"])
+
+            if report.failure_type and report.failure_type != FailureType.UNKNOWN:
+                await postgres_service.update_failure_type(session.session_id, str(report.failure_type))
+
+            await postgres_service.save_analysis_report(session.session_id, report.model_dump(mode="json"))
+            ok += 1
+            print(f"  [{i}/{len(failure_sessions)}] ✓ {session.session_id} — {report.failure_type} ({len(report.findings)} findings)")
+
+        except Exception as exc:
+            errors += 1
+            print(f"  [{i}/{len(failure_sessions)}] ✗ {session.session_id}: {exc}")
+
+    print(f"\n  Analysis complete: {ok} ok, {skipped} already cached, {errors} errors")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Reset all stores and reseed with clean data")
     parser.add_argument("--count", type=int, default=500,
                         help="Number of sessions to generate (default: 500)")
+    parser.add_argument("--no-reset", action="store_true",
+                        help="Skip store wipe — append new sessions to existing data")
+    parser.add_argument("--analyze", action="store_true",
+                        help="Run LangGraph analysis on all failure sessions after seeding (~25s each)")
     args = parser.parse_args()
-    asyncio.run(run(args.count))
+    asyncio.run(run(args.count, no_reset=args.no_reset, analyze=args.analyze))
 
 
 if __name__ == "__main__":

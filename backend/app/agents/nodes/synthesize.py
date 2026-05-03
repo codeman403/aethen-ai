@@ -89,6 +89,20 @@ async def synthesize(state: AgentState) -> dict:
     failure_type = state.get("failure_type", FailureType.UNKNOWN)
     analysis = state.get("analysis", "")
 
+    # No failure detected — skip LLM and return a clean success report
+    if failure_type == FailureType.UNKNOWN or failure_type is None:
+        report = AnalysisReport(
+            session_id=session.session_id,
+            failure_type=failure_type,
+            summary="No failure detected. The session completed without identifiable issues.",
+            findings=[],
+            root_cause="",
+            confidence=1.0,
+            raw_analysis=analysis,
+        )
+        return {"report": report}
+
+
     context = (
         f"Session ID: {session.session_id}\n"
         f"Failure Type: {failure_type}\n"

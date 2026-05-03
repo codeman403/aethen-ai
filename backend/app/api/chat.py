@@ -34,9 +34,30 @@ class ChatRequest(Session):
     """Chat endpoint accepts a full Session object for analysis.
 
     Extends Session directly so the request body IS the session trace.
+    Set refresh=True to bypass the cached report and re-run the full pipeline
+    (e.g. after pipeline improvements or when cross-session data has grown).
     """
 
-    pass
+    refresh: bool = False
+
+
+def _has_analyzable_evidence(session: Session) -> bool:
+    """Return True if the session has enough evidence to run LangGraph analysis.
+
+    A session with no tool calls, no retrieval events, and no pre-set failure type
+    or outcome flag has nothing for the pipeline to ground its analysis in.
+    Running LangGraph on such sessions produces findings fabricated from cross-session
+    Pinecone data rather than from the actual trace.
+    """
+    if session.failure_type is not None:
+        return True
+    if session.outcome == "failure":
+        return True
+    if session.tool_calls:
+        return True
+    if session.retrieval_events:
+        return True
+    return False
 
 
 @router.post("/chat", response_model=ApiResponse[AnalysisReport])
@@ -54,6 +75,43 @@ async def analyze_session(request: ChatRequest) -> ApiResponse[AnalysisReport]:
     # Sanitize free-text fields before they reach the LLM pipeline
     if request.failure_summary:
         request.failure_summary = sanitize_input(request.failure_summary, "failure_summary")
+
+    # Guard: skip LangGraph if the session has no analyzable evidence.
+    # A session with no tool calls, no retrieval events, and no pre-set failure type
+    # has nothing for the pipeline to ground its analysis in — running it produces
+    # findings fabricated from cross-session Pinecone data, not from this session.
+    if not _has_analyzable_evidence(request):
+        logger.info("chat_skipped_no_evidence", session_id=request.session_id)
+        return ApiResponse(
+            data=AnalysisReport(
+                session_id=request.session_id,
+                failure_type=FailureType.UNKNOWN,
+                confidence=1.0,
+                summary=(
+                    "No failure signals detected in this session. "
+                    "The interaction completed with no tool errors, retrieval issues, "
+                    "or other indicators of agent failure."
+                ),
+                root_cause="",
+                findings=[],
+                recommendations=["No action required — this session completed successfully."],
+            ),
+            metadata=ResponseMetadata(request_id=request_id, duration_ms=0.0),
+        )
+
+    # Cache check — return persisted report unless caller requests a fresh run.
+    # Session traces are immutable once ingested; re-running the pipeline on the
+    # same trace produces different phrasing (Pinecone ANN is non-deterministic)
+    # without adding diagnostic value. Use refresh=True after pipeline updates
+    # or when cross-session evidence has grown substantially.
+    if not request.refresh:
+        cached = await postgres_service.get_analysis_report(request.session_id)
+        if cached:
+            logger.info("chat_cache_hit", session_id=request.session_id)
+            return ApiResponse(
+                data=AnalysisReport(**cached),
+                metadata=ResponseMetadata(request_id=request_id, duration_ms=0.0),
+            )
 
     # Langfuse tracing — gracefully skipped when credentials are absent
     handler, langfuse_client = make_langfuse_handler()
@@ -81,6 +139,11 @@ async def analyze_session(request: ChatRequest) -> ApiResponse[AnalysisReport]:
             await postgres_service.update_failure_type(
                 request.session_id, str(report.failure_type)
             )
+
+        # Cache the report so repeat analyses return stable results instantly.
+        await postgres_service.save_analysis_report(
+            request.session_id, report.model_dump(mode="json")
+        )
 
         duration_ms = (time.perf_counter() - start) * 1000
 
@@ -123,6 +186,7 @@ class HistoryMessage(BaseModel):
 class FreeformRequest(BaseModel):
     query: str
     history: list[HistoryMessage] = []
+    model: str | None = None  # optional per-request model override
 
 
 _SEVERITY_THRESHOLDS = {"critical": 100, "high": 50, "medium": 20}
@@ -150,7 +214,7 @@ def _extract_session_id_from_history(history: list[HistoryMessage]) -> str | Non
     return None
 
 
-async def _handle_general(query: str, history: list[HistoryMessage]) -> dict:
+async def _handle_general(query: str, history: list[HistoryMessage], model: str | None = None) -> dict:
     """Focused conversational responder for all general/recall/meta queries.
 
     Returns one of:
@@ -196,7 +260,8 @@ async def _handle_general(query: str, history: list[HistoryMessage]) -> dict:
     prompt = f"Conversation history:\n{history_text}\n\nUser: {query}"
 
     try:
-        llm = get_anthropic_llm()
+        from app.agents.llm import _make_llm, _is_anthropic
+        llm = _make_llm(model, 0, 2000) if model else get_anthropic_llm()
         resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=prompt)])
         text = (resp.content if hasattr(resp, "content") else str(resp)).strip()
 
@@ -657,7 +722,7 @@ async def freeform_query(request: FreeformRequest) -> ApiResponse[AnalysisReport
 
     try:
         if intent == "general":
-            general_result = await _handle_general(query, request.history)
+            general_result = await _handle_general(query, request.history, model=request.model)
 
             if general_result["type"] == "diagnose":
                 # User implicitly consented to a diagnosis Aethen previously offered.

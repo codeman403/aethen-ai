@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/pull-langfuse",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/pull-langsmith",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

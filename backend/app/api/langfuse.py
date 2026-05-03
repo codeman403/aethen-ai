@@ -3,12 +3,14 @@
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
+from app.agents.graph import analysis_graph
+from app.agents.state import AnalysisReport
 from app.config import settings
 from app.models.response import ApiResponse
-from app.models.trace import IngestResult
+from app.models.trace import FailureType, IngestResult, Session
 from app.providers.langfuse_provider import LangfuseProvider
 from app.services.neo4j_service import neo4j_service
 from app.services.pinecone_service import pinecone_service
@@ -32,6 +34,54 @@ class LangfuseHealthResponse(BaseModel):
     detail: str
 
 
+def _has_analyzable_evidence(session: Session) -> bool:
+    """Return True if the session has enough evidence to run LangGraph analysis."""
+    if session.failure_type is not None:
+        return True
+    if session.outcome == "failure":
+        return True
+    if session.tool_calls:
+        return True
+    if session.retrieval_events:
+        return True
+    return False
+
+
+async def _analyze_sessions_background(session_ids: list[str]) -> None:
+    """Run analysis pipeline for newly ingested sessions, sequentially.
+
+    Skips sessions that already have a cached report or no analyzable evidence.
+    No Langfuse callbacks — background runs should not appear in Trace Explorer.
+    """
+    for session_id in session_ids:
+        try:
+            # Skip if already cached
+            cached = await postgres_service.get_analysis_report(session_id)
+            if cached:
+                continue
+
+            session_data = await postgres_service.get_session(session_id)
+            if not session_data:
+                continue
+
+            session = Session(**session_data)
+            if not _has_analyzable_evidence(session):
+                logger.info("background_analysis_skipped_no_evidence", session_id=session_id)
+                continue
+
+            result = await analysis_graph.ainvoke({"session": session})
+            report = AnalysisReport(**result["report"])
+
+            if report.failure_type and report.failure_type != FailureType.UNKNOWN:
+                await postgres_service.update_failure_type(session_id, str(report.failure_type))
+
+            await postgres_service.save_analysis_report(session_id, report.model_dump(mode="json"))
+            logger.info("background_analysis_complete", session_id=session_id, failure_type=str(report.failure_type))
+
+        except Exception as exc:
+            logger.error("background_analysis_failed", session_id=session_id, error=str(exc))
+
+
 def _get_provider() -> LangfuseProvider:
     """Get a configured LangfuseProvider, or raise if not configured."""
     if not settings.langfuse_public_key or not settings.langfuse_secret_key:
@@ -47,7 +97,10 @@ def _get_provider() -> LangfuseProvider:
 
 
 @router.post("/langfuse/pull", response_model=ApiResponse[IngestResult])
-async def pull_langfuse_traces(request: LangfusePullRequest) -> ApiResponse[IngestResult]:
+async def pull_langfuse_traces(
+    request: LangfusePullRequest,
+    background_tasks: BackgroundTasks,
+) -> ApiResponse[IngestResult]:
     """Pull NEW traces from Langfuse since the last pull, adapt, and ingest.
 
     Uses an incremental watermark stored in Postgres so only traces created
@@ -77,6 +130,7 @@ async def pull_langfuse_traces(request: LangfusePullRequest) -> ApiResponse[Inge
     errors: list[str] = []
     total_events = 0
     sessions_ok = 0
+    ingested_ids: list[str] = []
 
     for session in sessions:
         event_count = len(session.llm_calls) + len(session.tool_calls) + len(session.retrieval_events)
@@ -100,6 +154,7 @@ async def pull_langfuse_traces(request: LangfusePullRequest) -> ApiResponse[Inge
 
         await postgres_service.save_session(session)
         sessions_ok += 1
+        ingested_ids.append(session.session_id)
         logger.info("langfuse_session_ingested", session_id=session.session_id, events=event_count)
 
     if neo4j_service.is_available:
@@ -112,13 +167,20 @@ async def pull_langfuse_traces(request: LangfusePullRequest) -> ApiResponse[Inge
     # Update watermark so next pull only fetches traces created after this pull started
     await postgres_service.set_setting("langfuse_last_pull_at", pull_started_at.isoformat())
 
+    # Queue background analysis for every newly ingested session.
+    # Runs sequentially after the response is sent — skips sessions already cached
+    # or with no analyzable evidence. No Langfuse callbacks (prevents meta-traces).
+    if ingested_ids:
+        background_tasks.add_task(_analyze_sessions_background, ingested_ids)
+
     result = IngestResult(
         sessions_ingested=sessions_ok,
         events_processed=total_events,
+        analyses_queued=len(ingested_ids),
         errors=errors,
     )
     logger.info("langfuse_pull_complete", sessions=sessions_ok, events=total_events,
-                watermark=pull_started_at.isoformat())
+                analyses_queued=len(ingested_ids), watermark=pull_started_at.isoformat())
     return ApiResponse(data=result)
 
 

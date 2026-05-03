@@ -3,10 +3,10 @@ export default function TracesLoading() {
     <div className="flex-1 p-6 space-y-5 animate-pulse">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="h-7 w-36 rounded-lg bg-white/10" />
+        <div className="h-7 w-36 rounded-xl bg-white/10" />
         <div className="flex gap-2">
-          <div className="h-9 w-40 rounded-lg bg-white/10" />
-          <div className="h-9 w-32 rounded-lg bg-white/10" />
+          <div className="h-9 w-40 rounded-xl bg-white/10" />
+          <div className="h-9 w-32 rounded-xl bg-white/10" />
         </div>
       </div>
 
@@ -22,13 +22,13 @@ export default function TracesLoading() {
         {Array.from({ length: 8 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-xl border border-white/10 bg-white/5 p-4 flex items-center gap-4"
+            className="rounded-2xl border border-white/10 bg-white/5 p-4 flex items-center gap-4"
           >
             <div className="h-5 w-24 rounded bg-white/10" />
             <div className="h-4 flex-1 rounded bg-white/10" />
             <div className="h-5 w-20 rounded-full bg-white/10" />
             <div className="h-4 w-16 rounded bg-white/10" />
-            <div className="h-8 w-24 rounded-lg bg-white/10" />
+            <div className="h-8 w-24 rounded-xl bg-white/10" />
           </div>
         ))}
       </div>

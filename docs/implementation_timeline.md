@@ -852,6 +852,58 @@ Layer 1 (`_infer_failure_type`) is kept because:
 
 ---
 
+## LangGraph Analysis Guard — No-Evidence Short-Circuit — 2026-04-30 (Session 18)
+
+### The Problem
+Sending a simple greeting ("hi") to the Demo Agent produced a full LangGraph analysis report
+with high-severity findings about "critically low similarity scores" and "duplicate chunk retrieval."
+The session had zero tool calls, zero retrieval events, and no failure signals — yet the pipeline
+ran, pulled cross-session synthetic data from Pinecone, and synthesis fabricated findings from it
+as if they belonged to the current session.
+
+### Root Cause
+The retrieve nodes (`vector_retrieve`, `graph_traverse`) run unconditionally and query Pinecone/Neo4j
+regardless of whether the current session has any failure evidence. With no session-specific data,
+synthesis has nothing to ground its findings in — it writes its report entirely from cross-session
+retrieval results, presenting them as findings about a session they don't belong to.
+
+### Decision: API-level guard in `POST /api/chat` before LangGraph is invoked
+
+**Chosen:** `_has_analyzable_evidence(session)` check at the API boundary. Returns False only when
+ALL of the following are true: `failure_type=None`, `outcome != 'failure'`, `tool_calls=[]`,
+`retrieval_events=[]`. If False, return a clean "no failure signals" report immediately — LangGraph
+is never invoked, zero LLM cost, zero latency.
+
+**Rejected:**
+- Short-circuiting inside LangGraph (adds complexity to the graph logic)
+- Synthesis prompt constraint ("only use session-specific evidence") — LLMs are hard to constrain reliably
+- UI-level filtering only — still allows the API to be called with bad data
+
+**Guard truth table — verified against all session types:**
+
+| Session type | tool_calls | retrieval_events | failure_type | outcome | Guard result |
+|---|---|---|---|---|---|
+| Greeting ("hi") | 0 | 0 | None | success | ⛔ skip — "no failure signals" |
+| Tool misfire (PermissionError) | 1 (failed) | 0 | tool_misfire | success | ✅ analyze |
+| Tool misfire (ConnectionError) | 1 (failed) | 0 | tool_misfire | success | ✅ analyze |
+| Memory (billing, low scores) | 0 | 1 | memory | success | ✅ analyze |
+| Hallucination (PKCE, high scores) | 0 | 1 | None | success | ✅ analyze |
+| Blind spot (scenario button, scripted) | 0 | 0 | blind_spot | success | ✅ analyze (failure_type set) |
+| Hallucination (scenario button, scripted) | 0 | 0 | hallucination | success | ✅ analyze (failure_type set) |
+| Success baseline (ticket created) | 1 (success) | 0 | None | success | ✅ analyze (has tool_calls) |
+| Seeded synthetic sessions | varies | varies | set | success | ✅ analyze |
+
+**Why `failure_type` alone isn't sufficient:** Demo agent tool misfire sessions have `failure_type=tool_misfire`
+set by the heuristic — but `tool_calls=[]` in Postgres because Phase 1 runs without Langfuse callbacks.
+The guard correctly passes these via the `failure_type` branch. Future sessions from real agents that DO
+have structured tool call observations are covered by the `tool_calls` branch.
+
+**Implementation:** `backend/app/api/chat.py` — `_has_analyzable_evidence(session)` helper before
+the Langfuse handler and LangGraph invocation. Returns a static `AnalysisReport` with
+`failure_type=UNKNOWN, confidence=1.0, findings=[]` for clean sessions.
+
+---
+
 ## Decisions Still Open / To Monitor
 
 | Decision | Status | Notes |

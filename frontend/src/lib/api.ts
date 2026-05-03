@@ -9,6 +9,8 @@ async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, b
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
+      // 503 = provider not configured — don't retry, return immediately
+      if (res.status === 503) return res;
       if (!res.ok && (res.status >= 500 || res.status === 429)) {
         if (i === retries - 1) return res;
       } else {
@@ -36,8 +38,83 @@ export interface DashboardStats {
   total_sessions: number;
   failure_breakdown: FailureBreakdown;
   recent_sessions: number;
+  today_sessions: number;
   daily_counts: number[];
   reliability_score: number;
+  reliability_score_7d: number;
+  daily_by_type?: {
+    memory: number;
+    tool_misfire: number;
+    hallucination: number;
+    blind_spot: number;
+  };
+}
+
+export interface TrendPoint {
+  date: string;
+  memory: number;
+  tool_misfire: number;
+  hallucination: number;
+  blind_spot: number;
+  total: number;
+}
+
+export interface PatternsData {
+  blind_spots: { topic: string; count: number }[];
+  clusters: { failure_type: string; session_count: number; sample_ids: string[]; agents: string[] }[];
+  agent_failures: { agent: string; failure_type: string; count: number; total_sessions: number }[];
+  model_failures: { model: string; failure_type: string; count: number }[];
+  neo4j_available: boolean;
+}
+
+export interface AgentProfile {
+  agent_id: string;
+  total: number;
+  total_failures: number;
+  memory: number;
+  tool_misfire: number;
+  hallucination: number;
+  blind_spot: number;
+  success_rate: number;
+  last_seen: string | null;
+}
+
+export interface RecommendationItem {
+  session_id: string;
+  agent_id: string;
+  failure_type: string | null;
+  session_ts: string | null;
+  title: string;
+  severity: string;
+  recommendation: string;
+}
+
+export async function fetchRecommendations(): Promise<RecommendationItem[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/stats/recommendations`);
+  const body: ApiResponse<RecommendationItem[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function fetchAgentProfiles(): Promise<AgentProfile[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/stats/agents`);
+  const body: ApiResponse<AgentProfile[]> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function fetchPatterns(): Promise<PatternsData> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/stats/patterns`);
+  const body: ApiResponse<PatternsData> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? { blind_spots: [], clusters: [], agent_failures: [], model_failures: [], neo4j_available: false };
+}
+
+export async function fetchTrends(days: number = 30): Promise<TrendPoint[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/stats/trends?days=${days}`);
+  const body: ApiResponse<{ points: TrendPoint[]; days: number }> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data?.points ?? [];
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
@@ -48,23 +125,46 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   return body.data;
 }
 
-// ── Langfuse ───────────────────────────────────────────────────────────────
+// ── Trace Pull (Langfuse + LangSmith) ────────────────────────────────────
 
-export interface LangfusePullResult {
+export interface TracePullResult {
   sessions_ingested: number;
   events_processed: number;
+  analyses_queued?: number;
   errors: string[];
 }
 
-export async function pullLangfuseTraces(limit: number = 20): Promise<LangfusePullResult> {
+export async function pullLangfuseTraces(limit: number = 20): Promise<TracePullResult | null> {
   const res = await fetchWithRetry(`${BASE_URL}/api/langfuse/pull`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ limit }),
   });
-  const body: ApiResponse<LangfusePullResult> = await res.json();
+  if (res.status === 503) return null; // not configured — skip silently
+  const body: ApiResponse<TracePullResult> = await res.json();
   if (body.error) throw new Error(body.error);
   if (!body.data) throw new Error("No data returned from Langfuse pull");
+  return body.data;
+}
+
+export async function pullLangsmithTraces(limit: number = 20): Promise<TracePullResult | null> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/langsmith/pull`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ limit }),
+  });
+  if (res.status === 503) return null; // not configured — skip silently
+  const body: ApiResponse<TracePullResult> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No data returned from LangSmith pull");
+  return body.data;
+}
+
+export async function checkLangsmithHealth(): Promise<{ status: string; detail: string }> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/langsmith/health`);
+  const body: ApiResponse<{ status: string; detail: string }> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No health data");
   return body.data;
 }
 
@@ -76,6 +176,7 @@ export interface QualityCheck {
   detail: string;
   count: number;
   flagged: number;
+  flagged_session_ids: string[];
 }
 
 export interface SourceReport {
@@ -100,6 +201,65 @@ export async function fetchQualityReport(): Promise<DataQualityReport> {
   return body.data;
 }
 
+// ── Model Settings ─────────────────────────────────────────────────────────
+
+export interface ModelOption {
+  id: string;
+  label: string;
+  description: string;
+  provider: string;
+}
+
+export interface RoleConfig {
+  role: string;
+  role_label: string;
+  role_subtitle: string;
+  current_model: string;
+  current_provider: string;
+  options: ModelOption[];
+}
+
+export interface ModelSettingsData {
+  roles: RoleConfig[];
+}
+
+export interface TestModelResult {
+  ok: boolean;
+  model_id: string;
+  provider: string;
+  message: string;
+}
+
+export async function fetchModelSettings(): Promise<ModelSettingsData> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/models`);
+  const body: ApiResponse<ModelSettingsData> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No model settings returned");
+  return body.data;
+}
+
+export async function updateModelSetting(role: string, model_id: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/models`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, model_id }),
+  });
+  const body: ApiResponse<unknown> = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+export async function testModelConnectivity(model_id: string): Promise<TestModelResult> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/models/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model_id }),  // provider inferred server-side from model name
+  });
+  const body: ApiResponse<TestModelResult> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No test result returned");
+  return body.data;
+}
+
 // ── Demo Agent ─────────────────────────────────────────────────────────────
 
 export interface DemoRunResult {
@@ -109,6 +269,8 @@ export interface DemoRunResult {
   assistant_response: string;
   session_id: string;
   langfuse_traced: boolean;
+  langsmith_traced: boolean;
+  trace_destination: string;
 }
 
 export interface ScenarioInfo {
@@ -127,11 +289,14 @@ export interface DemoChatResult {
   assistant_response: string;
   session_id: string;
   langfuse_traced: boolean;
+  langsmith_traced: boolean;
+  trace_destination: string;
 }
 
 export interface DemoSession {
   id: string;
   title: string;
+  trace_destination: string;
   message_count: number;
   created_at: string | null;
   updated_at: string | null;
@@ -149,12 +314,13 @@ export interface DemoStoredMessage {
 export async function sendDemoChat(
   message: string,
   history: DemoChatMessage[] = [],
-  sessionId: string | null = null
+  sessionId: string | null = null,
+  traceDestination: string = "langfuse"
 ): Promise<DemoChatResult> {
   const res = await fetchWithRetry(`${BASE_URL}/api/demo/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history, session_id: sessionId }),
+    body: JSON.stringify({ message, history, session_id: sessionId, trace_destination: traceDestination }),
   });
   const body: ApiResponse<DemoChatResult> = await res.json();
   if (body.error) throw new Error(body.error);
@@ -176,11 +342,11 @@ export async function getDemoMessages(sessionId: string): Promise<DemoStoredMess
   return body.data ?? [];
 }
 
-export async function runDemoScenario(scenario: string): Promise<DemoRunResult> {
+export async function runDemoScenario(scenario: string, traceDestination: string = "langfuse"): Promise<DemoRunResult> {
   const res = await fetchWithRetry(`${BASE_URL}/api/demo/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scenario }),
+    body: JSON.stringify({ scenario, trace_destination: traceDestination }),
   });
   const body: ApiResponse<DemoRunResult> = await res.json();
   if (body.error) throw new Error(body.error);
@@ -206,6 +372,7 @@ export interface SessionSummary {
   llm_calls: number;
   tool_calls: number;
   retrieval_events: number;
+  trace_source: string;  // "langfuse" | "langsmith" | "demo" | "synthetic"
 }
 
 export async function fetchAllSessions(): Promise<SessionSummary[]> {
@@ -329,11 +496,12 @@ export async function renameChatSession(sessionId: string, title: string): Promi
 export async function sendFreeformQuery(
   query: string,
   history: ChatHistoryMessage[] = [],
+  model?: string,
 ): Promise<AnalysisReport> {
   const res = await fetchWithRetry(`${BASE_URL}/api/chat/freeform`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, history }),
+    body: JSON.stringify({ query, history, ...(model ? { model } : {}) }),
   });
   const body: ApiResponse<AnalysisReport> = await res.json();
   if (body.error) throw new Error(body.error);
@@ -342,12 +510,13 @@ export async function sendFreeformQuery(
 }
 
 export async function analyzeSession(
-  payload: object
+  payload: object,
+  refresh = false
 ): Promise<AnalysisReport> {
   const res = await fetchWithRetry(`${BASE_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, refresh }),
   });
   const body: ApiResponse<AnalysisReport> = await res.json();
   if (body.error) throw new Error(body.error);

@@ -25,7 +25,12 @@ export async function GET(request: Request) {
     });
 
     if (!res.ok) {
-      throw new Error(`Backend returned ${res.status}`);
+      const body = await res.json().catch(() => ({}));
+      const detail = body?.error ?? `Backend returned ${res.status}`;
+      if (res.status === 503) {
+        return NextResponse.json({ ok: true, skipped: true, reason: detail });
+      }
+      throw new Error(detail);
     }
 
     const data = await res.json();

@@ -49,6 +49,16 @@ class Neo4jService:
         self._driver = AsyncGraphDatabase.driver(
             settings.neo4j_uri,
             auth=(settings.neo4j_user, settings.neo4j_password),
+            # Recycle connections before Aura's idle timeout drops them.
+            # Neo4j Aura drops idle connections aggressively; keeping
+            # max_connection_lifetime well below that threshold prevents
+            # "defunct connection" errors on the next operation.
+            max_connection_lifetime=200,
+            # Liveness-check any connection idle for more than 2 seconds
+            # before returning it from the pool. A failed check causes the
+            # driver to open a fresh connection instead of raising an error.
+            liveness_check_timeout=2,
+            keep_alive=True,
         )
         try:
             await self._driver.verify_connectivity()
@@ -93,16 +103,46 @@ class Neo4jService:
     # Session ingestion — full 7-node / 10-relationship schema
     # ─────────────────────────────────────────────────────────────────────
 
+    async def _reconnect(self) -> None:
+        """Re-initialize the driver after a connection failure.
+
+        Called when a write operation hits a defunct-connection error so that
+        subsequent operations use a fresh connection pool rather than continuing
+        to fail against dead TCP connections.
+        """
+        if self._driver:
+            try:
+                await self._driver.close()
+            except Exception:
+                pass
+            self._driver = None
+        await self.initialize()
+
     async def create_session_node(self, session: Session) -> None:
         """Ingest a session into the graph with the full schema.
 
         Creates all node types and relationships in a single driver session.
         Uses MERGE on shared nodes (Chunk, BlindSpot, PromptVersion) to avoid
-        duplicates across sessions.
+        duplicates across sessions. Retries once on defunct-connection errors
+        by re-initializing the driver before the second attempt.
         """
         if not self.is_available:
             raise RuntimeError("Neo4jService not initialized")
 
+        try:
+            await self._write_session_node(session)
+        except Exception as exc:
+            if "defunct" in str(exc).lower() or "connection" in str(exc).lower():
+                logger.warning("neo4j_defunct_reconnecting", session_id=session.session_id)
+                await self._reconnect()
+                if not self.is_available:
+                    raise
+                await self._write_session_node(session)
+            else:
+                raise
+
+    async def _write_session_node(self, session: Session) -> None:
+        """Execute all Cypher writes for a session — called by create_session_node."""
         async with self._driver.session() as db:
             # ── 1. Session node ───────────────────────────────────────────
             await db.run(
@@ -378,6 +418,78 @@ class Neo4jService:
 
         return {"nodes": nodes, "relationships": rels}
 
+
+    async def get_failure_patterns(self) -> dict:
+        """Return cross-session failure patterns for the Pattern Clusters page."""
+        if not self.is_available:
+            return {"blind_spots": [], "clusters": [], "agent_failures": [], "model_failures": []}
+
+        async with self._driver.session() as db:
+            # Recurring blind spots — topics that hit zero chunks in multiple sessions
+            bs_result = await db.run(
+                """
+                MATCH (b:BlindSpot)
+                WHERE b.query_count > 0
+                RETURN b.topic AS topic, b.query_count AS count
+                ORDER BY count DESC
+                LIMIT 20
+                """
+            )
+            blind_spots = [{"topic": r["topic"], "count": r["count"]} async for r in bs_result]
+
+            # Failure type clusters — sessions grouped by shared failure type
+            cluster_result = await db.run(
+                """
+                MATCH (s:Session)-[:FAILED_WITH]->(f:FailureType)
+                WHERE s.failure_type <> ''
+                RETURN f.name AS failure_type,
+                       count(s) AS session_count,
+                       collect(s.session_id)[..5] AS sample_ids,
+                       collect(DISTINCT s.agent_id)[..5] AS agents
+                ORDER BY session_count DESC
+                """
+            )
+            clusters = [
+                {"failure_type": r["failure_type"], "session_count": r["session_count"],
+                 "sample_ids": list(r["sample_ids"]), "agents": list(r["agents"])}
+                async for r in cluster_result
+            ]
+
+            # Per-agent failure breakdown (with total session count for % calculation)
+            agent_result = await db.run(
+                """
+                MATCH (s:Session)
+                WHERE s.agent_id <> ''
+                WITH s.agent_id AS agent, count(*) AS total_sessions
+                MATCH (s2:Session)-[:FAILED_WITH]->(f:FailureType)
+                WHERE s2.agent_id = agent
+                RETURN agent, f.name AS failure_type, count(*) AS cnt, total_sessions
+                ORDER BY agent, cnt DESC
+                """
+            )
+            agent_rows = [{"agent": r["agent"], "failure_type": r["failure_type"], "count": r["cnt"], "total_sessions": r["total_sessions"]}
+                          async for r in agent_result]
+
+            # Per-model failure breakdown
+            model_result = await db.run(
+                """
+                MATCH (s:Session)-[:USES]->(pv:PromptVersion)
+                WHERE s.failure_type <> ''
+                RETURN pv.model AS model,
+                       s.failure_type AS failure_type,
+                       count(*) AS cnt
+                ORDER BY model, cnt DESC
+                """
+            )
+            model_rows = [{"model": r["model"], "failure_type": r["failure_type"], "count": r["cnt"]}
+                          async for r in model_result]
+
+        return {
+            "blind_spots": blind_spots,
+            "clusters": clusters,
+            "agent_failures": agent_rows,
+            "model_failures": model_rows,
+        }
 
     async def execute_read(self, query: str, params: dict | None = None) -> list:
         """Run a read-only Cypher query and return all records."""
