@@ -106,18 +106,6 @@ export default function HomePage() {
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, []);
 
-  const handleChartClick = useCallback((ev: { activeTooltipIndex?: number }) => {
-    const idx = ev?.activeTooltipIndex;
-    if (idx === undefined || idx === null) return;
-    const point = chartData[idx];
-    if (!point) return;
-    const isoDate = point.date; // chartData.date is already ISO
-    const nonZero = CHART_TYPES.filter(t => (point[t] ?? 0) > 0);
-    const params = new URLSearchParams({ dateFrom: isoDate, dateTo: isoDate });
-    if (nonZero.length === 1) params.set("type", nonZero[0]);
-    router.push(`/traces?${params.toString()}`);
-  }, [router, chartData]);
-
   const fb  = stats?.failure_breakdown;
   const dbt = stats?.daily_by_type;
   const total = stats?.total_sessions ?? 0;
@@ -216,6 +204,18 @@ export default function HomePage() {
     return days;
   })();
   const hasAnyFailure = chartData.some(d => d.memory + d.tool_misfire + d.hallucination + d.blind_spot > 0);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleChartClick = useCallback((ev: { activeTooltipIndex?: number }) => {
+    const idx = ev?.activeTooltipIndex;
+    if (idx === undefined || idx === null) return;
+    const point = chartData[idx];
+    if (!point) return;
+    const nonZero = CHART_TYPES.filter(t => (point[t] ?? 0) > 0);
+    const params = new URLSearchParams({ dateFrom: point.date, dateTo: point.date });
+    if (nonZero.length === 1) params.set("type", nonZero[0]);
+    router.push(`/traces?${params.toString()}`);
+  }, [router, chartData]);
 
   // Data-driven alerts — only show entries that have real signal
   const alerts = [
