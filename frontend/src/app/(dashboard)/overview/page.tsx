@@ -106,16 +106,17 @@ export default function HomePage() {
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, []);
 
-  const handleChartClick = useCallback((data: Record<string, unknown>) => {
-    if (!data?.activePayload) return;
-    const payloads = data.activePayload as { dataKey: string; value: number; payload: Record<string, unknown> }[];
-    const isoDate = payloads[0]?.payload?.date as string | undefined;
-    if (!isoDate) return;
-    const nonZero = payloads.filter(p => CHART_TYPES.includes(p.dataKey as typeof CHART_TYPES[number]) && p.value > 0);
+  const handleChartClick = useCallback((ev: { activeTooltipIndex?: number }) => {
+    const idx = ev?.activeTooltipIndex;
+    if (idx === undefined || idx === null) return;
+    const point = chartData[idx];
+    if (!point) return;
+    const isoDate = point.date; // chartData.date is already ISO
+    const nonZero = CHART_TYPES.filter(t => (point[t] ?? 0) > 0);
     const params = new URLSearchParams({ dateFrom: isoDate, dateTo: isoDate });
-    if (nonZero.length === 1) params.set("type", nonZero[0].dataKey);
+    if (nonZero.length === 1) params.set("type", nonZero[0]);
     router.push(`/traces?${params.toString()}`);
-  }, [router]);
+  }, [router, chartData]);
 
   const fb  = stats?.failure_breakdown;
   const dbt = stats?.daily_by_type;

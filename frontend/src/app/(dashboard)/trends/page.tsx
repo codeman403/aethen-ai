@@ -78,16 +78,18 @@ export default function TrendsPage() {
   // Preserve isoDate alongside formatted label so click handler can build URLs
   const chartData = data.map(p => ({ ...p, isoDate: p.date, date: fmt(p.date) }));
 
-  const handleChartClick = useCallback((chartEvent: Record<string, unknown>) => {
-    if (!chartEvent?.activePayload) return;
-    const payloads = chartEvent.activePayload as { dataKey: string; value: number; payload: Record<string, unknown> }[];
-    const isoDate = payloads[0]?.payload?.isoDate as string | undefined;
+  const handleChartClick = useCallback((ev: { activeTooltipIndex?: number }) => {
+    const idx = ev?.activeTooltipIndex;
+    if (idx === undefined || idx === null) return;
+    const point = chartData[idx];
+    if (!point) return;
+    const isoDate = (point as { isoDate?: string }).isoDate;
     if (!isoDate) return;
-    const nonZero = payloads.filter(p => CHART_TYPE_KEYS.includes(p.dataKey as typeof CHART_TYPE_KEYS[number]) && p.value > 0);
+    const nonZero = CHART_TYPE_KEYS.filter(t => ((point as Record<string, number>)[t] ?? 0) > 0);
     const params = new URLSearchParams({ dateFrom: isoDate, dateTo: isoDate });
-    if (nonZero.length === 1) params.set("type", nonZero[0].dataKey);
+    if (nonZero.length === 1) params.set("type", nonZero[0]);
     router.push(`/traces?${params.toString()}`);
-  }, [router]);
+  }, [router, chartData]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
