@@ -118,7 +118,11 @@ async def pull_langfuse_traces(
             since = None
 
     pull_started_at = datetime.now(UTC)
-    sessions = await provider.fetch_traces(limit=request.limit, since=since)
+    try:
+        sessions = await provider.fetch_traces(limit=request.limit, since=since)
+    except Exception as exc:
+        logger.error("langfuse_fetch_failed", error=str(exc))
+        return ApiResponse(data=IngestResult(sessions_ingested=0, events_processed=0, errors=[str(exc)]))
     logger.info("langfuse_incremental_pull", since=watermark_str or "first-pull", fetched=len(sessions))
 
     if not sessions:

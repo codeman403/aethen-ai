@@ -129,7 +129,8 @@ SELECT
     COALESCE(trace_source, 'langfuse')                                   AS trace_source,
     COALESCE(jsonb_array_length(session_data->'llm_calls'), 0)          AS llm_calls,
     COALESCE(jsonb_array_length(session_data->'tool_calls'), 0)         AS tool_calls,
-    COALESCE(jsonb_array_length(session_data->'retrieval_events'), 0)   AS retrieval_events
+    COALESCE(jsonb_array_length(session_data->'retrieval_events'), 0)   AS retrieval_events,
+    (analysis_report IS NOT NULL)                                        AS has_report
 FROM sessions
 ORDER BY COALESCE(session_ts, created_at) DESC LIMIT $1 OFFSET $2
 """
@@ -354,6 +355,7 @@ class PostgresService:
                 "tool_calls": r["tool_calls"],
                 "retrieval_events": r["retrieval_events"],
                 "trace_source": r["trace_source"],
+                "has_report": bool(r["has_report"]),
             }
             for r in rows
         ]
