@@ -33,7 +33,11 @@ const FAILURE_TYPE_CONFIG: Record<string, { label: string; color: string; bg: st
 };
 
 function FailureBadge({ type }: { type: string | null }) {
-  if (!type) return <span className="text-xs text-muted-foreground">—</span>;
+  if (!type) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+      <CheckCircle2 className="size-3" />Success
+    </span>
+  );
   const cfg = FAILURE_TYPE_CONFIG[type];
   if (!cfg) return <span className="text-xs text-muted-foreground">{type}</span>;
   const Icon = cfg.icon;
