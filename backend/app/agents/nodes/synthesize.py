@@ -100,7 +100,7 @@ async def synthesize(state: AgentState) -> dict:
             confidence=1.0,
             raw_analysis=analysis,
         )
-        return {"report": report}
+        return {"report": report.model_dump(mode="json")}
 
 
     context = (
