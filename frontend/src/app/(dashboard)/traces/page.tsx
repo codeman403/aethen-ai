@@ -14,6 +14,7 @@ import {
   type SessionSummary, type AnalysisReport, type Finding,
 } from "@/lib/api";
 import { AILoadingOverlay } from "@/components/ui/ai-loader";
+import { UTCDatePicker } from "@/components/ui/utc-date-picker";
 import { AnalysisMetrics } from "@/components/features/analysis/AnalysisMetrics";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ function formatTimestamp(ts: string | null | undefined): string {
   if (!ts) return "";
   return new Date(ts).toLocaleString("en-US", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone: "UTC",
   });
 }
 
@@ -151,9 +153,10 @@ export default function TracesPage() {
       if (outcomeFilter === "failure" && s.failure_type === null) return false;
       if (outcomeFilter === "success" && s.failure_type !== null) return false;
       if (s.timestamp) {
-        const d = new Date(s.timestamp).toISOString().slice(0, 10);
-        if (dateFrom && d < dateFrom) return false;
-        if (dateTo   && d > dateTo)   return false;
+        // Compare UTC dates — consistent with backend DATE_TRUNC(UTC) grouping
+        const utcDate = new Date(s.timestamp).toISOString().slice(0, 10);
+        if (dateFrom && utcDate < dateFrom) return false;
+        if (dateTo   && utcDate > dateTo)   return false;
       }
       if (search) {
         const q = search.toLowerCase();
@@ -366,19 +369,17 @@ export default function TracesPage() {
                   </div>
                 </div>
 
-                {/* Date range */}
+                {/* Date range — UTC calendar */}
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Date Range</p>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Date Range <span className="normal-case font-normal text-muted-foreground/60">(UTC)</span></p>
                   <div className="grid grid-cols-2 gap-1.5">
                     <div>
                       <p className="text-[9px] text-muted-foreground mb-0.5">From</p>
-                      <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                        className="w-full text-[11px] px-2 py-1 rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-foreground/80" />
+                      <UTCDatePicker value={dateFrom} onChange={setDateFrom} placeholder="From" />
                     </div>
                     <div>
                       <p className="text-[9px] text-muted-foreground mb-0.5">To</p>
-                      <input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)}
-                        className="w-full text-[11px] px-2 py-1 rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-foreground/80" />
+                      <UTCDatePicker value={dateTo} onChange={setDateTo} placeholder="To" />
                     </div>
                   </div>
                   {(dateFrom || dateTo) && (
