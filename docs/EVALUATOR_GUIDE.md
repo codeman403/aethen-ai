@@ -1,7 +1,7 @@
 # Evaluator Guide — Aethen-AI
 
-> 5 steps to see the full platform demo. Each step builds on the last.  
-> Total time: ~10 minutes.
+> 6 steps to see the full platform demo. Each step builds on the last.  
+> Total time: ~12 minutes.
 
 ---
 
@@ -10,9 +10,11 @@
 Open the live app → you land on the **Dashboard**.
 
 You'll see:
-- **500 pre-seeded agent sessions** across 4 failure types (Memory, Tool Misfire, Hallucination, Blind Spot)
-- **Reliability Score** — SVG gauge showing the health of all traced sessions
-- **Failure Distribution** — per-type breakdown with proportional bars
+- **700+ pre-seeded agent sessions** across 4 failure types spread over 30 days
+- **Reliability Score** — 7-day scoped SVG gauge (UTC)
+- **Failure Distribution** — interactive stacked bar chart; click any bar to drill into Trace Explorer filtered to that date + type
+- **Today's counts** — each metric card shows failures in the last 24 hours
+- **Recent Alerts** — data-driven from today's `daily_by_type` counts
 - **Recent Alerts** — clickable links to each analysis module
 
 The dashboard refreshes automatically every 60 seconds.
@@ -33,18 +35,11 @@ Each run is traced to **Langfuse** in real time (badge visible per turn). You ca
 
 ---
 
-## Step 3 — Pull traces + analyze on module pages
+## Step 3 — Pull traces + analyze
 
-Go back to the **Dashboard** → click **Pull Langfuse** (top right).
+Go back to the **Dashboard** → click **Pull Traces** (top right, dropdown to choose Langfuse or LangSmith).
 
-Aethen ingests the Demo Agent traces and classifies each one using GPT-4o-mini.
-
-Then navigate to any module page (e.g., **Memory Debug**):
-- You'll see the pulled sessions listed on the left
-- Click a session → the LangGraph pipeline runs: classify → vector retrieve → graph traverse → rerank → analyze → synthesize
-- The right panel shows the full analysis: root cause, confidence score, findings, and recommendations
-
-Repeat for **Tool Misfire**, **Hallucination RCA**, and **Blind Spots**.
+Aethen ingests the Demo Agent traces, classifies each one, and runs background analysis automatically.
 
 ---
 
@@ -52,14 +47,27 @@ Repeat for **Tool Misfire**, **Hallucination RCA**, and **Blind Spots**.
 
 Navigate to **Trace Explorer**.
 
-- Search by session ID or keyword
-- Filter by failure type using the tabs
-- Click any session to see its execution timeline: LLM calls, tool calls, retrieval events
-- Click **Run Analysis** to trigger the full LangGraph pipeline on any session
+- 🟢 Green dot = analysis already cached (loads instantly)
+- 🔴 Red dot = not yet analysed (runs ~25s pipeline on click)
+- Filter by failure type, source (Langfuse/LangSmith), status, date range (UTC calendar)
+- Click any session → 6-tab right panel: Session Context, Diagnosis, Findings, LLM Calls, Tool Calls, Retrieval Events
+- **Clickable charts**: click any bar in Failure Distribution or Failure Trends → opens Trace Explorer filtered to that date + type
 
 ---
 
-## Step 5 — Self-analysis via Chat Debug (strongest demo)
+## Step 5 — Insight pages
+
+Navigate through the **Analysis** sidebar section:
+
+- **Failure Trends** — 30-day stacked area chart per failure type, drill-down on click
+- **Pattern Clusters** — Neo4j graph: recurring blind spots, agent/model failure breakdowns
+- **Agent Profiles** — per-agent success rate rings and failure type bars
+- **Session Timeline** — visual event chain (Retrieval → LLM → Tool) with structured detail panels
+- **Recommendations** — severity-sorted action items from analysis reports, filter by type/severity
+
+---
+
+## Step 6 — Self-analysis via Chat Debug (strongest demo)
 
 Navigate to **Chat Debug**.
 
@@ -105,13 +113,16 @@ Aethen never accesses the knowledge base directly. It reasons entirely from the 
 
 | Store | Role |
 |-------|------|
-| **PostgreSQL / Supabase** | All session data, chat history, dashboard stats |
+| **PostgreSQL / Supabase** | All session data, chat history, dashboard stats, analysis report cache |
 | **Neo4j Aura** | Graph traversal — cross-session failure pattern detection |
-| **Pinecone** | 1,100+ embedded trace vectors for semantic search |
+| **Pinecone** | 1,500+ embedded trace vectors for semantic search |
 | **Langfuse** | Live LLM call tracing for all pipeline runs |
+| **LangSmith** | Alternative trace provider — same ingestion pipeline |
 
 **LangGraph pipeline**: `classify_intent → retrieve (Pinecone + Neo4j) → rerank (Cohere) → [memory | tool | hallucination | blind_spot] → synthesize (Claude Sonnet 4.6)`
 
-Full architecture: `docs/adal/architecture.md`  
+**Date/time**: All dates UTC throughout — backend `DATE_TRUNC`, frontend `UTCDatePicker`, chart generation `Date.UTC()`, filter `toISOString()`.
+
 Decision log: `docs/implementation_timeline.md`  
+Failure classification explained: see "How Aethen classifies failures" section above  
 Scope adjustments vs proposal: `docs/scope_adjustments.md`
