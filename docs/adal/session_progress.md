@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-05-03 (Session 23)
+> **Last updated**: 2026-05-03 (Session 24)
 
 ---
 
@@ -17,24 +17,36 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 
 ## Current State
 
-- **Phase**: Week 3 — Final polish + Deployment.
-- **Branch**: `main`
+- **Phase**: Week 3 — Deployed + demo prep.
+- **Branch**: `main` (develop → main workflow enforced)
 - **Next action**:
-  1. Complete remaining insight pages: Pattern Clusters, Agent Profiles, Session Timeline, Recommendations Feed
-  2. **🔴 Re-seed database** — Run: `cd backend && poetry run python scripts/reset_and_reseed.py`
-  3. **Deploy** — Render (backend) + Vercel (frontend). Add `CRON_SECRET` env var to Vercel.
-  4. **Record demo GIF** for README/submission.
-- **Tests**: 202 passing (backend), frontend build clean.
-- **Stores**: 🔴 ALL WIPED (2026-04-28) — Re-seed before use.
-- **Frontend**: 13 pages — Dashboard, Failure Trends, Pattern Clusters, Agent Profiles, Recommendations, Trace Explorer, Session Timeline, Chat Debug, Demo Agent, Data Quality, Model Settings + redirects for 4 archived pages.
+  1. **Record demo GIF** — `node scripts/record_demo.mjs https://your-vercel-url.vercel.app`
+  2. Add demo.gif to README for submission
+  3. Final smoke test on production
+- **Deployed**: Render (backend) + Vercel (frontend) ✅
+- **Tests**: 202 passing (backend), frontend type-check clean.
+- **Database**: Seeded with 700+ sessions across 30-day timestamp spread. Re-seed: `poetry run python scripts/reset_and_reseed.py --no-reset --count 300`
+- **Frontend**: 14 pages — Dashboard, Failure Trends, Pattern Clusters, Agent Profiles, Session Timeline, Recommendations, Trace Explorer, Chat Debug, Demo Agent, Data Quality, Model Settings, Settings + redirects for 4 archived pages.
 - **Sidebar**: 5 groups (Overview / Analysis / Explore / Live Demo / System), 240px wide.
-- **Analysis pipeline**: Fully production-hardened. `synthesize.py` returns clean "no failure" report for UNKNOWN/None without LLM call.
-- **Chat Debug**: markdown rendering, edit/resend, real sessions for structured analysis, model selector.
-- **Reliability score**: scoped to last 7 days (`reliability_score_7d`).
-- **`recharts`**: installed for Failure Trends sparklines/area charts.
-- **Classify_intent**: Sharpened prompt with step-by-step decision guide distinguishing memory/blind_spot/hallucination.
-- **Demo Agent KB**: 3-route KB — Memory (billing docs, medium scores), Hallucination (API docs with pattern for extrapolation), Blind Spot (zero chunks).
+- **Dates**: UTC everywhere — `UTCDatePicker` component, `timeZone:"UTC"` in formatTimestamp, `Date.UTC()` in charts, backend `DATE_TRUNC` UTC — all consistent.
+- **Analysis indicator**: Green dot (cached) / Red dot (not analysed) on Trace Explorer session cards.
+- **Success badge**: Sessions with no failure_type show `✓ Success` badge (not `—`).
+- **Clickable charts**: Failure Distribution + Failure Trends bars/dots navigate to Trace Explorer with date+type filters.
+- **Infinite scroll**: Trace Explorer + Session Timeline — 200 sessions per page, auto-loads on scroll.
+- **Demo script**: `scripts/record_demo.mjs` — fully automated 10-scene demo recording, outputs MP4 + GIF.
 - **Kill commands**: `lsof -ti TCP:8000 TCP:3000 | xargs kill -9` or `pkill -f "uvicorn|next"`
+
+### Render env vars required
+```
+OPENAI_API_KEY, ANTHROPIC_API_KEY, COHERE_API_KEY
+OPENAI_BASE_URL=https://www.dataexpert.io/api/v1/openai
+ANTHROPIC_BASE_URL=https://www.dataexpert.io/api/v1/anthropic
+DATABASE_URL, PINECONE_API_KEY, PINECONE_INDEX
+NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
+LANGSMITH_API_KEY, LANGSMITH_PROJECT (must match your LangSmith project name)
+FRONTEND_URL=https://your-vercel-url.vercel.app
+```
 
 ### Architecture (as of Session 10)
 
@@ -49,6 +61,85 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 24 — 2026-05-03 (Claude Code)
+
+**Deployment, UTC consistency, UI polish, demo prep**
+
+**Deployment:**
+- [x] `render.yaml` created — backend deployed to Render (free plan)
+- [x] Vercel deployment — `frontend/vercel.json` with daily crons (Hobby plan limit)
+- [x] develop → main branch workflow enforced — all changes go to develop first
+- [x] Fixed Dockerfile: Poetry 2.x + `requirements.txt` approach (no Poetry at runtime)
+- [x] `requirements.txt` committed and generated via `poetry export`
+- [x] CI workflow: `--no-root`, `pnpm` via npm, `pnpm-workspace.yaml` packages field, removed broken test
+
+**Bug fixes:**
+- [x] `synthesize.py` early-exit: returns `model_dump(mode="json")` not raw `AnalysisReport` object — fixes "argument after ** must be a mapping" error
+- [x] LangSmith pull 500: `fetch_traces` wrapped in try/except — proper error message instead of 500
+- [x] Langfuse pull: same try/except guard
+- [x] LangSmith project: was `"default"`, must match actual LangSmith project name (set in Render env)
+- [x] `OPENAI_BASE_URL` + `ANTHROPIC_BASE_URL` added to Render — proxy keys only work via DataExpert.io endpoint
+- [x] Demo Agent: removed "Both" trace destination option — caused duplicate ingestion
+- [x] Demo Agent trace badge: fixed to use session's stored `trace_destination` when loading old sessions
+
+**UTC date consistency (all frontend):**
+- [x] `UTCDatePicker` component (`components/ui/utc-date-picker.tsx`) — pure UTC calendar, Today(UTC) button
+- [x] Trace Explorer filter: uses `toISOString()` UTC dates, replaced native `<input type="date">` with `UTCDatePicker`
+- [x] Overview Failure Distribution chart: `Date.UTC()` generation, `timeZone:"UTC"` labels
+- [x] Failure Trends `fmt()`: `T12:00:00Z` + `timeZone:"UTC"` — chart labels match backend UTC grouping
+- [x] `formatTimestamp`: added `timeZone:"UTC"` — session card dates consistent with filter
+
+**Trace Explorer improvements:**
+- [x] Infinite scroll: 200 sessions/page, `IntersectionObserver` sentinel inside scroll container
+- [x] `GET /api/sessions/count` endpoint — shows real total in footer ("200 of 1137 sessions")
+- [x] Green dot = analysis cached / Red dot = not yet analysed on session cards
+- [x] `✓ Success` badge replaces `—` for sessions with no failure type
+- [x] `outcome=success/failure` URL param wired — Overview "Successful/Failures Detected" cards drill into filtered Trace Explorer
+- [x] `dateFrom`/`dateTo` URL params wired — charts drill into Trace Explorer with pre-filled date filter
+
+**Clickable charts (drill-down to Trace Explorer):**
+- [x] Overview Failure Distribution: click bar → `/traces?type=X&dateFrom=D&dateTo=D`
+- [x] Failure Trends: same click → single type if unambiguous, date-only if multiple types overlap
+- [x] Uses `activeTooltipIndex` (recharts v3 — `activePayload` removed in v3)
+- [x] `as never` cast on `onClick` prop for recharts v3 type compatibility
+
+**Session Timeline improvements:**
+- [x] Infinite scroll (same pattern as Trace Explorer)
+- [x] Structured event detail panels (LLM: prompt/response; Tool: params/error; Retrieval: scores/chunks/doc preview)
+- [x] Failure type filter chips, expand-all/collapse-all, dismissable ordering note
+- [x] Timestamp on session cards
+
+**Other UI fixes:**
+- [x] `has_report` field in `_SELECT_SUMMARIES` — analysis indicator dots
+- [x] Demo Agent `traceDestination` synced when loading existing sessions
+- [x] `LANGSMITH_PROJECT` default was `"default"` — must match actual project
+- [x] Overview alerts: data-driven (daily_by_type), not hardcoded
+- [x] Reliability score ring: 7-day window (`reliability_score_7d`)
+- [x] Failure Distribution chart: recharts `ComposedChart` with stacked bars + failure rate line
+- [x] `renderText` dead code removed from Chat Debug
+- [x] `fetchSessionsByType` moved to static import
+
+**Seed script improvements:**
+- [x] `trace_source: "synthetic"`, full UUIDs, current model names, 30-day timestamps, `doc_content`
+- [x] `--no-reset` flag: append without wiping
+- [x] `--analyze` flag: run LangGraph on all failure sessions after seeding
+- [x] `requirements.txt` updated
+
+**Demo recording script (`scripts/record_demo.mjs`):**
+- [x] Manual mode: `Ctrl+C` to stop, auto-converts to MP4 + GIF
+- [x] Automated mode: 10 scenes, input[placeholder] selectors (Demo Agent uses `<input>` not `<textarea>`)
+- [x] `window.scrollBy` smooth scroll (no mouse.wheel flicker)
+- [x] `activeTooltipIndex` wait for response instead of fixed sleeps
+- [x] `deviceScaleFactor: 2` for retina-quality recording
+
+**Standing instructions added:**
+- develop → main only (never commit directly to main)
+- `OPENAI_BASE_URL` + `ANTHROPIC_BASE_URL` required in Render for proxy keys
+- `LANGSMITH_PROJECT` must match actual LangSmith project name
+- UTC everywhere: `Date.UTC()`, `timeZone:"UTC"`, `UTCDatePicker` — do not revert to local dates
+
+---
 
 ### Session 23 — 2026-05-03 (Claude Code)
 
