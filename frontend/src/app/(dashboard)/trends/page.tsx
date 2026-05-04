@@ -25,7 +25,8 @@ const WINDOWS = [
 ];
 
 function fmt(dateStr: string) {
-  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // UTC noon + timeZone:"UTC" — labels match the UTC dates from the backend and filter
+  return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 function TrendBadge({ current, prev }: { current: number; prev: number }) {
@@ -81,12 +82,10 @@ export default function TrendsPage() {
   const handleChartClick = useCallback((ev: { activeTooltipIndex?: number }) => {
     const idx = ev?.activeTooltipIndex;
     if (idx === undefined || idx === null) return;
-    const point = chartData[idx];
-    if (!point) return;
-    const isoDate = (point as { isoDate?: string }).isoDate;
-    if (!isoDate) return;
-    const nonZero = CHART_TYPE_KEYS.filter(t => ((point as Record<string, number>)[t] ?? 0) > 0);
-    const params = new URLSearchParams({ dateFrom: isoDate, dateTo: isoDate });
+    const point = chartData[idx] as (typeof chartData[number] & { isoDate?: string }) | undefined;
+    if (!point?.isoDate) return;
+    const nonZero = CHART_TYPE_KEYS.filter(t => ((point as unknown as Record<string, number>)[t] ?? 0) > 0);
+    const params = new URLSearchParams({ dateFrom: point.isoDate, dateTo: point.isoDate });
     if (nonZero.length === 1) params.set("type", nonZero[0]);
     router.push(`/traces?${params.toString()}`);
   }, [router, chartData]);
@@ -182,7 +181,7 @@ export default function TrendsPage() {
           ) : (
             <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                onClick={handleChartClick} style={{ cursor: "pointer" }}>
+                onClick={handleChartClick as never} style={{ cursor: "pointer" }}>
                 <defs>
                   {FAILURE_TYPES.map(t => (
                     <linearGradient key={t.key} id={`grad-${t.key}`} x1="0" y1="0" x2="0" y2="1">

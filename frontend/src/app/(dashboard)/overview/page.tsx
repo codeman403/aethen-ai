@@ -183,14 +183,14 @@ export default function HomePage() {
     { label: "Blind Spots",      value: fb?.blind_spot   ?? 0, color: "bg-blue-500",   href: "/traces?type=blind_spot" },
   ];
 
-  // Stacked failure chart — fill last 7 calendar days, compute failure rate
+  // Stacked failure chart — fill last 7 UTC days (matches backend DATE_TRUNC and filter)
   const chartData = (() => {
     const days: { date: string; label: string; memory: number; tool_misfire: number; hallucination: number; blind_spot: number; failure_rate: number }[] = [];
+    const now = new Date();
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const iso = d.toISOString().slice(0, 10);
-      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const utcMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i);
+      const iso = new Date(utcMs).toISOString().slice(0, 10);
+      const label = new Date(utcMs).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
       const pt = trendData.find(p => p.date === iso);
       const mem = pt?.memory ?? 0;
       const tool = pt?.tool_misfire ?? 0;
@@ -206,7 +206,7 @@ export default function HomePage() {
   const hasAnyFailure = chartData.some(d => d.memory + d.tool_misfire + d.hallucination + d.blind_spot > 0);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleChartClick = useCallback((ev: { activeTooltipIndex?: number }) => {
+  const handleChartClick = useCallback((ev: { activeTooltipIndex?: number | undefined }) => {
     const idx = ev?.activeTooltipIndex;
     if (idx === undefined || idx === null) return;
     const point = chartData[idx];
@@ -469,7 +469,7 @@ export default function HomePage() {
                 <div className="flex-1 min-h-[220px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData} margin={{ top: 8, right: 40, left: -20, bottom: 0 }}
-                      onClick={handleChartClick} style={{ cursor: "pointer" }}>
+                      onClick={handleChartClick as never} style={{ cursor: "pointer" }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                       <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
