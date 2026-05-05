@@ -14,22 +14,24 @@ from langchain_core.tools import tool
 from pydantic import BaseModel
 
 from app.config import settings
-from app.models.response import ApiResponse
+from app.models.response import ApiResponse, ResponseMetadata
 from app.services.postgres_service import postgres_service
 from app.utils.langfuse_utils import make_langfuse_handler
 from app.utils.langsmith_utils import make_langsmith_handler
 from app.utils.sanitize import sanitize_input
 
 
-def _build_callbacks(trace_destination: str, session_id: str) -> tuple[list, object | None]:
+def _build_callbacks(trace_destination: str, session_id: str) -> tuple[list, object | None, object | None]:
     """Build the callbacks list and Langfuse client based on trace_destination.
 
     Returns:
-        (callbacks, langfuse_client) — callbacks passed to LangChain invoke config,
-        langfuse_client used for flushing (None if Langfuse not used).
+        (callbacks, langfuse_client, langfuse_handler) — callbacks passed to LangChain
+        invoke config, langfuse_client used for flushing, langfuse_handler used to
+        read last_trace_id after the call (all None if Langfuse not used).
     """
     callbacks = []
     langfuse_client = None
+    langfuse_handler = None
 
     use_langfuse = trace_destination in ("langfuse", "both")
     use_langsmith = trace_destination in ("langsmith", "both")
@@ -38,13 +40,94 @@ def _build_callbacks(trace_destination: str, session_id: str) -> tuple[list, obj
         handler, langfuse_client = make_langfuse_handler()
         if handler:
             callbacks.append(handler)
+            langfuse_handler = handler
 
     if use_langsmith:
         tracer = make_langsmith_handler()
         if tracer:
             callbacks.append(tracer)
 
-    return callbacks, langfuse_client
+    return callbacks, langfuse_client, langfuse_handler
+
+
+# ---------------------------------------------------------------------------
+# Aethen integration helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_trace_id_from_handler(handler) -> str | None:
+    """Read the trace_id directly from the Langfuse CallbackHandler.
+
+    Uses handler.last_trace_id which is set synchronously after the LLM call —
+    no API query needed, no indexing delay. Returns None if unavailable.
+    """
+    try:
+        trace_id = getattr(handler, "last_trace_id", None)
+        return str(trace_id) if trace_id else None
+    except Exception:
+        return None
+
+
+async def _get_langfuse_trace_id_from_api(session_id: str, retries: int = 5, delay: float = 2.5) -> str | None:
+    """Fallback: query Langfuse API for the most recent trace with this session_id.
+
+    Retries with delay to allow for Langfuse indexing lag (~8-10s after flush).
+    """
+    if not settings.langfuse_public_key or not settings.langfuse_secret_key:
+        return None
+    try:
+        from langfuse.api import LangfuseAPI
+        host = settings.langfuse_base_url or "https://us.cloud.langfuse.com"
+        client = LangfuseAPI(
+            base_url=host,
+            username=settings.langfuse_public_key,
+            password=settings.langfuse_secret_key,
+        )
+        for attempt in range(retries):
+            resp = client.trace.list(session_id=session_id, limit=1)
+            traces = resp.data if hasattr(resp, "data") else []
+            if traces:
+                logger.info("demo_trace_id_resolved_api", session_id=session_id,
+                            trace_id=traces[0].id)
+                return traces[0].id
+            if attempt < retries - 1:
+                await asyncio.sleep(delay)
+        return None
+    except Exception as exc:
+        logger.warning("demo_trace_id_api_lookup_failed", session_id=session_id, error=str(exc))
+        return None
+
+
+async def _analyze_via_aethen(trace_id: str) -> dict | None:
+    """Fetch and analyze a Langfuse trace via Aethen's pipeline.
+
+    Reads the configured demo source from app_settings (set in Integrations UI).
+    Retries once with delay if Langfuse hasn't indexed the trace yet.
+    Returns serialized AnalysisReport or None on failure.
+    """
+    try:
+        from app.api.langfuse import SingleTraceRequest, fetch_and_analyze_trace
+        source = await postgres_service.get_setting("demo_langfuse_source") or "default"
+        req = SingleTraceRequest(trace_id=trace_id, source=source, analyze=True)
+
+        for attempt in range(4):
+            try:
+                result = await fetch_and_analyze_trace(req)
+                if result.data and result.data.report:
+                    logger.info("demo_aethen_analysis_complete", trace_id=trace_id, source=source)
+                    return result.data.report
+                break
+            except Exception as fetch_exc:
+                if "404" in str(fetch_exc) and attempt < 3:
+                    await asyncio.sleep(3.0)  # trace not yet indexed — wait and retry
+                    continue
+                logger.warning("demo_aethen_analysis_failed", trace_id=trace_id,
+                               attempt=attempt + 1, error=str(fetch_exc))
+                break
+        return None
+    except Exception as exc:
+        logger.warning("demo_aethen_analysis_failed", trace_id=trace_id, error=str(exc))
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -227,10 +310,11 @@ class DemoChatRequest(BaseModel):
 class DemoChatResult(BaseModel):
     user_message: str
     assistant_response: str
-    session_id: str                 # Always returned so frontend persists it
+    session_id: str                     # Always returned so frontend persists it
     langfuse_traced: bool
     langsmith_traced: bool = False
     trace_destination: str = "langfuse"
+    langfuse_trace_id: str | None = None  # trace_id for this turn's Phase 2 call
 
 
 class DemoRunRequest(BaseModel):
@@ -247,6 +331,8 @@ class DemoRunResult(BaseModel):
     langfuse_traced: bool
     langsmith_traced: bool = False
     trace_destination: str = "langfuse"
+    langfuse_trace_id: str | None = None   # trace_id after flush
+    analysis_report: dict | None = None    # AnalysisReport if analysis succeeded
 
 
 class ScenarioInfo(BaseModel):
@@ -292,7 +378,7 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
         from app.agents.llm import get_demo_llm
 
         dest = request.trace_destination
-        callbacks, langfuse_client = _build_callbacks(dest, session_id)
+        callbacks, langfuse_client, langfuse_handler = _build_callbacks(dest, session_id)
         langfuse_traced = langfuse_client is not None
         langsmith_traced = dest in ("langsmith", "both") and any(
             "LangChainTracer" in type(c).__name__ for c in callbacks
@@ -313,6 +399,7 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
                 "run_name": scenario["run_name"],
                 "metadata": {
                     "langfuse_user_id": "Demo Agent",
+                    "langfuse_session_id": session_id,   # required for trace_id lookup
                     "tags": scenario["tags"],
                     "scenario": scenario["name"],
                 },
@@ -330,8 +417,17 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
             await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
             logger.info("langfuse_flushed", scenario=scenario_key, session_id=session_id)
 
+        # Resolve trace_id — return it so the frontend can trigger analysis separately.
+        # Analysis is NOT triggered here; the frontend calls /api/demo/analyze-chat
+        # after showing the response, displaying "Diagnosing..." in the meantime.
+        langfuse_trace_id: str | None = None
+        if langfuse_traced:
+            langfuse_trace_id = _get_trace_id_from_handler(langfuse_handler)
+            if not langfuse_trace_id:
+                langfuse_trace_id = await _get_langfuse_trace_id_from_api(session_id)
+
         logger.info("demo_run_complete", scenario=scenario_key, session_id=session_id,
-                    trace_destination=dest)
+                    trace_destination=dest, has_trace_id=langfuse_trace_id is not None)
 
         return ApiResponse(
             data=DemoRunResult(
@@ -343,6 +439,8 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
                 langfuse_traced=langfuse_traced,
                 langsmith_traced=langsmith_traced,
                 trace_destination=dest,
+                langfuse_trace_id=langfuse_trace_id,
+                analysis_report=None,  # frontend triggers analysis separately
             )
         )
 
@@ -377,7 +475,7 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
         from app.agents.llm import get_demo_llm
 
         dest = request.trace_destination
-        callbacks, langfuse_client = _build_callbacks(dest, session_id)
+        callbacks, langfuse_client, langfuse_handler = _build_callbacks(dest, session_id)
         langfuse_traced = langfuse_client is not None
         langsmith_traced = dest in ("langsmith", "both") and any(
             "LangChainTracer" in type(c).__name__ for c in callbacks
@@ -474,6 +572,13 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
         if langfuse_client:
             await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
 
+        # Resolve trace_id for this turn — use handler.last_trace_id first (no delay)
+        langfuse_trace_id: str | None = None
+        if langfuse_traced:
+            langfuse_trace_id = _get_trace_id_from_handler(langfuse_handler)
+            if not langfuse_trace_id:
+                langfuse_trace_id = await _get_langfuse_trace_id_from_api(session_id)
+
         # Save assistant response
         await postgres_service.append_demo_message(
             message_id=f"dm-{uuid.uuid4().hex[:12]}",
@@ -483,7 +588,8 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             langfuse_traced=langfuse_traced,
         )
 
-        logger.info("demo_chat_complete", session_id=session_id)
+        logger.info("demo_chat_complete", session_id=session_id,
+                    trace_id=langfuse_trace_id)
 
         return ApiResponse(
             data=DemoChatResult(
@@ -493,6 +599,7 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
                 langfuse_traced=langfuse_traced,
                 langsmith_traced=langsmith_traced,
                 trace_destination=dest,
+                langfuse_trace_id=langfuse_trace_id,
             )
         )
 
@@ -517,3 +624,39 @@ async def get_demo_messages(session_id: str) -> ApiResponse[list[dict]]:
     """Return the full message history for a demo session."""
     messages = await postgres_service.get_demo_messages(session_id)
     return ApiResponse(data=messages)
+
+
+@router.post("/demo/analyze-chat/{session_id}", response_model=ApiResponse[dict])
+async def analyze_demo_chat_session(
+    session_id: str,
+    trace_id: str | None = None,
+) -> ApiResponse[dict]:
+    """Analyze a demo session via Aethen's pipeline — production integration pattern.
+
+    Accepts an optional trace_id query param for direct lookup (no indexing delay).
+    If trace_id is not provided, falls back to querying by session_id (slower).
+
+    Usage:
+      POST /api/demo/analyze-chat/{session_id}?trace_id=<langfuse_trace_id>
+    """
+    if not trace_id:
+        trace_id = await _get_langfuse_trace_id_from_api(session_id)
+    if not trace_id:
+        raise HTTPException(
+            status_code=404,
+            detail="No Langfuse trace found for this session. Ensure Langfuse tracing is enabled.",
+        )
+
+    report = await _analyze_via_aethen(trace_id)
+    if not report:
+        raise HTTPException(
+            status_code=502,
+            detail="Analysis pipeline did not return a report. Check that the trace has been flushed.",
+        )
+
+    logger.info("demo_chat_analyzed", session_id=session_id, trace_id=trace_id)
+    return ApiResponse(
+        data=report,
+        error=None,
+        metadata=ResponseMetadata(request_id=str(uuid.uuid4())),
+    )

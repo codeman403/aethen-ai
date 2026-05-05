@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useElapsedSeconds } from "@/hooks/useElapsedSeconds";
 import Link from "next/link";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
 import {
@@ -17,6 +18,9 @@ import {
   MessageSquare,
   Plus,
   Clock,
+  SearchCode,
+  AlertTriangle,
+  ChevronUp,
 } from "lucide-react";
 import {
   runDemoScenario,
@@ -25,11 +29,14 @@ import {
   getDemoMessages,
   fetchModelSettings,
   updateModelSetting,
+  analyzeDemoChatSession,
   type DemoRunResult,
   type DemoChatMessage,
   type DemoSession,
   type DemoStoredMessage,
   type ModelOption,
+  type AethenAnalysisReport,
+  type AethenFinding,
 } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -135,10 +142,98 @@ function formatRelativeTime(ts: string | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Aethen Analysis Card — inline diagnosis from the pipeline
+// ---------------------------------------------------------------------------
+
+const SEVERITY_STYLE: Record<string, string> = {
+  critical: "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
+  high:     "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20",
+  medium:   "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20",
+  low:      "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+};
+
+const FAILURE_TYPE_STYLE: Record<string, string> = {
+  memory:       "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20",
+  tool_misfire: "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20",
+  hallucination:"text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
+  blind_spot:   "text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20",
+  unknown:      "text-muted-foreground bg-muted border-border/50",
+};
+
+function AethenAnalysisCard({ report }: { report: AethenAnalysisReport }) {
+  const [expanded, setExpanded] = useState(false);
+  const typeStyle = FAILURE_TYPE_STYLE[report.failure_type] ?? FAILURE_TYPE_STYLE.unknown;
+  const pct = Math.round(report.confidence * 100);
+
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-400">
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-primary/10 transition-colors"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <div className="flex items-center gap-2.5">
+          <SearchCode className="size-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold text-primary">Aethen Diagnosis</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeStyle}`}>
+            {report.failure_type.replace("_", " ")}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{pct}% confidence</span>
+          {expanded ? <ChevronUp className="size-3.5 text-muted-foreground" /> : <ChevronDown className="size-3.5 text-muted-foreground" />}
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-primary/10 pt-3">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Root Cause</p>
+            <p className="text-sm leading-relaxed">{report.root_cause || report.summary}</p>
+          </div>
+          {report.findings.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Findings ({report.findings.length})
+              </p>
+              <div className="space-y-1.5">
+                {report.findings.map((f: AethenFinding, i: number) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${SEVERITY_STYLE[f.severity] ?? SEVERITY_STYLE.low}`}>
+                      {f.severity}
+                    </span>
+                    <p className="text-sm text-muted-foreground">{f.title}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Chat turn component (scenario runs)
 // ---------------------------------------------------------------------------
 
-function ChatTurn({ result }: { result: DemoRunResult }) {
+function ChatTurn({ result, analyzing, analysisReport, analysisFailed, onAnalyze }: {
+  result: DemoRunResult;
+  analyzing?: boolean;
+  analysisReport?: AethenAnalysisReport | null;
+  analysisFailed?: boolean;
+  onAnalyze?: () => void;
+}) {
+  const elapsed = useElapsedSeconds(analyzing ?? false);
+  const durationRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (analyzing) durationRef.current = 0;
+    else if (durationRef.current === 0 && elapsed > 0) durationRef.current = elapsed;
+  }, [analyzing, elapsed]);
+
+  const completedIn = !analyzing && (analysisReport || analysisFailed) ? durationRef.current : null;
   const scenario = SCENARIO_MAP[result.scenario];
   const Icon = scenario?.icon ?? Bot;
 
@@ -173,6 +268,40 @@ function ChatTurn({ result }: { result: DemoRunResult }) {
           {result.assistant_response}
         </div>
       </div>
+      {/* Analyze button — shown when trace exists but analysis not yet triggered */}
+      {!analyzing && !analysisReport && !analysisFailed && onAnalyze && result.langfuse_traced && (
+        <button
+          onClick={onAnalyze}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-primary/30 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+        >
+          <SearchCode className="size-3.5" />
+          Analyze with Aethen
+        </button>
+      )}
+
+      {analyzing && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-primary/20 bg-primary/5 text-sm text-primary">
+          <Loader2 className="size-3.5 animate-spin shrink-0" />
+          <span>Aethen is diagnosing… <span className="tabular-nums font-mono">{elapsed}s</span></span>
+        </div>
+      )}
+      {!analyzing && analysisReport && (
+        <div className="space-y-1">
+          {completedIn != null && completedIn > 0 && (
+            <p className="text-[10px] text-muted-foreground/60 px-1">Diagnosed in {completedIn}s</p>
+          )}
+          <AethenAnalysisCard report={analysisReport} />
+        </div>
+      )}
+      {!analyzing && analysisFailed && (
+        <p className="text-xs text-muted-foreground px-1">
+          Analysis unavailable for this trace — check the{" "}
+          <a href="/traces" className="underline underline-offset-2 hover:text-foreground transition-colors">
+            Trace Explorer
+          </a>{" "}
+          for more details.
+        </p>
+      )}
     </div>
   );
 }
@@ -216,6 +345,15 @@ export default function DemoAgentPage() {
   const [traceDestination, setTraceDestination] = useState<"langfuse" | "langsmith">("langfuse");
   const [traceMenuOpen, setTraceMenuOpen] = useState(false);
 
+  // End session & analyze state
+  const [latestTraceId, setLatestTraceId] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [chatAnalysisReport, setChatAnalysisReport] = useState<AethenAnalysisReport | null>(null);
+  const [chatAnalysisFailed, setChatAnalysisFailed] = useState(false);
+  const [chatAnalysisDuration, setChatAnalysisDuration] = useState<number | null>(null);
+  const chatElapsed = useElapsedSeconds(analyzing);
+  const chatAnalysisStartRef = useRef<number>(0);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -253,6 +391,10 @@ export default function DemoAgentPage() {
     setChatHistory([]);
     setChatInput("");
     setChatError(null);
+    setLatestTraceId(null);
+    setChatAnalysisReport(null);
+    setChatAnalysisFailed(false);
+    setChatAnalysisDuration(null);
     inputRef.current?.focus();
   };
 
@@ -282,6 +424,9 @@ export default function DemoAgentPage() {
     }
   };
 
+  // Per-scenario analysis state: session_id → { analyzing, report, failed }
+  const [scenarioAnalysis, setScenarioAnalysis] = useState<Record<string, { analyzing: boolean; report: AethenAnalysisReport | null; failed: boolean }>>({});
+
   const handleRun = async (scenarioKey: string) => {
     if (loading) return;
     setLoading(scenarioKey);
@@ -289,6 +434,14 @@ export default function DemoAgentPage() {
     try {
       const result = await runDemoScenario(scenarioKey, traceDestination);
       setTurns((prev) => [...prev, result]);
+
+      // Initialise analysis state so the Analyze button appears — user triggers manually
+      if (result.langfuse_traced && result.session_id) {
+        setScenarioAnalysis((prev) => ({
+          ...prev,
+          [result.session_id]: { analyzing: false, report: null, failed: false },
+        }));
+      }
     } catch (e) {
       setScenarioError(e instanceof Error ? e.message : "Scenario failed");
     } finally {
@@ -313,6 +466,11 @@ export default function DemoAgentPage() {
         setActiveSessionId(result.session_id);
       }
 
+      // Track latest trace_id — enables "End Session & Analyze"
+      if (result.langfuse_trace_id) {
+        setLatestTraceId(result.langfuse_trace_id);
+      }
+
       const newHistory: DemoChatMessage[] = [
         ...chatHistory,
         { role: "user", content: message },
@@ -332,6 +490,24 @@ export default function DemoAgentPage() {
     } finally {
       setChatLoading(false);
       inputRef.current?.focus();
+    }
+  };
+
+  const handleAnalyzeSession = async () => {
+    if (!activeSessionId || analyzing) return;
+    chatAnalysisStartRef.current = Date.now();
+    setAnalyzing(true);
+    setChatAnalysisReport(null);
+    setChatAnalysisFailed(false);
+    setChatAnalysisDuration(null);
+    try {
+      const report = await analyzeDemoChatSession(activeSessionId, latestTraceId);
+      setChatAnalysisReport(report);
+    } catch {
+      setChatAnalysisFailed(true);
+    } finally {
+      setChatAnalysisDuration(Math.floor((Date.now() - chatAnalysisStartRef.current) / 1000));
+      setAnalyzing(false);
     }
   };
 
@@ -407,7 +583,20 @@ export default function DemoAgentPage() {
             {turns.map((t, i) => (
               <div key={i}>
                 {i > 0 && <hr className="border-border mb-8" />}
-                <ChatTurn result={t} />
+                <ChatTurn
+                  result={t}
+                  analyzing={scenarioAnalysis[t.session_id]?.analyzing}
+                  analysisReport={scenarioAnalysis[t.session_id]?.report}
+                  analysisFailed={scenarioAnalysis[t.session_id]?.failed}
+                  onAnalyze={() => {
+                    const sid = t.session_id;
+                    const traceId = t.langfuse_trace_id;
+                    setScenarioAnalysis((prev) => ({ ...prev, [sid]: { analyzing: true, report: null, failed: false } }));
+                    analyzeDemoChatSession(sid, traceId)
+                      .then((report) => setScenarioAnalysis((prev) => ({ ...prev, [sid]: { analyzing: false, report, failed: false } })))
+                      .catch(() => setScenarioAnalysis((prev) => ({ ...prev, [sid]: { analyzing: false, report: null, failed: true } })));
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -624,6 +813,27 @@ export default function DemoAgentPage() {
               </div>
             )}
             <div ref={messagesEndRef} />
+
+            {/* Aethen inline analysis — shown after "Analyze" */}
+            {chatAnalysisReport && (
+              <div className="px-4 pb-4 space-y-1">
+                {chatAnalysisDuration != null && chatAnalysisDuration > 0 && (
+                  <p className="text-[10px] text-muted-foreground/60">Diagnosed in {chatAnalysisDuration}s</p>
+                )}
+                <AethenAnalysisCard report={chatAnalysisReport} />
+              </div>
+            )}
+            {chatAnalysisFailed && !chatAnalysisReport && (
+              <div className="px-4 pb-3">
+                <p className="text-xs text-muted-foreground">
+                  Analysis unavailable for this trace — check the{" "}
+                  <a href="/traces" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                    Trace Explorer
+                  </a>{" "}
+                  for more details.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Input */}
@@ -633,6 +843,22 @@ export default function DemoAgentPage() {
             </div>
           )}
           <div className="p-4 border-t bg-muted/10 flex gap-2">
+            {/* End Session & Analyze — production pattern: analyze at session end */}
+            {(activeSessionId && latestTraceId) && (
+              <button
+                onClick={handleAnalyzeSession}
+                disabled={analyzing || chatLoading}
+                title="Analyze this session with Aethen"
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl border border-primary/30 text-primary text-sm font-medium hover:bg-primary/10 transition-colors disabled:opacity-50 shrink-0"
+              >
+                {analyzing
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : <SearchCode className="size-3.5" />}
+                {analyzing
+                  ? <span>Diagnosing… <span className="tabular-nums font-mono">{chatElapsed}s</span></span>
+                  : chatAnalysisReport ? "Re-analyze" : "Analyze"}
+              </button>
+            )}
             <input
               ref={inputRef}
               type="text"

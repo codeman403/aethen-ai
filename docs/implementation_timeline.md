@@ -12,6 +12,76 @@
 
 ---
 
+## MCP Server — HTTP Adapter over Direct Python — 2026-05-05 (Session 26)
+
+### The Problem
+External AI agent developers needed a way to connect their agents to Aethen for failure diagnosis without writing custom schema converters, storing raw credentials in their code, or setting up complex integrations.
+
+### Decision: HTTP adapter (not direct Python imports)
+**Chosen:** MCP server calls existing FastAPI endpoints via `httpx`. Decoupled — works against the deployed Render backend without needing all services locally.
+
+**Rejected:** Direct Python imports (`from app.agents.graph import analysis_graph`). Would require all DB credentials in the MCP server's environment, tight coupling to internals, and break if code structure changes.
+
+### Decision: No credential storage in MCP calls — two models
+**Chosen:** Two paths:
+1. **Stored source** — team registers credentials once in Aethen UI (Fernet-encrypted), MCP/SDK calls reference only the source name
+2. **Per-call** — agent passes credentials at call time, Aethen uses them once and discards
+
+**Rejected:** Embedding Langfuse credentials directly in every MCP call (security risk — appear in logs).
+**Rejected:** OAuth (Langfuse/LangSmith don't support OAuth authorization servers for third-party apps — their SSO/OIDC is for user authentication into their own platform, not external app authorization).
+
+### Decision: scrubadub + custom regex over Presidio
+**Chosen:** scrubadub (open-source, no ML dependency) + custom regex for medical PHI.
+
+**Rejected:** Presidio (Microsoft) — depends on spaCy/thinc which fails to build on Python 3.13. Same pattern-based coverage achievable with scrubadub + regex at a fraction of the dependency complexity.
+
+**Why:** scrubadub handles email, phone, SSN, credit card, dates. Custom regex layer adds ICD-10 codes, MRN numbers, NPI, DEA numbers for HIPAA PHI coverage. Two-layer approach covers ~85-95% of well-formatted PII/PHI without requiring ML model downloads.
+
+### Decision: Single-tenant now, production-shaped interface
+**Chosen:** `AETHEN_API_KEY` accepted and logged but not validated. All data in shared tables.
+
+**Why production-shaped matters:** MCP tool signatures, SDK methods, and Claude Desktop config require zero changes when multi-tenancy is added. Only backend middleware and query scoping change. This was a deliberate interface decision.
+
+**When multi-tenancy is needed:** `tenants` + `api_keys` tables, `tenant_id` column on `sessions`/`app_settings`, middleware validates and injects tenant context.
+
+---
+
+## Eval Pipeline — Self-Contained over RAGAS/DeepEval — 2026-05-05 (Session 25)
+
+### The Problem
+Aethen diagnoses AI agent failures but had no systematic measurement of its own diagnostic accuracy. The `/api/qc` endpoint checked data quality (vector coverage, schema validation) but never asked: is the pipeline's classification correct? Is the synthesis faithful?
+
+### Decision: Custom metrics over RAGAS or DeepEval
+**Chosen:** Self-contained eval framework using existing data schema — no new heavyweight dependencies.
+
+**Rejected:**
+- **RAGAS** — calls an LLM internally to compute metrics, expensive per run, and designed for question-answering pipelines not failure-pattern retrieval. The metric semantics (does context answer a question?) don't map to Aethen's use case (does context reveal similar failure patterns?).
+- **DeepEval** — heavyweight test framework that wants to own the test runner, creating friction with pytest.
+
+**Why custom works here:** The `Session` schema already has `expected_doc_ids`, `actual_doc_ids`, and `hallucination_flag` — explicit ground-truth labels. Context recall = `|expected ∩ actual| / |expected|`, which is just set math on existing fields. No LLM needed to compute retrieval metrics.
+
+### Decision: `expected_doc_ids ≠ actual_doc_ids` as priority rule in classify_intent
+**Chosen:** When `expected_doc_ids` is non-empty and differs from `actual_doc_ids`, classify as `memory` immediately — do not consult `doc_content`.
+
+**Why:** `expected_doc_ids` being non-empty proves the KB has the right documents. The mismatch proves retrieval fetched the wrong ones. Before this rule, the classifier read generic `doc_content` descriptions ("unrelated document content") and routed to `blind_spot`. Memory F1: 57% → 100%.
+
+### Decision: Synthesis precision rule + session evidence context
+**Chosen:** `synthesize.py` now (a) requires root_cause to name component + measurable evidence + downstream effect, and (b) receives a compact `_session_evidence()` snippet with retrieval scores, doc IDs, and error messages.
+
+**Why:** Before this, root causes were vague ("retrieval returned wrong documents") because synthesize only received the module's text output with no concrete numbers. The precision rule + evidence context pushed LLM Judge Score from 65% to 83%.
+
+### Regression gates (current thresholds)
+| Gate | Threshold | Rationale |
+|------|-----------|-----------|
+| `classification_accuracy` | ≥ 90% | Baseline reached 100%; 90% gives buffer while catching real regressions |
+| `keyword_match_rate` | ≥ 70% | Synthesis keyword alignment; higher would be too sensitive to keyword wording |
+| `judge_score` (full mode) | ≥ 75% | LLM quality bar; 83% baseline gives 8pp buffer |
+
+### Langfuse v4 eval API change
+`langfuse.score()` was renamed to `langfuse.create_score()` in v4.1+. Updated in `langfuse_eval.py`.
+
+---
+
 ## Langfuse v4 CallbackHandler — user_id/session_id API — 2026-04-28 (Session 15)
 
 ### The Problem

@@ -1,4 +1,9 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const AETHEN_API_KEY = process.env.NEXT_PUBLIC_AETHEN_API_KEY ?? "";
+
+function _authHeaders(): Record<string, string> {
+  return AETHEN_API_KEY ? { "Authorization": `Bearer ${AETHEN_API_KEY}` } : {};
+}
 
 /**
  * Wrapper around fetch with exponential backoff retries.
@@ -6,9 +11,14 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
  */
 async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
   let lastError: Error | null = null;
+  // Merge auth header into every request
+  const merged: RequestInit = {
+    ...options,
+    headers: { ...(_authHeaders()), ...(options?.headers ?? {}) },
+  };
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetch(url, merged);
       // 503 = provider not configured — don't retry, return immediately
       if (res.status === 503) return res;
       if (!res.ok && (res.status >= 500 || res.status === 429)) {
@@ -262,6 +272,23 @@ export async function testModelConnectivity(model_id: string): Promise<TestModel
 
 // ── Demo Agent ─────────────────────────────────────────────────────────────
 
+export interface AethenFinding {
+  title: string;
+  severity: "low" | "medium" | "high" | "critical";
+  description: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+export interface AethenAnalysisReport {
+  session_id: string;
+  failure_type: string;
+  summary: string;
+  findings: AethenFinding[];
+  root_cause: string;
+  confidence: number;
+}
+
 export interface DemoRunResult {
   scenario: string;
   scenario_name: string;
@@ -271,6 +298,8 @@ export interface DemoRunResult {
   langfuse_traced: boolean;
   langsmith_traced: boolean;
   trace_destination: string;
+  langfuse_trace_id: string | null;
+  analysis_report: AethenAnalysisReport | null;
 }
 
 export interface ScenarioInfo {
@@ -291,6 +320,7 @@ export interface DemoChatResult {
   langfuse_traced: boolean;
   langsmith_traced: boolean;
   trace_destination: string;
+  langfuse_trace_id: string | null;
 }
 
 export interface DemoSession {
@@ -359,6 +389,38 @@ export async function fetchDemoScenarios(): Promise<ScenarioInfo[]> {
   const body: ApiResponse<ScenarioInfo[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
+}
+
+export async function analyzeDemoChatSession(sessionId: string, traceId?: string | null): Promise<AethenAnalysisReport> {
+  const url = traceId
+    ? `${BASE_URL}/api/demo/analyze-chat/${encodeURIComponent(sessionId)}?trace_id=${encodeURIComponent(traceId)}`
+    : `${BASE_URL}/api/demo/analyze-chat/${encodeURIComponent(sessionId)}`;
+  const res = await fetchWithRetry(url, { method: "POST", headers: { "Content-Type": "application/json" } });
+  const body: ApiResponse<AethenAnalysisReport> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No report returned");
+  return body.data;
+}
+
+export interface DemoSourceConfig {
+  source_name: string;
+}
+
+export async function getDemoSource(): Promise<DemoSourceConfig> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/demo-source`);
+  const body: ApiResponse<DemoSourceConfig> = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? { source_name: "default" };
+}
+
+export async function setDemoSource(sourceName: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/demo-source`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source_name: sourceName }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
 }
 
 // ── Sessions ───────────────────────────────────────────────────────────────
@@ -651,6 +713,104 @@ export function buildHallucinationSession(sessionId: string) {
       },
     ],
   };
+}
+
+// ── Source credential management ──────────────────────────────────────────────
+
+export interface SourceConfig {
+  name: string;
+  provider: "langfuse" | "langsmith";
+  has_credentials: boolean;
+  base_url: string;
+  created_at: string;
+}
+
+export interface AddSourcePayload {
+  name: string;
+  provider: "langfuse" | "langsmith";
+  public_key: string;
+  secret_key: string;
+  base_url?: string;
+}
+
+export interface TestSourceResult {
+  ok: boolean;
+  message: string;
+}
+
+export async function fetchSources(): Promise<SourceConfig[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/sources`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function addSource(payload: AddSourcePayload): Promise<SourceConfig> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/sources`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return body.data;
+}
+
+export async function removeSource(name: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/sources/${name}`, {
+    method: "DELETE",
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+// ── Aethen API key management ──────────────────────────────────────────────────
+
+export interface ApiKeyStatus {
+  exists: boolean;
+  key_prefix: string | null;
+}
+
+export interface GeneratedKey {
+  key: string;
+  key_prefix: string;
+}
+
+export async function getApiKeyStatus(): Promise<ApiKeyStatus> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/api-key`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function generateApiKey(): Promise<GeneratedKey> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/api-key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function revokeApiKey(): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/api-key`, {
+    method: "DELETE",
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+export async function testSource(name: string): Promise<TestSourceResult> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/settings/sources/${name}/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
 }
 
 export function buildBlindSpotSession(sessionId: string) {

@@ -1,0 +1,5999 @@
+{
+  "sessions": [
+    {
+      "session_id": "eval-blind-006-e399a684",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T03:49:32.609004+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: satellite IoT device management",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a383d1a1",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Help the user with: satellite IoT device management",
+          "response": "I don't have specific information about satellite IoT device management in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 187,
+          "tokens_out": 119,
+          "latency_ms": 611.1
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-a79afd19",
+          "query": "satellite IoT device management",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-b07-fc9adbbe",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T10:49:32.608871+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a496d61b",
+          "model": "claude-sonnet-4-6",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-e231ba84",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-6286acd6",
+            "doc-e1521e7a"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-hall-013-7ec9754d",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T02:49:32.608572+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-fb3980c2",
+          "model": "gpt-4o-mini",
+          "prompt": "What is our company's data retention policy for EU customers?",
+          "response": "EU customer data is retained for exactly 36 months per GDPR Article 17. All data is auto-purged quarterly. Compliance audits verify this weekly.",
+          "tokens_in": 323,
+          "tokens_out": 240,
+          "latency_ms": 1435.6,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-f9c92713",
+            "doc-fbcc7f6c"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-851cf910",
+          "query": "policy terms conditions",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.91,
+            0.83
+          ],
+          "expected_doc_ids": [
+            "doc-f9c92713",
+            "doc-fbcc7f6c"
+          ],
+          "actual_doc_ids": [
+            "doc-f9c92713",
+            "doc-fbcc7f6c"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-c03-8e9da7cc",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T03:49:32.608222+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-9216718a",
+          "model": "gpt-4.1-mini",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-210f466c",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-e9738b86",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-mem-b06-a5bb89e1",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T10:49:32.607831+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-c0721831",
+          "model": "gpt-4o-mini",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 1105.3,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-890a59b8",
+            "doc-ad90fdf6",
+            "doc-bfe9d1b7"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-ac57968a",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-890a59b8",
+            "doc-e113dada"
+          ],
+          "actual_doc_ids": [
+            "doc-890a59b8",
+            "doc-ad90fdf6",
+            "doc-bfe9d1b7"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-blind-b05-fca549e5",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T05:49:32.609208+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-4f6b3f6f",
+          "model": "gpt-4o-mini",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-05202442",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-55487b9e",
+            "doc-2eff1a20",
+            "doc-784fdd6e"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-tool-c07-82cabfe2",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T11:49:32.608282+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-3416fc88",
+          "model": "gpt-4.1-mini",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-fdcd6efb",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-3adf66f7",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-tool-c01-90c16317",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-05T00:49:32.608188+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-76f4c49b",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-6e986b89",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-f9bb185b",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-blind-a02-166f1667",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T15:49:32.609276+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Retrieval failure \u2014 mislabeled as memory but topic is absent from KB",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-43be14af",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the procedure for GDPR right-to-erasure requests from enterprise clients?",
+          "response": "I don't have specific procedures for enterprise GDPR erasure requests in our documentation.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 700.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-67dbe460",
+          "query": "GDPR right to erasure enterprise",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.24,
+            0.17
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-a7b32318",
+            "doc-82919704"
+          ],
+          "doc_content": [
+            "General GDPR overview.",
+            "Data privacy FAQ (consumer)."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "not in knowledge base",
+            "missing",
+            "not covered"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled memory but this is a genuine topic gap in the KB"
+      }
+    },
+    {
+      "session_id": "eval-tool-006-3d062721",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T03:49:32.608026+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: fetch_user_profile",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0ec389b1",
+          "model": "gpt-4o-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 704.3,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-0c7f9534",
+          "tool_name": "fetch_user_profile",
+          "parameters": {
+            "user_id": "usr-4171ab49",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "ConnectionError: service unavailable",
+          "status": "failed",
+          "latency_ms": 7656.1
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-011-88ec01fb",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T06:49:32.609062+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: quantum-safe encryption migration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-aaf81204",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Help the user with: quantum-safe encryption migration",
+          "response": "I don't have specific information about quantum-safe encryption migration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 190,
+          "tokens_out": 78,
+          "latency_ms": 820.2
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-a4802814",
+          "query": "quantum-safe encryption migration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-011-8ac34214",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T02:49:32.607585+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #11",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-c750dcc8",
+          "model": "gpt-4.1-mini",
+          "prompt": "Answer based on context: How do I cancel my subscription?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 292,
+          "tokens_out": 158,
+          "latency_ms": 1908.8,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-7f13276a",
+            "doc-ecd2574e",
+            "doc-03c9f8c8"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-d31bc3d4",
+          "query": "help query 11",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.2,
+            0.18,
+            0.2
+          ],
+          "expected_doc_ids": [
+            "doc-31836165",
+            "doc-cfffefc0"
+          ],
+          "actual_doc_ids": [
+            "doc-7f13276a",
+            "doc-ecd2574e",
+            "doc-03c9f8c8"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-009-0ea9520f",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T11:49:32.608074+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: search_knowledge_base",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-53bf9b04",
+          "model": "gpt-4.1-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 950.9,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-2f87d563",
+          "tool_name": "query_database",
+          "parameters": {
+            "user_id": "usr-850e7135",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "PermissionError: insufficient privileges",
+          "status": "failed",
+          "latency_ms": 5197.6
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-b01-5aabc520",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T23:49:32.608772+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-056e38f9",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-1e6946b0",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-29466d06",
+            "doc-7ad2f279"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-blind-004-612e9ae4",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T23:49:32.608980+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: satellite IoT device management",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-b38b7132",
+          "model": "gpt-4o-mini",
+          "prompt": "Help the user with: satellite IoT device management",
+          "response": "I don't have specific information about satellite IoT device management in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 152,
+          "tokens_out": 103,
+          "latency_ms": 594.5
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-b956aa4c",
+          "query": "satellite IoT device management",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-007-eeec6f5c",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T05:49:32.608040+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: send_email",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-578d08c6",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1077.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-06be328c",
+          "tool_name": "search_knowledge_base",
+          "parameters": {
+            "user_id": "usr-d70acf41",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "TimeoutError: request timed out after 30s",
+          "status": "failed",
+          "latency_ms": 7775.9
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-004-dc7e76bd",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T07:49:32.608409+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0b19f196",
+          "model": "gpt-4o-mini",
+          "prompt": "What are the refund terms for enterprise contracts?",
+          "response": "Pro tier guarantees 99.99% uptime with $500 per-hour SLA credits and a dedicated 24/7 hotline.",
+          "tokens_in": 342,
+          "tokens_out": 282,
+          "latency_ms": 2430.9,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-423b5ac1",
+            "doc-17992a8e"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-6fc68a56",
+          "query": "policy terms conditions",
+          "namespace": "customer-data",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.94,
+            0.85
+          ],
+          "expected_doc_ids": [
+            "doc-423b5ac1",
+            "doc-17992a8e"
+          ],
+          "actual_doc_ids": [
+            "doc-423b5ac1",
+            "doc-17992a8e"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-003-4caf1d82",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T16:49:32.608387+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0abec981",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is our company's data retention policy for EU customers?",
+          "response": "Annual subscriptions can be cancelled by calling our retention team at 1-800-CANCEL. Full refunds issued within 1 business day.",
+          "tokens_in": 277,
+          "tokens_out": 263,
+          "latency_ms": 1562.1,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-c8917689",
+            "doc-b41d5142"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-2475eae7",
+          "query": "policy terms conditions",
+          "namespace": "customer-data",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.88,
+            0.86
+          ],
+          "expected_doc_ids": [
+            "doc-c8917689",
+            "doc-b41d5142"
+          ],
+          "actual_doc_ids": [
+            "doc-c8917689",
+            "doc-b41d5142"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-001-e9a152a4",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T15:49:32.607024+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #1",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-2dd19ab2",
+          "model": "gpt-4.1-mini",
+          "prompt": "Answer based on context: How do I update billing info?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 219,
+          "tokens_out": 141,
+          "latency_ms": 1906.7,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-c2d9c1dc",
+            "doc-1503b0ec",
+            "doc-39d808f0"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-431c2fb4",
+          "query": "help query 1",
+          "namespace": "customer-data",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.31,
+            0.37,
+            0.11
+          ],
+          "expected_doc_ids": [
+            "doc-9c3c1184",
+            "doc-65415b35"
+          ],
+          "actual_doc_ids": [
+            "doc-c2d9c1dc",
+            "doc-1503b0ec",
+            "doc-39d808f0"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-002-33108b7c",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T20:49:32.608949+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: WebAssembly sandbox security",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-4ae9f8f5",
+          "model": "gpt-4o-mini",
+          "prompt": "Help the user with: WebAssembly sandbox security",
+          "response": "I don't have specific information about WebAssembly sandbox security in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 122,
+          "tokens_out": 114,
+          "latency_ms": 831.7
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-c7c6d995",
+          "query": "WebAssembly sandbox security",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-005-55e3f8d0",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T02:49:32.608992+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: WebAssembly sandbox security",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-628b343f",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Help the user with: WebAssembly sandbox security",
+          "response": "I don't have specific information about WebAssembly sandbox security in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 125,
+          "tokens_out": 100,
+          "latency_ms": 866.8
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-b851a8dc",
+          "query": "WebAssembly sandbox security",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-008-741da919",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T08:49:32.609027+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: satellite IoT device management",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-566db058",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: satellite IoT device management",
+          "response": "I don't have specific information about satellite IoT device management in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 160,
+          "tokens_out": 53,
+          "latency_ms": 810.6
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-e113017d",
+          "query": "satellite IoT device management",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-001-6ba74211",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T12:49:32.608349+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-ade6074a",
+          "model": "gpt-4o-mini",
+          "prompt": "What is the cancellation procedure for annual subscriptions?",
+          "response": "Annual subscriptions can be cancelled by calling our retention team at 1-800-CANCEL. Full refunds issued within 1 business day.",
+          "tokens_in": 261,
+          "tokens_out": 185,
+          "latency_ms": 1990.8,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-9ea25331",
+            "doc-77208b90"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-d40e6bf6",
+          "query": "policy terms conditions",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.9,
+            0.77
+          ],
+          "expected_doc_ids": [
+            "doc-9ea25331",
+            "doc-77208b90"
+          ],
+          "actual_doc_ids": [
+            "doc-9ea25331",
+            "doc-77208b90"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-b04-ecec2dec",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T00:49:32.608824+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-d7fce412",
+          "model": "gpt-4o-mini",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-5f92e39c",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-496824c1",
+            "doc-b9ac5323"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-tool-003-03a48203",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T07:49:32.607979+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: query_database",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-1aa3e74d",
+          "model": "gpt-4o-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 975.3,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-fefeeacc",
+          "tool_name": "fetch_user_profile",
+          "parameters": {
+            "user_id": "usr-efcdb251",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "TimeoutError: request timed out after 30s",
+          "status": "failed",
+          "latency_ms": 7377.1
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-007-71db1d28",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T00:49:32.608460+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-1b17ea97",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is our company's data retention policy for EU customers?",
+          "response": "EU customer data is retained for exactly 36 months per GDPR Article 17. All data is auto-purged quarterly. Compliance audits verify this weekly.",
+          "tokens_in": 307,
+          "tokens_out": 244,
+          "latency_ms": 1614.5,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-0dd5b8ff",
+            "doc-5f995026"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-5d4cf47a",
+          "query": "policy terms conditions",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.93,
+            0.77
+          ],
+          "expected_doc_ids": [
+            "doc-0dd5b8ff",
+            "doc-5f995026"
+          ],
+          "actual_doc_ids": [
+            "doc-0dd5b8ff",
+            "doc-5f995026"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-a01-73af3bb2",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T12:49:32.609261+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Retrieval failure \u2014 mislabeled as memory but topic is absent from KB",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-2577a1a7",
+          "model": "claude-sonnet-4-6",
+          "prompt": "What is the procedure for GDPR right-to-erasure requests from enterprise clients?",
+          "response": "I don't have specific procedures for enterprise GDPR erasure requests in our documentation.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 700.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-d1028283",
+          "query": "GDPR right to erasure enterprise",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.24,
+            0.17
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-86a6dcd3",
+            "doc-097ebf56"
+          ],
+          "doc_content": [
+            "General GDPR overview.",
+            "Data privacy FAQ (consumer)."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "not in knowledge base",
+            "missing",
+            "not covered"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled memory but this is a genuine topic gap in the KB"
+      }
+    },
+    {
+      "session_id": "eval-mem-008-4dcbfcbc",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T10:49:32.607499+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #8",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-028a2b53",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Answer based on context: How do I export my data?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 363,
+          "tokens_out": 169,
+          "latency_ms": 1145.6,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-e70e64eb",
+            "doc-8e0e2436",
+            "doc-e396b618"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-efcc22e9",
+          "query": "help query 8",
+          "namespace": "support-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.42,
+            0.18,
+            0.21
+          ],
+          "expected_doc_ids": [
+            "doc-6d0b7f28",
+            "doc-b31df3f3"
+          ],
+          "actual_doc_ids": [
+            "doc-e70e64eb",
+            "doc-8e0e2436",
+            "doc-e396b618"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-010-34159cde",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T23:49:32.609050+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: multi-region failover configuration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-18cb3d5b",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: multi-region failover configuration",
+          "response": "I don't have specific information about multi-region failover configuration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 162,
+          "tokens_out": 110,
+          "latency_ms": 757.7
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-a3191dad",
+          "query": "multi-region failover configuration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-b05-04dca523",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T14:49:32.607811+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0531e30e",
+          "model": "gpt-4o-mini",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 1544.2,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-95c1b483",
+            "doc-3b134fe2",
+            "doc-51d32282"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-486adee9",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-95c1b483",
+            "doc-064be641"
+          ],
+          "actual_doc_ids": [
+            "doc-95c1b483",
+            "doc-3b134fe2",
+            "doc-51d32282"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-mem-006-b73d17a5",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T10:49:32.607448+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #6",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0246c7f0",
+          "model": "gpt-4o-mini",
+          "prompt": "Answer based on context: How do I export my data?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 363,
+          "tokens_out": 155,
+          "latency_ms": 1756.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-72cec821",
+            "doc-21b218f8",
+            "doc-a6a2457a"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-9c68c2d8",
+          "query": "help query 6",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.22,
+            0.23,
+            0.15
+          ],
+          "expected_doc_ids": [
+            "doc-007c4900",
+            "doc-12eb4da5"
+          ],
+          "actual_doc_ids": [
+            "doc-72cec821",
+            "doc-21b218f8",
+            "doc-a6a2457a"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-a01-917a30a5",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T08:49:32.607880+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "Incorrect retrieval despite pre-labeling as hallucination",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-10ec2086",
+          "model": "gpt-4.1-mini",
+          "prompt": "Explain the refund policy for premium users",
+          "response": "Based on retrieved context, the standard 30-day policy applies.",
+          "tokens_in": 220,
+          "tokens_out": 100,
+          "latency_ms": 950.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-44e68994",
+            "doc-112e0f76",
+            "doc-8a2b4738"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-03dd72bd",
+          "query": "refund policy premium users",
+          "namespace": "support-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.31,
+            0.24,
+            0.18
+          ],
+          "expected_doc_ids": [
+            "doc-e129fa83",
+            "doc-9615e649"
+          ],
+          "actual_doc_ids": [
+            "doc-44e68994",
+            "doc-112e0f76",
+            "doc-8a2b4738"
+          ],
+          "doc_content": [
+            "Shipping policy document.",
+            "Returns FAQ (generic).",
+            "Unrelated product doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "mismatch",
+            "incorrect document"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled hallucination but evidence is retrieval failure"
+      }
+    },
+    {
+      "session_id": "eval-tool-t01-d37ebb14",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T09:49:32.608299+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Database query timed out after 30 seconds",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-cc0a7f56",
+          "model": "gpt-4.1-mini",
+          "prompt": "Retrieve the last 90 days of transaction history for this account",
+          "response": "I was unable to retrieve transaction history due to a timeout.",
+          "tokens_in": 150,
+          "tokens_out": 70,
+          "latency_ms": 600.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-2a6f2cf8",
+          "tool_name": "query_database",
+          "parameters": {
+            "query": "SELECT * FROM transactions WHERE account_id = ? AND date > ?",
+            "days": 90
+          },
+          "result": null,
+          "error": "TimeoutError: query execution exceeded 30s limit",
+          "status": "timeout",
+          "latency_ms": 30500.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "timeout",
+            "tool",
+            "slow",
+            "database",
+            "exceeded"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "adversarial"
+      }
+    },
+    {
+      "session_id": "eval-hall-005-63193ac8",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T17:49:32.608425+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-b15a3f0c",
+          "model": "gpt-4o-mini",
+          "prompt": "Explain the SLA guarantees for the Pro tier.",
+          "response": "Annual subscriptions can be cancelled by calling our retention team at 1-800-CANCEL. Full refunds issued within 1 business day.",
+          "tokens_in": 344,
+          "tokens_out": 285,
+          "latency_ms": 1655.3,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-c47782f7",
+            "doc-10e5ec3e"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-a254c4bf",
+          "query": "policy terms conditions",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.91,
+            0.82
+          ],
+          "expected_doc_ids": [
+            "doc-c47782f7",
+            "doc-10e5ec3e"
+          ],
+          "actual_doc_ids": [
+            "doc-c47782f7",
+            "doc-10e5ec3e"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-b03-830d9aaa",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T00:49:32.607765+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-ced536eb",
+          "model": "gpt-4o-mini",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 945.9,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-d4a66d09",
+            "doc-43188bbc",
+            "doc-d86eb56d"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-cf6cd66e",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-d4a66d09",
+            "doc-434243f5"
+          ],
+          "actual_doc_ids": [
+            "doc-d4a66d09",
+            "doc-43188bbc",
+            "doc-d86eb56d"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-hall-015-fc894597",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T14:49:32.608749+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-21e5cf9f",
+          "model": "claude-sonnet-4-6",
+          "prompt": "What is our company's data retention policy for EU customers?",
+          "response": "Enterprise contracts include a 180-day money-back guarantee with no questions asked. All refunds process within 2 business hours.",
+          "tokens_in": 312,
+          "tokens_out": 257,
+          "latency_ms": 1959.5,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-0a506eb4",
+            "doc-8e8cf159"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-93107026",
+          "query": "policy terms conditions",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.86,
+            0.82
+          ],
+          "expected_doc_ids": [
+            "doc-0a506eb4",
+            "doc-8e8cf159"
+          ],
+          "actual_doc_ids": [
+            "doc-0a506eb4",
+            "doc-8e8cf159"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-012-9971d196",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T05:49:32.607612+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #12",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-218864b9",
+          "model": "gpt-4o-mini",
+          "prompt": "Answer based on context: How do I reset my password?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 269,
+          "tokens_out": 177,
+          "latency_ms": 1719.6,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-108e9152",
+            "doc-e2872441",
+            "doc-c8afe222"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-84ee0e4b",
+          "query": "help query 12",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.33,
+            0.38,
+            0.11
+          ],
+          "expected_doc_ids": [
+            "doc-523d5ef5",
+            "doc-e6318eaf"
+          ],
+          "actual_doc_ids": [
+            "doc-108e9152",
+            "doc-e2872441",
+            "doc-c8afe222"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-013-a79fd00f",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T22:49:32.607636+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #13",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-43d364c6",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Answer based on context: How do I export my data?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 309,
+          "tokens_out": 134,
+          "latency_ms": 1832.2,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-fa9528b4",
+            "doc-b9bad9b2",
+            "doc-dfe9f317"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-e0f72e89",
+          "query": "help query 13",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.37,
+            0.22,
+            0.15
+          ],
+          "expected_doc_ids": [
+            "doc-ad303691",
+            "doc-34ccbcb3"
+          ],
+          "actual_doc_ids": [
+            "doc-fa9528b4",
+            "doc-b9bad9b2",
+            "doc-dfe9f317"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-003-f14b8cae",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T22:49:32.608968+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: quantum-safe encryption migration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-09640750",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: quantum-safe encryption migration",
+          "response": "I don't have specific information about quantum-safe encryption migration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 138,
+          "tokens_out": 71,
+          "latency_ms": 875.7
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-87ca0d97",
+          "query": "quantum-safe encryption migration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-002-45c1554c",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T19:49:32.608369+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-eefaa0dd",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the cancellation procedure for annual subscriptions?",
+          "response": "Enterprise contracts include a 180-day money-back guarantee with no questions asked. All refunds process within 2 business hours.",
+          "tokens_in": 300,
+          "tokens_out": 185,
+          "latency_ms": 1355.5,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-99f5dd54",
+            "doc-0b41db1d"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-62acd32b",
+          "query": "policy terms conditions",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.9,
+            0.76
+          ],
+          "expected_doc_ids": [
+            "doc-99f5dd54",
+            "doc-0b41db1d"
+          ],
+          "actual_doc_ids": [
+            "doc-99f5dd54",
+            "doc-0b41db1d"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-a03-9d7f6b2d",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T03:49:32.608917+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Mislabeled as memory \u2014 retrieval was fine, LLM hallucinated",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-366f4f68",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is our refund policy?",
+          "response": "We offer a 180-day money-back guarantee on all products with no questions asked. Premium customers receive a full year of refund eligibility. The automated system processes requests within 2 hours.",
+          "tokens_in": 300,
+          "tokens_out": 250,
+          "latency_ms": 1500.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-b0e047c7",
+            "doc-c641ce8b"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-c430dfcb",
+          "query": "refund policy",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.94,
+            0.87
+          ],
+          "expected_doc_ids": [
+            "doc-b0e047c7",
+            "doc-c641ce8b"
+          ],
+          "actual_doc_ids": [
+            "doc-b0e047c7",
+            "doc-c641ce8b"
+          ],
+          "doc_content": [
+            "30-day return policy document.",
+            "Standard refund terms."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "invented",
+            "not in source"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled memory but retrieval scores are high \u2014 hallucination is the real failure"
+      }
+    },
+    {
+      "session_id": "eval-tool-c02-74e2e383",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T03:49:32.608205+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-12c3036d",
+          "model": "gpt-4.1-mini",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-01b09cb6",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-b39ec2cb",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-blind-b03-6f8b3314",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T07:49:32.609170+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-ebc512c3",
+          "model": "gpt-4o-mini",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-ee9b5ad5",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-065bdd9b",
+            "doc-75cc92f5",
+            "doc-6fd80d58"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-hall-a02-879e75bd",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T07:49:32.608902+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Mislabeled as memory \u2014 retrieval was fine, LLM hallucinated",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-dd771ee3",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is our refund policy?",
+          "response": "We offer a 180-day money-back guarantee on all products with no questions asked. Premium customers receive a full year of refund eligibility. The automated system processes requests within 2 hours.",
+          "tokens_in": 300,
+          "tokens_out": 250,
+          "latency_ms": 1500.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-902efeb9",
+            "doc-d087a83b"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-107288c8",
+          "query": "refund policy",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.94,
+            0.87
+          ],
+          "expected_doc_ids": [
+            "doc-902efeb9",
+            "doc-d087a83b"
+          ],
+          "actual_doc_ids": [
+            "doc-902efeb9",
+            "doc-d087a83b"
+          ],
+          "doc_content": [
+            "30-day return policy document.",
+            "Standard refund terms."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "invented",
+            "not in source"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled memory but retrieval scores are high \u2014 hallucination is the real failure"
+      }
+    },
+    {
+      "session_id": "eval-blind-b01-80f23011",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T23:49:32.609132+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-f7c99349",
+          "model": "gpt-4.1-mini",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-7c03fbaa",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-cc254387",
+            "doc-534aa966",
+            "doc-c26a48ba"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-tool-005-8f190fd2",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T18:49:32.608007+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: send_email",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-c1fac6f2",
+          "model": "gpt-4.1-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1081.6,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-bacf502d",
+          "tool_name": "send_email",
+          "parameters": {
+            "user_id": "usr-07ddd8ab",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "TimeoutError: request timed out after 30s",
+          "status": "failed",
+          "latency_ms": 11274.9
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-004-1a28f9c9",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T10:49:32.607993+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: search_knowledge_base",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-d9bed562",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 706.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-3e4d05ed",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "user_id": "usr-a074eb3b",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "PermissionError: insufficient privileges",
+          "status": "failed",
+          "latency_ms": 8561.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-t02-262feb36",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T03:49:32.608317+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Database query timed out after 30 seconds",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-1fd9ced6",
+          "model": "gpt-4.1-mini",
+          "prompt": "Retrieve the last 90 days of transaction history for this account",
+          "response": "I was unable to retrieve transaction history due to a timeout.",
+          "tokens_in": 150,
+          "tokens_out": 70,
+          "latency_ms": 600.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-40b28811",
+          "tool_name": "query_database",
+          "parameters": {
+            "query": "SELECT * FROM transactions WHERE account_id = ? AND date > ?",
+            "days": 90
+          },
+          "result": null,
+          "error": "TimeoutError: query execution exceeded 30s limit",
+          "status": "timeout",
+          "latency_ms": 30500.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "timeout",
+            "tool",
+            "slow",
+            "database",
+            "exceeded"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "adversarial"
+      }
+    },
+    {
+      "session_id": "eval-hall-012-66f1713b",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T12:49:32.608554+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a8289b84",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Explain the SLA guarantees for the Pro tier.",
+          "response": "Enterprise contracts include a 180-day money-back guarantee with no questions asked. All refunds process within 2 business hours.",
+          "tokens_in": 271,
+          "tokens_out": 213,
+          "latency_ms": 1875.3,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-8d76b919",
+            "doc-ec1faf25"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-aca56c19",
+          "query": "policy terms conditions",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.87,
+            0.8
+          ],
+          "expected_doc_ids": [
+            "doc-8d76b919",
+            "doc-ec1faf25"
+          ],
+          "actual_doc_ids": [
+            "doc-8d76b919",
+            "doc-ec1faf25"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-a02-5e3145c9",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T18:49:32.607905+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "Incorrect retrieval despite pre-labeling as hallucination",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-b61fbe82",
+          "model": "gpt-4.1-mini",
+          "prompt": "Explain the refund policy for premium users",
+          "response": "Based on retrieved context, the standard 30-day policy applies.",
+          "tokens_in": 220,
+          "tokens_out": 100,
+          "latency_ms": 950.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-d46d23b5",
+            "doc-432220e8",
+            "doc-6dec92b6"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-3b0b5cb7",
+          "query": "refund policy premium users",
+          "namespace": "support-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.31,
+            0.24,
+            0.18
+          ],
+          "expected_doc_ids": [
+            "doc-a7e33d6e",
+            "doc-8204e224"
+          ],
+          "actual_doc_ids": [
+            "doc-d46d23b5",
+            "doc-432220e8",
+            "doc-6dec92b6"
+          ],
+          "doc_content": [
+            "Shipping policy document.",
+            "Returns FAQ (generic).",
+            "Unrelated product doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "mismatch",
+            "incorrect document"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled hallucination but evidence is retrieval failure"
+      }
+    },
+    {
+      "session_id": "eval-mem-002-912cf421",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T14:49:32.607328+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #2",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a7916266",
+          "model": "gpt-4o-mini",
+          "prompt": "Answer based on context: How do I cancel my subscription?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 318,
+          "tokens_out": 180,
+          "latency_ms": 1598.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-a3ab834e",
+            "doc-bccd002b",
+            "doc-0fa6c84e"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-b5a90262",
+          "query": "help query 2",
+          "namespace": "customer-data",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.2,
+            0.21,
+            0.16
+          ],
+          "expected_doc_ids": [
+            "doc-e1d793ac",
+            "doc-9be03254"
+          ],
+          "actual_doc_ids": [
+            "doc-a3ab834e",
+            "doc-bccd002b",
+            "doc-0fa6c84e"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-015-09a5a4e5",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T22:49:32.607684+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #15",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-b97ee1df",
+          "model": "gpt-4o-mini",
+          "prompt": "Answer based on context: How do I cancel my subscription?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 380,
+          "tokens_out": 183,
+          "latency_ms": 1526.8,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-7e95a689",
+            "doc-d71a611e",
+            "doc-694f7546"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-891827ab",
+          "query": "help query 15",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.37,
+            0.23
+          ],
+          "expected_doc_ids": [
+            "doc-1456c50c",
+            "doc-3bcecc68"
+          ],
+          "actual_doc_ids": [
+            "doc-7e95a689",
+            "doc-d71a611e",
+            "doc-694f7546"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-b03-06e5c378",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T11:49:32.608807+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-02cde867",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-173f65e8",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-b5b240d7",
+            "doc-c48e6bc3"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-hall-011-67b1faf8",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T23:49:32.608534+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0fe5dc32",
+          "model": "gpt-4o-mini",
+          "prompt": "What is the cancellation procedure for annual subscriptions?",
+          "response": "Pro tier guarantees 99.99% uptime with $500 per-hour SLA credits and a dedicated 24/7 hotline.",
+          "tokens_in": 315,
+          "tokens_out": 246,
+          "latency_ms": 1720.6,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-8c8f2ee4",
+            "doc-3aa3c2b4"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-9a671a71",
+          "query": "policy terms conditions",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.95,
+            0.76
+          ],
+          "expected_doc_ids": [
+            "doc-8c8f2ee4",
+            "doc-3aa3c2b4"
+          ],
+          "actual_doc_ids": [
+            "doc-8c8f2ee4",
+            "doc-3aa3c2b4"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-003-9ff7c195",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-05T01:49:32.607361+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #3",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-66f1d731",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Answer based on context: How do I cancel my subscription?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 265,
+          "tokens_out": 146,
+          "latency_ms": 1692.2,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-882b5844",
+            "doc-dafcf503",
+            "doc-41e7b1a4"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-1d2e0dd9",
+          "query": "help query 3",
+          "namespace": "customer-data",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.25,
+            0.15,
+            0.14
+          ],
+          "expected_doc_ids": [
+            "doc-e270ca67",
+            "doc-9e141a46"
+          ],
+          "actual_doc_ids": [
+            "doc-882b5844",
+            "doc-dafcf503",
+            "doc-41e7b1a4"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-008-bc024923",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T19:49:32.608058+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: fetch_user_profile",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-5cbee840",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1021.8,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-ecd1dc5a",
+          "tool_name": "fetch_user_profile",
+          "parameters": {
+            "user_id": "usr-cf6aa3cf",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "TimeoutError: request timed out after 30s",
+          "status": "failed",
+          "latency_ms": 6621.6
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-b01-15fa4cbe",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T10:49:32.607713+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-78741ea1",
+          "model": "claude-sonnet-4-6",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 1667.1,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-d147ccc1",
+            "doc-ef042aa1",
+            "doc-c03a77ed"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-2f0f6208",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-d147ccc1",
+            "doc-16e1415f"
+          ],
+          "actual_doc_ids": [
+            "doc-d147ccc1",
+            "doc-ef042aa1",
+            "doc-c03a77ed"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-blind-b04-ecc07926",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T07:49:32.609191+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-3599ffd1",
+          "model": "claude-sonnet-4-6",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-4afdc38b",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-cc9eeb65",
+            "doc-f4c1c8a0",
+            "doc-b713410a"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-hall-b05-f8bafbc7",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T03:49:32.608838+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-90b23500",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-f923f91c",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-a2f6d135",
+            "doc-ed0eeefd"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-blind-b02-408be8fd",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T06:49:32.609152+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a41aed0c",
+          "model": "gpt-4o-mini",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-210f171b",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-d5696f06",
+            "doc-400c352f",
+            "doc-52b3425f"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-blind-009-d965f5c5",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T13:49:32.609038+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: real-time bidding integration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-8a49d1ef",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: real-time bidding integration",
+          "response": "I don't have specific information about real-time bidding integration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 102,
+          "tokens_out": 102,
+          "latency_ms": 789.2
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-1d992ede",
+          "query": "real-time bidding integration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-005-316e4890",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T10:49:32.607414+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #5",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-1a8135ba",
+          "model": "gpt-4o-mini",
+          "prompt": "Answer based on context: How do I export my data?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 276,
+          "tokens_out": 135,
+          "latency_ms": 969.1,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-1fa84683",
+            "doc-014fc859",
+            "doc-d2faa412"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-de510b85",
+          "query": "help query 5",
+          "namespace": "support-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.3,
+            0.28,
+            0.12
+          ],
+          "expected_doc_ids": [
+            "doc-0665a9c8",
+            "doc-6f548dd4"
+          ],
+          "actual_doc_ids": [
+            "doc-1fa84683",
+            "doc-014fc859",
+            "doc-d2faa412"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-c04-617ed88d",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T04:49:32.608238+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-51483ffc",
+          "model": "gpt-4.1-mini",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-98292cbe",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-74723950",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-mem-b02-0553ab98",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T13:49:32.607741+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-c4da52e8",
+          "model": "claude-sonnet-4-6",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 1736.6,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-afd9a832",
+            "doc-f1e27c88",
+            "doc-3b5e7785"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-6f1d1bd1",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-afd9a832",
+            "doc-27740ddb"
+          ],
+          "actual_doc_ids": [
+            "doc-afd9a832",
+            "doc-f1e27c88",
+            "doc-3b5e7785"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-hall-009-fbc826a3",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T15:49:32.608500+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-1be566a8",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Explain the SLA guarantees for the Pro tier.",
+          "response": "Enterprise contracts include a 180-day money-back guarantee with no questions asked. All refunds process within 2 business hours.",
+          "tokens_in": 355,
+          "tokens_out": 286,
+          "latency_ms": 2458.3,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-1076f881",
+            "doc-4824a8d7"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-025d1b7d",
+          "query": "policy terms conditions",
+          "namespace": "customer-data",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.91,
+            0.87
+          ],
+          "expected_doc_ids": [
+            "doc-1076f881",
+            "doc-4824a8d7"
+          ],
+          "actual_doc_ids": [
+            "doc-1076f881",
+            "doc-4824a8d7"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-b07-9f622ad0",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T18:49:32.607854+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-4e3ae585",
+          "model": "gpt-4o-mini",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 1447.6,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-7cafe26c",
+            "doc-27e399a7",
+            "doc-d44f91a7"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-ae6eede9",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-7cafe26c",
+            "doc-673d4f06"
+          ],
+          "actual_doc_ids": [
+            "doc-7cafe26c",
+            "doc-27e399a7",
+            "doc-d44f91a7"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-hall-006-ab041699",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T22:49:32.608442+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0ca467bc",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Explain the SLA guarantees for the Pro tier.",
+          "response": "EU customer data is retained for exactly 36 months per GDPR Article 17. All data is auto-purged quarterly. Compliance audits verify this weekly.",
+          "tokens_in": 378,
+          "tokens_out": 278,
+          "latency_ms": 1537.9,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-63bc60f6",
+            "doc-035cf33f"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-23ae559e",
+          "query": "policy terms conditions",
+          "namespace": "customer-data",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.86,
+            0.84
+          ],
+          "expected_doc_ids": [
+            "doc-63bc60f6",
+            "doc-035cf33f"
+          ],
+          "actual_doc_ids": [
+            "doc-63bc60f6",
+            "doc-035cf33f"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-012-c7a09829",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T18:49:32.608119+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: fetch_user_profile",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-f5816880",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 620.8,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-faf8e026",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "user_id": "usr-78b441c9",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "PermissionError: insufficient privileges",
+          "status": "failed",
+          "latency_ms": 9159.5
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-014-9e35e822",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T17:49:32.609099+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: real-time bidding integration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0eb07444",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: real-time bidding integration",
+          "response": "I don't have specific information about real-time bidding integration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 176,
+          "tokens_out": 107,
+          "latency_ms": 457.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-cafc320b",
+          "query": "real-time bidding integration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-010-6203d565",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T03:49:32.608087+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: query_database",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-82f9e7d1",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1127.5,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-fac76d10",
+          "tool_name": "search_knowledge_base",
+          "parameters": {
+            "user_id": "usr-c04828b9",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "TimeoutError: request timed out after 30s",
+          "status": "failed",
+          "latency_ms": 10569.7
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-t03-46264f8b",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T16:49:32.608332+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Database query timed out after 30 seconds",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-ad921aea",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Retrieve the last 90 days of transaction history for this account",
+          "response": "I was unable to retrieve transaction history due to a timeout.",
+          "tokens_in": 150,
+          "tokens_out": 70,
+          "latency_ms": 600.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-99c744cf",
+          "tool_name": "query_database",
+          "parameters": {
+            "query": "SELECT * FROM transactions WHERE account_id = ? AND date > ?",
+            "days": 90
+          },
+          "result": null,
+          "error": "TimeoutError: query execution exceeded 30s limit",
+          "status": "timeout",
+          "latency_ms": 30500.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "timeout",
+            "tool",
+            "slow",
+            "database",
+            "exceeded"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "adversarial"
+      }
+    },
+    {
+      "session_id": "eval-mem-b04-c9d27171",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T03:49:32.607790+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Partially correct retrieval \u2014 one expected doc missing",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-109ff751",
+          "model": "claude-sonnet-4-6",
+          "prompt": "What are the current API rate limits for enterprise customers?",
+          "response": "Based on available docs, rate limits vary by plan tier. Enterprise details may be outdated.",
+          "tokens_in": 280,
+          "tokens_out": 150,
+          "latency_ms": 1724.6,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-9f383bfb",
+            "doc-a96aef06",
+            "doc-5c65df37"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-f80eb794",
+          "query": "API rate limits enterprise plan",
+          "namespace": "product-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.61,
+            0.52,
+            0.38
+          ],
+          "expected_doc_ids": [
+            "doc-9f383bfb",
+            "doc-7d00de57"
+          ],
+          "actual_doc_ids": [
+            "doc-9f383bfb",
+            "doc-a96aef06",
+            "doc-5c65df37"
+          ],
+          "doc_content": [
+            "Rate limits documentation (partial match).",
+            "General API docs.",
+            "Unrelated billing doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "stale",
+            "mismatch",
+            "outdated"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-mem-014-6afaf8ba",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T23:49:32.607660+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #14",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-44242c13",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Answer based on context: How do I update billing info?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 377,
+          "tokens_out": 107,
+          "latency_ms": 946.5,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-dd0e0745",
+            "doc-9fb31141",
+            "doc-494fd917"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-1b9578f2",
+          "query": "help query 14",
+          "namespace": "customer-data",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.45,
+            0.2,
+            0.15
+          ],
+          "expected_doc_ids": [
+            "doc-f55b68f6",
+            "doc-f3b22ddd"
+          ],
+          "actual_doc_ids": [
+            "doc-dd0e0745",
+            "doc-9fb31141",
+            "doc-494fd917"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-a03-9574972c",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T05:49:32.607927+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "Incorrect retrieval despite pre-labeling as hallucination",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-58f1a45e",
+          "model": "gpt-4.1-mini",
+          "prompt": "Explain the refund policy for premium users",
+          "response": "Based on retrieved context, the standard 30-day policy applies.",
+          "tokens_in": 220,
+          "tokens_out": 100,
+          "latency_ms": 950.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-bc076d92",
+            "doc-0071d9c7",
+            "doc-49205642"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-f684d502",
+          "query": "refund policy premium users",
+          "namespace": "support-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.31,
+            0.24,
+            0.18
+          ],
+          "expected_doc_ids": [
+            "doc-6507f274",
+            "doc-ccd4d272"
+          ],
+          "actual_doc_ids": [
+            "doc-bc076d92",
+            "doc-0071d9c7",
+            "doc-49205642"
+          ],
+          "doc_content": [
+            "Shipping policy document.",
+            "Returns FAQ (generic).",
+            "Unrelated product doc."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "retrieval",
+            "wrong",
+            "mismatch",
+            "incorrect document"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled hallucination but evidence is retrieval failure"
+      }
+    },
+    {
+      "session_id": "eval-hall-008-dc85c751",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T15:49:32.608479+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-72faf2f5",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is our company's data retention policy for EU customers?",
+          "response": "Annual subscriptions can be cancelled by calling our retention team at 1-800-CANCEL. Full refunds issued within 1 business day.",
+          "tokens_in": 341,
+          "tokens_out": 193,
+          "latency_ms": 1327.9,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-7885e144",
+            "doc-05c045c0"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-a66e959e",
+          "query": "policy terms conditions",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.91,
+            0.84
+          ],
+          "expected_doc_ids": [
+            "doc-7885e144",
+            "doc-05c045c0"
+          ],
+          "actual_doc_ids": [
+            "doc-7885e144",
+            "doc-05c045c0"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-b07-7c9f94dd",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T23:49:32.609242+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-52c3f432",
+          "model": "gpt-4o-mini",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-0ad976db",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-66dd7d39",
+            "doc-6289b4c1",
+            "doc-3f6c56aa"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-blind-007-2ef3cb48",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T16:49:32.609015+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: real-time bidding integration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a25e4030",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: real-time bidding integration",
+          "response": "I don't have specific information about real-time bidding integration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 112,
+          "tokens_out": 96,
+          "latency_ms": 577.2
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-bb1a0414",
+          "query": "real-time bidding integration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-a01-2dca9091",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T10:49:32.608886+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Mislabeled as memory \u2014 retrieval was fine, LLM hallucinated",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0b8188b7",
+          "model": "gpt-4o-mini",
+          "prompt": "What is our refund policy?",
+          "response": "We offer a 180-day money-back guarantee on all products with no questions asked. Premium customers receive a full year of refund eligibility. The automated system processes requests within 2 hours.",
+          "tokens_in": 300,
+          "tokens_out": 250,
+          "latency_ms": 1500.0,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-6c6a02a2",
+            "doc-b6388f95"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-ab9e56d5",
+          "query": "refund policy",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.94,
+            0.87
+          ],
+          "expected_doc_ids": [
+            "doc-6c6a02a2",
+            "doc-b6388f95"
+          ],
+          "actual_doc_ids": [
+            "doc-6c6a02a2",
+            "doc-b6388f95"
+          ],
+          "doc_content": [
+            "30-day return policy document.",
+            "Standard refund terms."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "invented",
+            "not in source"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled memory but retrieval scores are high \u2014 hallucination is the real failure"
+      }
+    },
+    {
+      "session_id": "eval-tool-c05-c3cc6621",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T09:49:32.608257+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-14cd8580",
+          "model": "gpt-4o-mini",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-84fac781",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-d6c60c76",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-tool-013-6b4b6e9f",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T21:49:32.608135+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: create_ticket",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-473837f0",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1171.8,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-25c9248e",
+          "tool_name": "send_email",
+          "parameters": {
+            "user_id": "usr-a6cd8fab",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "ConnectionError: service unavailable",
+          "status": "failed",
+          "latency_ms": 8845.2
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-a03-f810058e",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T20:49:32.609291+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Retrieval failure \u2014 mislabeled as memory but topic is absent from KB",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-95bec910",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the procedure for GDPR right-to-erasure requests from enterprise clients?",
+          "response": "I don't have specific procedures for enterprise GDPR erasure requests in our documentation.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 700.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-9865da3e",
+          "query": "GDPR right to erasure enterprise",
+          "namespace": "support-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.24,
+            0.17
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-6eb298f4",
+            "doc-0e17ff26"
+          ],
+          "doc_content": [
+            "General GDPR overview.",
+            "Data privacy FAQ (consumer)."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "not in knowledge base",
+            "missing",
+            "not covered"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "adversarial",
+        "_note": "Pre-labeled memory but this is a genuine topic gap in the KB"
+      }
+    },
+    {
+      "session_id": "eval-tool-011-c741380f",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T04:49:32.608104+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: create_ticket",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-6db2caa9",
+          "model": "gpt-4o-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 919.6,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-a16fdb89",
+          "tool_name": "fetch_user_profile",
+          "parameters": {
+            "user_id": "usr-1f4044de",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "PermissionError: insufficient privileges",
+          "status": "failed",
+          "latency_ms": 10166.1
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-007-a14d7d0e",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T23:49:32.607474+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #7",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-1026630a",
+          "model": "gpt-4.1-mini",
+          "prompt": "Answer based on context: How do I update billing info?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 316,
+          "tokens_out": 149,
+          "latency_ms": 1017.1,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-5ccd8510",
+            "doc-28ed01ef",
+            "doc-97eb3714"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-961b4973",
+          "query": "help query 7",
+          "namespace": "customer-data",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.23,
+            0.24,
+            0.11
+          ],
+          "expected_doc_ids": [
+            "doc-4c0de658",
+            "doc-7cebcb4e"
+          ],
+          "actual_doc_ids": [
+            "doc-5ccd8510",
+            "doc-28ed01ef",
+            "doc-97eb3714"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-b06-55b158aa",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T11:49:32.608856+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-48cb98c2",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-3ae58a3f",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-3e5808e8",
+            "doc-87d85e51"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-mem-010-3c1ea254",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T21:49:32.607555+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #10",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-aec1e6ec",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Answer based on context: How do I cancel my subscription?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 331,
+          "tokens_out": 123,
+          "latency_ms": 1140.5,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-53cd56b8",
+            "doc-8dace1a7",
+            "doc-167875a0"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-f6d43d68",
+          "query": "help query 10",
+          "namespace": "support-docs",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.32,
+            0.24,
+            0.13
+          ],
+          "expected_doc_ids": [
+            "doc-6c7c805f",
+            "doc-7936ae91"
+          ],
+          "actual_doc_ids": [
+            "doc-53cd56b8",
+            "doc-8dace1a7",
+            "doc-167875a0"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-014-bc25780c",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T17:49:32.608153+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: search_knowledge_base",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-4f6423fe",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1070.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-c856babf",
+          "tool_name": "query_database",
+          "parameters": {
+            "user_id": "usr-eca22647",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "PermissionError: insufficient privileges",
+          "status": "failed",
+          "latency_ms": 11419.6
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-012-2c7e3ae6",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-03T19:49:32.609076+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: multi-region failover configuration",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-6e0dbe03",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Help the user with: multi-region failover configuration",
+          "response": "I don't have specific information about multi-region failover configuration in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 166,
+          "tokens_out": 73,
+          "latency_ms": 418.8
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-1f83f687",
+          "query": "multi-region failover configuration",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-015-30f20738",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-02T03:49:32.609112+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: HIPAA compliance for AI agents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-6f8c907a",
+          "model": "gpt-4o-mini",
+          "prompt": "Help the user with: HIPAA compliance for AI agents",
+          "response": "I don't have specific information about HIPAA compliance for AI agents in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 187,
+          "tokens_out": 67,
+          "latency_ms": 740.9
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-d0915889",
+          "query": "HIPAA compliance for AI agents",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-002-4d40933e",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T10:49:32.607964+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: fetch_user_profile",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-695e847b",
+          "model": "gpt-4o-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 1063.7,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-0fdb4043",
+          "tool_name": "send_email",
+          "parameters": {
+            "user_id": "usr-dc82ac21",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "PermissionError: insufficient privileges",
+          "status": "failed",
+          "latency_ms": 8656.7
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-010-23dc56c4",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T13:49:32.608517+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-0b10a821",
+          "model": "gpt-4.1-mini",
+          "prompt": "What is our company's data retention policy for EU customers?",
+          "response": "EU customer data is retained for exactly 36 months per GDPR Article 17. All data is auto-purged quarterly. Compliance audits verify this weekly.",
+          "tokens_in": 343,
+          "tokens_out": 211,
+          "latency_ms": 1858.6,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-d2b120d3",
+            "doc-71cd60a4"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-63dea37a",
+          "query": "policy terms conditions",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.93,
+            0.78
+          ],
+          "expected_doc_ids": [
+            "doc-d2b120d3",
+            "doc-71cd60a4"
+          ],
+          "actual_doc_ids": [
+            "doc-d2b120d3",
+            "doc-71cd60a4"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-004-75977937",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T11:49:32.607389+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #4",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-de155ab4",
+          "model": "gpt-4.1-mini",
+          "prompt": "Answer based on context: How do I reset my password?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 398,
+          "tokens_out": 107,
+          "latency_ms": 1847.9,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-9536d1ee",
+            "doc-5025c2c2",
+            "doc-50ae49fe"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-cfcdeec7",
+          "query": "help query 4",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.21,
+            0.31,
+            0.15
+          ],
+          "expected_doc_ids": [
+            "doc-dfd108a9",
+            "doc-ff2348e1"
+          ],
+          "actual_doc_ids": [
+            "doc-9536d1ee",
+            "doc-5025c2c2",
+            "doc-50ae49fe"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-hall-b02-b82dafdb",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T02:49:32.608788+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM fabricated response after poor retrieval returned insufficient context",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-8e5b68a9",
+          "model": "gpt-4o-mini",
+          "prompt": "What is the company's data retention policy for EU customers?",
+          "response": "Based on the documents, EU customer data is retained for exactly 36 months per GDPR Article 17 requirements. The quarterly compliance audit verifies this process.",
+          "tokens_in": 350,
+          "tokens_out": 280,
+          "latency_ms": 1800.0,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-c358ed42",
+          "query": "data retention policy EU GDPR",
+          "namespace": "product-docs",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.35,
+            0.22
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-3dff7543",
+            "doc-c2719be4"
+          ],
+          "doc_content": [
+            "Unrelated privacy document.",
+            "Generic compliance overview."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "unsupported",
+            "not grounded"
+          ],
+          "min_confidence": 0.55
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-blind-013-45ae71c1",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-02T11:49:32.609087+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: HIPAA compliance for AI agents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-fae9a0de",
+          "model": "gpt-4.1-mini",
+          "prompt": "Help the user with: HIPAA compliance for AI agents",
+          "response": "I don't have specific information about HIPAA compliance for AI agents in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 139,
+          "tokens_out": 71,
+          "latency_ms": 662.7
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-6fc5a2a3",
+          "query": "HIPAA compliance for AI agents",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-c06-e902ca4f",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-04T21:49:32.608269+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Cascading tool failures \u2014 create_ticket failed, send_email cascade-failed",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-7a6cb740",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Create a support ticket and send confirmation to the user",
+          "response": "Both operations failed due to upstream service errors.",
+          "tokens_in": 200,
+          "tokens_out": 90,
+          "latency_ms": 800.0
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-b4f491de",
+          "tool_name": "create_ticket",
+          "parameters": {
+            "subject": "Billing inquiry",
+            "priority": "high"
+          },
+          "result": null,
+          "error": "ConnectionError: ticketing service unavailable",
+          "status": "failed",
+          "latency_ms": 8500.0
+        },
+        {
+          "call_id": "tool-0c646453",
+          "tool_name": "send_email",
+          "parameters": {
+            "to": "user@example.com",
+            "template": "ticket_confirmation"
+          },
+          "result": null,
+          "error": "ValueError: ticket_id is required but was None (upstream failure)",
+          "status": "failed",
+          "latency_ms": 45.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "cascade",
+            "error",
+            "service unavailable"
+          ],
+          "min_confidence": 0.7
+        },
+        "_tier": "borderline"
+      }
+    },
+    {
+      "session_id": "eval-tool-001-98cdd47b",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-03T16:49:32.607947+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: send_email",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-ae8ccfe7",
+          "model": "gpt-4.1-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 998.3,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-3d532f29",
+          "tool_name": "fetch_user_profile",
+          "parameters": {
+            "user_id": "usr-e467dc13",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "TimeoutError: request timed out after 30s",
+          "status": "failed",
+          "latency_ms": 5218.0
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-b06-6620d635",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-04T00:49:32.609225+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "Retrieved documents but none address the query topic",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-b6262ac9",
+          "model": "gpt-4o-mini",
+          "prompt": "How do I configure multi-region failover for Kubernetes clusters?",
+          "response": "I can see some general Kubernetes documentation but nothing specific to multi-region failover configuration. This topic doesn't appear to be covered in our knowledge base.",
+          "tokens_in": 250,
+          "tokens_out": 120,
+          "latency_ms": 900.0
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-f8616bf7",
+          "query": "multi-region failover Kubernetes",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.28,
+            0.19,
+            0.12
+          ],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [
+            "doc-ed81ad55",
+            "doc-f9d6d981",
+            "doc-f8f5b122"
+          ],
+          "doc_content": [
+            "General Kubernetes intro docs.",
+            "Container orchestration basics.",
+            "Single-region deployment guide."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge gap",
+            "irrelevant",
+            "not covered",
+            "missing topic",
+            "low relevance"
+          ],
+          "min_confidence": 0.5
+        },
+        "_tier": "borderline",
+        "_ambiguous_with": "memory"
+      }
+    },
+    {
+      "session_id": "eval-hall-014-0260fdf4",
+      "agent_id": "research-agent-v1",
+      "timestamp": "2026-05-02T17:49:32.608725+00:00",
+      "outcome": "failure",
+      "failure_type": "hallucination",
+      "failure_summary": "LLM response contains fabricated facts not in source documents",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-e6584267",
+          "model": "gpt-4.1-mini",
+          "prompt": "Explain the SLA guarantees for the Pro tier.",
+          "response": "Enterprise contracts include a 180-day money-back guarantee with no questions asked. All refunds process within 2 business hours.",
+          "tokens_in": 335,
+          "tokens_out": 181,
+          "latency_ms": 1810.8,
+          "hallucination_flag": true,
+          "source_documents": [
+            "doc-e8afc324",
+            "doc-2fb3a9cf"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-e790f7ae",
+          "query": "policy terms conditions",
+          "namespace": "customer-data",
+          "chunks_returned": 2,
+          "relevance_scores": [
+            0.87,
+            0.82
+          ],
+          "expected_doc_ids": [
+            "doc-e8afc324",
+            "doc-2fb3a9cf"
+          ],
+          "actual_doc_ids": [
+            "doc-e8afc324",
+            "doc-2fb3a9cf"
+          ],
+          "doc_content": [
+            "Policy document with actual terms.",
+            "Supporting policy reference."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "hallucination",
+          "root_cause_keywords": [
+            "hallucination",
+            "fabricated",
+            "not in source",
+            "invented",
+            "made up",
+            "unsupported"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-mem-009-342b7876",
+      "agent_id": "code-review-agent-v3",
+      "timestamp": "2026-05-04T02:49:32.607526+00:00",
+      "outcome": "failure",
+      "failure_type": "memory",
+      "failure_summary": "Wrong documents retrieved for query #9",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-4175d55c",
+          "model": "gpt-4o-mini",
+          "prompt": "Answer based on context: How do I export my data?",
+          "response": "Based on the retrieved documents, the process involves navigating to settings and following the on-screen instructions.",
+          "tokens_in": 391,
+          "tokens_out": 187,
+          "latency_ms": 1357.7,
+          "hallucination_flag": false,
+          "source_documents": [
+            "doc-d7264716",
+            "doc-de125b9f",
+            "doc-4dd4f37a"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-1c6cf5f2",
+          "query": "help query 9",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 3,
+          "relevance_scores": [
+            0.41,
+            0.23,
+            0.18
+          ],
+          "expected_doc_ids": [
+            "doc-824cd296",
+            "doc-0b76d2be"
+          ],
+          "actual_doc_ids": [
+            "doc-d7264716",
+            "doc-de125b9f",
+            "doc-4dd4f37a"
+          ],
+          "doc_content": [
+            "Unrelated document content about different topics.",
+            "Another irrelevant document.",
+            "Third irrelevant document."
+          ],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "memory",
+          "root_cause_keywords": [
+            "wrong document",
+            "retrieval",
+            "mismatch",
+            "stale",
+            "incorrect"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-tool-015-f7fecd12",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T23:49:32.608171+00:00",
+      "outcome": "failure",
+      "failure_type": "tool_misfire",
+      "failure_summary": "Tool call failed: create_ticket",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-74879441",
+          "model": "gpt-4.1-mini",
+          "prompt": "Look up the customer's subscription and process their cancellation request",
+          "response": "I was unable to process the cancellation due to a system error.",
+          "tokens_in": 180,
+          "tokens_out": 80,
+          "latency_ms": 988.5,
+          "hallucination_flag": false,
+          "source_documents": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "call_id": "tool-271456d3",
+          "tool_name": "send_email",
+          "parameters": {
+            "user_id": "usr-6e9ca39c",
+            "action": "cancel"
+          },
+          "result": null,
+          "error": "ConnectionError: service unavailable",
+          "status": "failed",
+          "latency_ms": 6443.9
+        }
+      ],
+      "retrieval_events": [],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "tool_misfire",
+          "root_cause_keywords": [
+            "tool",
+            "failed",
+            "error",
+            "timeout",
+            "connection",
+            "permission"
+          ],
+          "min_confidence": 0.65
+        },
+        "_tier": "obvious"
+      }
+    },
+    {
+      "session_id": "eval-blind-001-5d2af2c2",
+      "agent_id": "support-agent-v2",
+      "timestamp": "2026-05-03T06:49:32.608935+00:00",
+      "outcome": "failure",
+      "failure_type": "blind_spot",
+      "failure_summary": "No relevant knowledge found for: satellite IoT device management",
+      "trace_source": "synthetic",
+      "llm_calls": [
+        {
+          "call_id": "llm-a21cbdba",
+          "model": "claude-sonnet-4-6",
+          "prompt": "Help the user with: satellite IoT device management",
+          "response": "I don't have specific information about satellite IoT device management in my knowledge base. I cannot provide accurate guidance on this topic.",
+          "tokens_in": 170,
+          "tokens_out": 61,
+          "latency_ms": 727.8
+        }
+      ],
+      "tool_calls": [],
+      "retrieval_events": [
+        {
+          "event_id": "ret-9ba47c62",
+          "query": "satellite IoT device management",
+          "namespace": "engineering-wiki",
+          "chunks_returned": 0,
+          "relevance_scores": [],
+          "expected_doc_ids": [],
+          "actual_doc_ids": [],
+          "doc_content": [],
+          "metadata_filters": {}
+        }
+      ],
+      "metadata": {
+        "_ground_truth": {
+          "failure_type": "blind_spot",
+          "root_cause_keywords": [
+            "knowledge base",
+            "not covered",
+            "lacks coverage",
+            "no content",
+            "no document"
+          ],
+          "min_confidence": 0.6
+        },
+        "_tier": "obvious"
+      }
+    }
+  ]
+}

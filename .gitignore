@@ -222,6 +222,7 @@ proj_plan.md
 # Environment (explicit paths)
 backend/.env
 .env.local
+frontend/.env.local
 
 # Build caches & empty dirs
 .render_cache/
@@ -258,6 +259,7 @@ frontend/*.jpg
 # Stakeholder-facing writeups (not for version control)
 docs/stakeholder_blog.md
 docs/technical_blog.md
+docs/enhancement_ideas.md
 
 # Demo GIF and video artifacts — large files, recorded locally
 demo.gif

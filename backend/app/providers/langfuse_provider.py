@@ -1205,6 +1205,32 @@ class LangfuseProvider(TraceProvider):
         )
         return sessions
 
+    async def fetch_trace_by_id(self, trace_id: str) -> "Session | None":
+        """Fetch a single Langfuse trace by its ID and convert to an Aethen Session.
+
+        Returns None if the trace is not found or is an internal Aethen trace.
+        """
+        try:
+            client = self._get_client()
+            trace = client.trace.get(trace_id)
+            trace_dict = self._to_dict(trace)
+            trace_name = (trace_dict.get("name") or "")
+
+            if trace_name.startswith("aethen-"):
+                logger.debug("langfuse_skipping_internal_trace", trace_id=trace_id)
+                return None
+
+            obs_response = client.observations.get_many(trace_id=trace_id)
+            observations = obs_response.data if hasattr(obs_response, "data") else []
+            obs_dicts = [self._to_dict(o) for o in (observations or [])]
+
+            session = self._adapter.adapt_trace(trace_dict, obs_dicts)
+            logger.info("langfuse_trace_fetched_by_id", trace_id=trace_id)
+            return session
+        except Exception as exc:
+            logger.warning("langfuse_fetch_by_id_failed", trace_id=trace_id, error=str(exc))
+            return None
+
     async def health_check(self) -> dict:
         """Check Langfuse connectivity."""
         try:

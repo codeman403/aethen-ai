@@ -10,7 +10,8 @@ import {
   Eye,
   MessageSquare,
   ChevronsUpDown,
-  Settings,
+  BrainCircuit,
+  Plug,
   TrendingUp,
   Network,
   Timer,
@@ -50,8 +51,9 @@ const NAV_GROUPS = [
   {
     label: "System",
     items: [
-      { label: "Data Quality",      href: "/data-quality",    icon: ShieldCheck     },
-      { label: "Model Settings",    href: "/settings",        icon: Settings        },
+      { label: "Data Quality",        href: "/data-quality",          icon: ShieldCheck  },
+      { label: "LLM Configuration",   href: "/settings",              icon: BrainCircuit },
+      { label: "Integrations",        href: "/settings/integrations", icon: Plug         },
     ],
   },
 ];
@@ -78,7 +80,9 @@ export function Sidebar() {
             </p>
             <nav className="flex flex-col gap-0.5">
               {group.items.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "?");
+                const isActive = item.href === "/settings"
+                  ? pathname === "/settings" || pathname === "/settings/"
+                  : pathname === item.href || pathname.startsWith(item.href + "/") || pathname.startsWith(item.href + "?");
                 const Icon = item.icon;
                 return (
                   <Link

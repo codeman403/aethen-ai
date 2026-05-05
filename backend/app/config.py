@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # Frontend
     frontend_url: str = "http://localhost:3000"
 
+    # PII/PHI redaction — applied to session data before storage
+    pii_redaction_enabled: bool = True
+
+    # Credential encryption — Fernet key for storing third-party API keys
+    # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Set in Render env vars + local .env — never commit this value
+    credential_encryption_key: str = ""
+
     @model_validator(mode="after")
     def validate_required_secrets(self) -> "Settings":
         required_fields = [

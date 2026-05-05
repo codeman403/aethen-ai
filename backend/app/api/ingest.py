@@ -3,6 +3,7 @@
 import structlog
 from fastapi import APIRouter
 
+from app.middleware import pii_redactor
 from app.models.response import ApiResponse
 from app.models.trace import IngestRequest, IngestResult
 from app.services.neo4j_service import neo4j_service
@@ -24,7 +25,9 @@ async def ingest_traces(request: IngestRequest) -> ApiResponse[IngestResult]:
     total_events = 0
     sessions_ok = 0
 
-    for session in request.sessions:
+    sessions = [pii_redactor.redact_session(s) for s in request.sessions]
+
+    for session in sessions:
         event_count = len(session.llm_calls) + len(session.tool_calls) + len(session.retrieval_events)
         total_events += event_count
 

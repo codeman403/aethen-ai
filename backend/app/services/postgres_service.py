@@ -104,6 +104,7 @@ ON CONFLICT (session_id) DO UPDATE SET
     session_ts      = EXCLUDED.session_ts,
     session_data    = EXCLUDED.session_data,
     trace_source    = EXCLUDED.trace_source
+RETURNING (xmax = 0) AS inserted
 """
 
 _SELECT_BY_ID = "SELECT session_data FROM sessions WHERE session_id = $1"
@@ -256,13 +257,18 @@ class PostgresService:
 
     # ── Write ──────────────────────────────────────────────────────────────
 
-    async def save_session(self, session: Session) -> None:
-        """Upsert a full session — insert or update on session_id conflict."""
+    async def save_session(self, session: Session) -> bool:
+        """Upsert a full session — insert or update on session_id conflict.
+
+        Returns True if the session was newly inserted, False if an existing
+        row was updated. Callers can use this to decide whether to count the
+        session as new and queue background analysis.
+        """
         if not self.is_available:
-            return
+            return False
         ft = session.failure_type.value if session.failure_type else None
         async with self._pool.acquire() as conn:
-            await conn.execute(
+            row = await conn.fetchrow(
                 _UPSERT,
                 session.session_id,
                 session.agent_id,
@@ -273,7 +279,9 @@ class PostgresService:
                 session.model_dump(mode="json"),
                 session.trace_source,
             )
-        logger.debug("postgres_session_saved", session_id=session.session_id)
+        is_new = bool(row["inserted"]) if row else False
+        logger.debug("postgres_session_saved", session_id=session.session_id, is_new=is_new)
+        return is_new
 
     # ── Read ───────────────────────────────────────────────────────────────
 

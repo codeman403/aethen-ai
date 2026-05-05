@@ -27,11 +27,15 @@ tool_misfire
   → Classify tool_misfire if ANY tool call has status=failed regardless of retrieval.
 
 memory
-  Retrieval ran and returned docs, but the docs are from the WRONG SPECIFIC CONTENT
-  within the SAME BROAD DOMAIN. The knowledge base HAS the relevant domain covered,
-  but the retrieval system fetched the wrong specific document.
-  Signals: low scores (<0.5) AND doc_content covers the same product/functional area
-  as the query but the wrong specific topic within it; expected_doc_ids ≠ actual_doc_ids.
+  The retrieval system fetched the WRONG specific documents. The knowledge base DOES
+  contain the correct content (it just wasn't retrieved).
+  DEFINITIVE SIGNAL: expected_doc_ids is non-empty AND differs from actual_doc_ids.
+    → When this is true, classify memory immediately — do not consult doc_content.
+    → The presence of expected_doc_ids proves the KB has the right docs; the mismatch
+      proves retrieval fetched the wrong ones. The "unrelated" quality of actual docs
+      is irrelevant — they are wrong-specific-docs, not absent-topic.
+  Secondary signals (when expected_doc_ids is absent): low scores (<0.5) AND doc_content
+  covers the same product/functional area but the wrong specific topic within it.
   Example: user asks about enterprise pricing → docs show standard/pro pricing (same
   product domain, wrong specific tier).
 
@@ -74,16 +78,20 @@ unknown
 Step 1: Tool failures first.
   ANY tool status=failed → tool_misfire (done).
 
-Step 2: No tools failed — check retrieval.
+Step 2: No tools failed — check expected_doc_ids.
+  expected_doc_ids is non-empty AND differs from actual_doc_ids → memory (done).
+  This is the highest-confidence memory signal. Do not override it with doc_content analysis.
+
+Step 3: No expected_doc_ids mismatch — check retrieval.
   No retrieval events → check LLM response for unsupported claims → hallucination or unknown.
 
-Step 3: Retrieval ran. Compare query topic vs doc_content topic:
+Step 4: Retrieval ran. Compare query topic vs doc_content topic:
   doc_content covers a COMPLETELY different subject than the query → blind_spot.
   doc_content is same domain but wrong specific content + low scores (<0.5) → memory.
   doc_content is relevant but LLM response adds specific facts not in docs → hallucination.
   doc_content is relevant and LLM response stays within it but LLM says "not found" → blind_spot.
 
-Step 4: Compare scores:
+Step 5: Compare scores:
   All scores < 0.5: lean toward memory (wrong docs) or blind_spot (unrelated docs).
   Scores ≥ 0.5: docs were likely relevant → lean toward hallucination if LLM added claims.
 

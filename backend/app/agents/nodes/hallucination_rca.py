@@ -54,7 +54,7 @@ Respond in this JSON format:
             "recommendation": "What to fix"
         }
     ],
-    "root_cause": "The primary root cause of the hallucinations"
+    "root_cause": "One precise sentence: the specific gap (missing sources, weak retrieval scores, or absent grounding) + the measurable signal confirming it + the specific fabricated claim or unsupported assertion that resulted"
 }
 """
 

@@ -14,10 +14,15 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.analyze_raw import router as analyze_raw_router
+from app.api.api_key import router as api_key_router
 from app.api.chat import router as chat_router
+from app.api.eval import router as eval_router
+from app.api.sources import router as sources_router
 from app.api.model_settings import router as model_settings_router
 from app.api.chat_sessions import router as chat_sessions_router
 from app.api.demo import router as demo_router
@@ -88,6 +93,34 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# API key middleware — logs Bearer token, does not enforce (single-tenant stub).
+# Validates Bearer token against stored SHA-256 hash.
+# Open when no key is configured (local dev / fresh install).
+# When a key IS configured, all /api/* requests must include it.
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    _OPEN_PATHS = {"/api/health", "/api/settings/api-key"}
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip auth for health check and key management itself
+        if request.url.path in self._OPEN_PATHS or not request.url.path.startswith("/api"):
+            return await call_next(request)
+
+        key = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if key:
+            logger.info("api_key_received", key_prefix=key[:8] + "...")
+
+        from app.api.api_key import validate_api_key
+        if not await validate_api_key(key):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Invalid or missing API key", "data": None, "metadata": None},
+            )
+
+        return await call_next(request)
+
+app.add_middleware(ApiKeyMiddleware)
+
 # Rate limiting — applied before CORS so it fires first
 app.add_middleware(RateLimitMiddleware, per_minute=100, per_hour=1000)
 
@@ -118,3 +151,7 @@ app.include_router(sessions_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(model_settings_router, prefix="/api")
 app.include_router(langsmith_router, prefix="/api")
+app.include_router(eval_router, prefix="/api")
+app.include_router(sources_router, prefix="/api")
+app.include_router(analyze_raw_router, prefix="/api")
+app.include_router(api_key_router, prefix="/api")

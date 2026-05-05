@@ -270,23 +270,22 @@ export default function ModelSettingsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent flex items-center gap-3">
             <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
-              <Settings className="size-6" />
+              <BrainCircuit className="size-6" />
             </div>
-            Model Settings
+            LLM Configuration
           </h2>
           <p className="text-muted-foreground text-base">
-            Configure which LLMs power each stage of the analysis pipeline.
+            Select the models that power each stage of the analysis pipeline.
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl border text-base font-medium hover:bg-muted transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </button>

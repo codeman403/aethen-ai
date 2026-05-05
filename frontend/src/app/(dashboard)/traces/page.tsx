@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useElapsedSeconds } from "@/hooks/useElapsedSeconds";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
@@ -115,6 +116,17 @@ export default function TracesPage() {
   const [analysisRefreshing, setAnalysisRefreshing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [report, setReport] = useState<AnalysisReport | null>(null);
+  const [analysisDuration, setAnalysisDuration] = useState<number | null>(null);
+  // Per-session durations — shown in the left panel card after analysis completes
+  const [sessionDurations, setSessionDurations] = useState<Record<string, number>>({});
+  const analysisStartRef = useRef<number>(0);
+  const analysisElapsed = useElapsedSeconds(analysisLoading);
+
+  const refreshLeftPanel = useCallback(() => {
+    fetchAllSessions(PAGE_SIZE, 0)
+      .then((data) => { setSessions(data); setHasMore(data.length === PAGE_SIZE); })
+      .catch(() => {});
+  }, [PAGE_SIZE]);
   const [activeTab, setActiveTab] = useState<"context" | "diagnosis" | "retrieval" | "llm_calls" | "tool_calls" | "findings">("context");
 
   useEffect(() => {
@@ -175,9 +187,11 @@ export default function TracesPage() {
     setFullSession(null);
     setReport(null);
     setAnalysisError(null);
+    setAnalysisDuration(null);
     setAnalysisLoading(true);
     setAnalysisRefreshing(false);
     setActiveTab("context");
+    analysisStartRef.current = Date.now();
     try {
       const data = await fetchSession(s.session_id);
       if (data) {
@@ -187,7 +201,13 @@ export default function TracesPage() {
     } catch (e) {
       setAnalysisError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
+      const dur = Math.floor((Date.now() - analysisStartRef.current) / 1000);
+      setAnalysisDuration(dur);
+      if (s.session_id && dur > 0) {
+        setSessionDurations(prev => ({ ...prev, [s.session_id]: dur }));
+      }
       setAnalysisLoading(false);
+      refreshLeftPanel();
     }
   };
 
@@ -196,6 +216,9 @@ export default function TracesPage() {
     setAnalysisLoading(true);
     setAnalysisRefreshing(true);
     setAnalysisError(null);
+    setAnalysisDuration(null);
+    analysisStartRef.current = Date.now();
+    const rerunSessionId = selected.session_id;
     try {
       const data = await fetchSession(selected.session_id);
       if (!data) { setAnalysisError("Session data not found."); return; }
@@ -204,8 +227,14 @@ export default function TracesPage() {
     } catch (e) {
       setAnalysisError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
+      const dur = Math.floor((Date.now() - analysisStartRef.current) / 1000);
+      setAnalysisDuration(dur);
+      if (dur > 0) {
+        setSessionDurations(prev => ({ ...prev, [rerunSessionId]: dur }));
+      }
       setAnalysisLoading(false);
       setAnalysisRefreshing(false);
+      refreshLeftPanel();
     }
   };
 
@@ -429,6 +458,7 @@ export default function TracesPage() {
                           <FailureBadge type={s.failure_type} />
                         </div>
                       </div>
+                      {/* Row 2 — metadata + diagnosis time · session timestamp */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                           <SourceBadge source={s.trace_source} />
@@ -437,9 +467,20 @@ export default function TracesPage() {
                           <span className="flex items-center gap-0.5" title="Tool Calls"><Wrench className="size-3 text-amber-400" />{s.tool_calls}</span>
                           <span className="flex items-center gap-0.5" title="Retrieval Events"><ScanSearch className="size-3 text-purple-400" />{s.retrieval_events}</span>
                         </div>
-                        {s.timestamp && (
-                          <span className="text-[10px] text-muted-foreground/50 shrink-0">{formatTimestamp(s.timestamp)}</span>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {sessionDurations[s.session_id] && (
+                            <>
+                              <span className="flex items-center gap-0.5 text-[10px] text-primary/60 tabular-nums" title="Diagnosis duration">
+                                <Clock className="size-2.5" />
+                                {sessionDurations[s.session_id]}s
+                              </span>
+                              {s.timestamp && <span className="text-[10px] text-muted-foreground/30">·</span>}
+                            </>
+                          )}
+                          {s.timestamp && (
+                            <span className="text-[10px] text-muted-foreground/50">{formatTimestamp(s.timestamp)}</span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   </FadeInItem>
@@ -478,7 +519,7 @@ export default function TracesPage() {
               <AILoadingOverlay
                 isLoading={analysisLoading}
                 text={analysisRefreshing ? "Re-running pipeline…" : "Loading analysis…"}
-                subtext={analysisRefreshing ? "Running LangGraph — this takes ~25s" : undefined}
+                subtext={analysisLoading ? `Running LangGraph — ${analysisElapsed}s` : undefined}
               />
 
               {analysisError && (
@@ -515,7 +556,7 @@ export default function TracesPage() {
                     className="shrink-0 mr-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
                     {analysisLoading
-                      ? <><Loader2 className="size-3 animate-spin" />Analyzing…</>
+                      ? <><Loader2 className="size-3 animate-spin" /><span>Analyzing… <span className="tabular-nums font-mono">{analysisElapsed}s</span></span></>
                       : report ? "Re-run" : "Run Analysis"}
                   </button>
                 </div>
@@ -580,6 +621,9 @@ export default function TracesPage() {
                   {/* ── Diagnosis ── */}
                   {activeTab === "diagnosis" && (
                     <div className="p-6">
+                      {analysisDuration != null && analysisDuration > 0 && !analysisLoading && (
+                        <p className="text-[10px] text-muted-foreground/60 mb-3">Analysed in {analysisDuration}s</p>
+                      )}
                       {(() => {
                         const isSuccess = derivedOutcome === "success";
                         const s = (report?.summary ?? "").toLowerCase().trim();

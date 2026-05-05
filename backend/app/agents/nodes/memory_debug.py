@@ -69,6 +69,11 @@ def _build_memory_context(state: AgentState) -> str:
         parts.append("\n=== Retrieval Events ===")
         for evt in session.retrieval_events:
             scores = ", ".join(f"{s:.3f}" for s in evt.relevance_scores)
+            doc_mismatch = (
+                evt.expected_doc_ids and
+                set(evt.expected_doc_ids) != set(evt.actual_doc_ids)
+            )
+            content_snippet = " | ".join(c[:200] for c in evt.doc_content[:3]) or "N/A"
             parts.append(
                 f"\nQuery: {evt.query}\n"
                 f"Namespace: {evt.namespace}\n"
@@ -76,6 +81,8 @@ def _build_memory_context(state: AgentState) -> str:
                 f"Relevance scores: [{scores}]\n"
                 f"Expected docs: {evt.expected_doc_ids}\n"
                 f"Actual docs: {evt.actual_doc_ids}\n"
+                f"Doc mismatch: {doc_mismatch}\n"
+                f"Retrieved content (compare against query topic): {content_snippet}\n"
                 f"Metadata filters: {evt.metadata_filters}"
             )
 
