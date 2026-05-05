@@ -1,0 +1,81 @@
+"""Authenticated HTTP client for MCP → Aethen API calls.
+
+All MCP tool implementations use this client. It adds the
+Authorization: Bearer header to every request and handles
+retries on transient 5xx errors.
+"""
+
+from __future__ import annotations
+
+import os
+
+import httpx
+import structlog
+
+logger = structlog.get_logger()
+
+_DEFAULT_BASE_URL = "http://localhost:8000"
+_DEFAULT_API_KEY = ""
+_MAX_RETRIES = 3
+
+
+class AethenClient:
+    """Thin HTTP client wrapping the Aethen FastAPI backend."""
+
+    def __init__(self, base_url: str | None = None, api_key: str | None = None):
+        self._base = (base_url or os.getenv("AETHEN_API_URL", _DEFAULT_BASE_URL)).rstrip("/")
+        key = api_key or os.getenv("AETHEN_API_KEY", _DEFAULT_API_KEY)
+        self._headers = {
+            "Content-Type": "application/json",
+            **({"Authorization": f"Bearer {key}"} if key else {}),
+        }
+
+    async def post(self, path: str, body: dict) -> dict:
+        """POST to the Aethen API. Returns the response JSON."""
+        url = f"{self._base}{path}"
+        async with httpx.AsyncClient(timeout=60) as http:
+            for attempt in range(_MAX_RETRIES):
+                try:
+                    r = await http.post(url, json=body, headers=self._headers)
+                    if r.status_code >= 500 and attempt < _MAX_RETRIES - 1:
+                        logger.warning("aethen_client_retry", path=path, status=r.status_code, attempt=attempt + 1)
+                        continue
+                    r.raise_for_status()
+                    return r.json()
+                except httpx.HTTPStatusError as exc:
+                    if attempt == _MAX_RETRIES - 1:
+                        raise
+                except httpx.RequestError as exc:
+                    if attempt == _MAX_RETRIES - 1:
+                        raise
+        return {}
+
+    async def get(self, path: str, params: dict | None = None) -> dict:
+        """GET from the Aethen API. Returns the response JSON."""
+        url = f"{self._base}{path}"
+        async with httpx.AsyncClient(timeout=30) as http:
+            for attempt in range(_MAX_RETRIES):
+                try:
+                    r = await http.get(url, params=params or {}, headers=self._headers)
+                    if r.status_code >= 500 and attempt < _MAX_RETRIES - 1:
+                        continue
+                    r.raise_for_status()
+                    return r.json()
+                except httpx.HTTPStatusError:
+                    if attempt == _MAX_RETRIES - 1:
+                        raise
+                except httpx.RequestError:
+                    if attempt == _MAX_RETRIES - 1:
+                        raise
+        return {}
+
+
+# Module-level singleton — initialised from env vars when the MCP server starts
+_client: AethenClient | None = None
+
+
+def get_client() -> AethenClient:
+    global _client
+    if _client is None:
+        _client = AethenClient()
+    return _client

@@ -4,8 +4,10 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /**
  * Vercel Cron endpoint — pulls new Langfuse traces every 5 minutes.
- * Vercel calls this route on the schedule defined in vercel.json.
- * The backend's incremental watermark ensures only new traces are fetched.
+ * Calls /api/langfuse/pull/all which covers:
+ *   - Aethen's own Langfuse account (env vars)
+ *   - All external agent sources registered via Settings → Integrations
+ * Each source uses an independent watermark for incremental pull.
  */
 export async function GET(request: Request) {
   // Verify the request comes from Vercel Cron (production guard)
@@ -18,11 +20,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const res = await fetch(`${BACKEND_URL}/api/langfuse/pull`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 50 }),
-    });
+    const res = await fetch(
+      `${BACKEND_URL}/api/langfuse/pull/all?limit=50`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -34,11 +38,13 @@ export async function GET(request: Request) {
     }
 
     const data = await res.json();
-    const ingested = data?.data?.sessions_ingested ?? 0;
+    const total = data?.data?.total_sessions_ingested ?? 0;
+    const sources = Object.keys(data?.data?.sources ?? {});
 
     return NextResponse.json({
       ok: true,
-      sessions_ingested: ingested,
+      total_sessions_ingested: total,
+      sources_pulled: sources,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

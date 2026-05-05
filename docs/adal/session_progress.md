@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-05-03 (Session 24)
+> **Last updated**: 2026-05-05 (Session 26)
 
 ---
 
@@ -20,11 +20,12 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 - **Phase**: Week 3 — Deployed + demo prep.
 - **Branch**: `main` (develop → main workflow enforced)
 - **Next action**:
-  1. **Record demo GIF** — `node scripts/record_demo.mjs https://your-vercel-url.vercel.app`
-  2. Add demo.gif to README for submission
-  3. Final smoke test on production
+  1. **Set `CREDENTIAL_ENCRYPTION_KEY` on Render** — key generated, in `backend/.env`, must also be set in Render env vars before deploying
+  2. **CI wiring** (deferred) — add `poetry run python scripts/run_eval.py` to GitHub Actions
+  3. **Record demo GIF** — `node scripts/record_demo.mjs https://your-vercel-url.vercel.app`
+  4. Add demo.gif to README for submission
 - **Deployed**: Render (backend) + Vercel (frontend) ✅
-- **Tests**: 202 passing (backend), frontend type-check clean.
+- **Tests**: 301 passing (backend), frontend type-check clean.
 - **Database**: Seeded with 700+ sessions across 30-day timestamp spread. Re-seed: `poetry run python scripts/reset_and_reseed.py --no-reset --count 300`
 - **Frontend**: 14 pages — Dashboard, Failure Trends, Pattern Clusters, Agent Profiles, Session Timeline, Recommendations, Trace Explorer, Chat Debug, Demo Agent, Data Quality, Model Settings, Settings + redirects for 4 archived pages.
 - **Sidebar**: 5 groups (Overview / Analysis / Explore / Live Demo / System), 240px wide.
@@ -447,6 +448,114 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 ---
 
+### Session 26 — 2026-05-05 (Claude Code)
+
+**MCP server, aethen-sdk, PII/PHI redaction, credential storage, Integrations UI — 301 tests passing**
+
+#### PII/PHI Redaction (new — `backend/app/middleware/pii_redactor.py`)
+- Two-layer: **scrubadub** (email, phone, SSN, credit card, dates) + **custom regex** (medical record numbers, ICD-10 codes, NPI, DEA, health plan IDs)
+- Runs in `POST /api/ingest` and `POST /api/analyze/raw` before any storage (Postgres, Pinecone, Neo4j)
+- Controlled by `PII_REDACTION_ENABLED` env var (default: true)
+
+#### Credential Storage (new — `backend/app/api/sources.py`)
+- `POST/GET/DELETE /api/settings/sources` + `/test` endpoint
+- Fernet-encrypted at rest (`CREDENTIAL_ENCRYPTION_KEY` env var — key generated, in `.env`, **must be set on Render**)
+- Secret keys never returned in API responses
+- Source index tracked in `app_settings` under key `sources_index`
+
+#### Multi-source cron pull (modified — `backend/app/api/langfuse.py`)
+- New `POST /api/langfuse/pull/all` — pulls Aethen's own account + all registered external sources
+- Each source has independent watermark (`langfuse_last_pull_at_{name}`)
+- New `POST /api/langfuse/trace` — fetch + analyze single trace by ID (used by MCP)
+- Vercel cron updated to call `/pull/all` instead of `/pull`
+
+#### MCP Server (new — `backend/app/mcp/`)
+- 5 tools: `analyze_langfuse_trace` (stored creds), `analyze_langfuse_trace_direct` (per-call), `analyze_session`, `get_report`, `search_traces`
+- 4 resources: `aethen://stats`, `aethen://patterns`, `aethen://alerts`, `aethen://agents/{id}`
+- HTTP adapter (calls Aethen FastAPI, not direct Python) — works against deployed Render backend
+- Auth stub: `Authorization: Bearer` logged, not enforced (ready for multi-tenancy)
+- CLI: `poetry run python scripts/run_mcp.py`
+
+#### aethen-sdk (new — `sdk/`)
+- `pip install aethen-sdk` (local: `pip install ./sdk`)
+- `AethenClient` — sync + async methods for all integration paths
+- Two models: stored source (credentials in Aethen UI) + per-call (credentials never stored)
+
+#### analyze_raw endpoint (new — `backend/app/api/analyze_raw.py`)
+- `POST /api/analyze/raw` — accepts per-call Langfuse/LangSmith credentials, uses once, discards
+- Supports `format: langfuse | langsmith | session`
+
+#### Frontend Integrations UI (new — `frontend/src/app/(dashboard)/settings/integrations/`)
+- Settings page now has Models | Integrations tab navigation via `settings/layout.tsx`
+- Integrations page: add source form (test + save), registered sources table, connected agents, SDK quickstart snippets
+- `lib/api.ts`: `fetchSources`, `addSource`, `removeSource`, `testSource`
+
+#### Auth middleware stub (modified — `backend/app/main.py`)
+- `ApiKeyMiddleware` — logs Bearer token, does not enforce (single-tenant for now)
+- Interface is production-shaped: multi-tenancy requires only backend changes
+
+#### New env vars (add to Render)
+- `CREDENTIAL_ENCRYPTION_KEY` — Fernet key for encrypting stored credentials. Generate your own: `poetry run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — set in Render env vars only, never commit.
+- `PII_REDACTION_ENABLED` — `true` (default) / `false` for local dev
+
+#### New tests (50 added, 301 total)
+- `test_pii_redactor.py` — 16 tests
+- `test_sources_api.py` — 14 tests
+- `test_mcp_tools.py` — 20 tests
+
+#### Standing instructions added
+- `CREDENTIAL_ENCRYPTION_KEY` must NEVER be committed to git
+- Secret keys are stored as Fernet ciphertext in `app_settings`, key = `source:{name}`
+- Multi-tenancy boundary: all sessions share one table, no `tenant_id` yet; MCP/SDK interface is designed to not need changes when tenant isolation is added
+
+---
+
+### Session 25 — 2026-05-05 (Claude Code)
+
+**Eval pipeline, prompt tuning across all modules — 251 backend tests passing**
+
+#### Eval pipeline (new — `backend/app/eval/`, `backend/data/`, `backend/scripts/`)
+- [x] `generate_eval_dataset.py` + `data/eval_dataset.json` — 100 golden sessions, 25 per failure type, 3 difficulty tiers (obvious/borderline/adversarial)
+- [x] `app/eval/metrics.py` — pure metric functions: classification (accuracy, F1, confusion matrix, calibration r), retrieval (context recall, precision, hit rate), synthesis (keyword match + LLM judge). CI-safe, no LLM/DB
+- [x] `app/eval/langfuse_eval.py` — per-session + aggregate score push via `create_score()` (Langfuse v4 API)
+- [x] `app/eval/runner.py` — two modes: `fast` (classify-only, 1 LLM call/session) and `full` (complete pipeline + LLM-as-judge)
+- [x] `scripts/run_eval.py` — CLI, formatted table output, exit code 1 on gate failure
+- [x] `app/api/eval.py` — `POST /api/eval/run`, `GET /api/eval/results`; registered in `main.py`
+- [x] `tests/test_eval_pipeline.py` — 34 CI-safe unit tests
+- [x] `tests/test_eval_api.py` — 15 API tests (mocked runner + postgres)
+
+#### Regression gates
+| Gate | Threshold |
+|------|-----------|
+| `classification_accuracy` | ≥ 90% |
+| `keyword_match_rate` | ≥ 70% |
+| `judge_score` (full mode only) | ≥ 75% |
+
+#### Prompt tuning — measured by eval
+- [x] `classify.py` — `expected_doc_ids ≠ actual_doc_ids` elevated to Step 2 priority rule. Memory F1: **57% → 100%**
+- [x] `synthesize.py` — precision rule on `root_cause` + `_session_evidence()` context helper. Judge Score: **65% → 83%**
+- [x] `memory_debug.py` — added `doc_content` + `doc_mismatch` to retrieval event context
+- [x] `tool_debug.py` + `hallucination_rca.py` — precision rule on `root_cause` field
+- [x] blind_spot keywords regenerated (shorter substrings)
+
+#### Final baseline (end of session)
+| Metric | Before | After |
+|--------|--------|-------|
+| Classification accuracy | 85% | **100%** |
+| Memory F1 | 57% | **100%** |
+| LLM Judge Score | 65.67% | **83%** |
+| Root Cause Match | 74% | **83%** |
+
+#### Bugs fixed
+- Langfuse v4: `score()` → `create_score()`
+- `eval.py`: `ResponseMetadata` missing required `request_id`
+- Eval test patch target: `app.eval.runner.run_eval` (not `app.api.eval.run_eval`)
+
+#### Deferred
+- A10 — GitHub Actions CI wiring: `poetry run python scripts/run_eval.py` (trivial, deferred by user)
+
+---
+
 ### Session 17 — 2026-04-29 (Claude Code)
 
 **RAG improvements, Demo Agent overhaul, Langfuse trace fixes, repo cleanup**
@@ -484,6 +593,11 @@ The following areas have NO tests yet — add when touching these files:
 - Demo agent: `POST /api/demo/run`, `POST /api/demo/chat`, `GET /api/demo/sessions`
 - Individual analysis nodes: `classify_intent`, `memory_debug`, `tool_debug`, `hallucination_rca`, `blind_spot`, `synthesize`
 - Postgres service CRUD: `save_session`, `compute_stats`, `save_analysis_report`, `get_analysis_report`, `update_failure_type`
+
+#### Covered in Session 25 (no longer missing)
+- ✅ `POST /api/eval/run` — 11 tests in `test_eval_api.py`
+- ✅ `GET /api/eval/results` — 4 tests in `test_eval_api.py`
+- ✅ All eval metrics functions — 34 tests in `test_eval_pipeline.py`
 
 ---
 

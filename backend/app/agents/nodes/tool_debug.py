@@ -43,7 +43,7 @@ Respond in this JSON format:
             "recommendation": "What to fix"
         }
     ],
-    "root_cause": "The primary root cause of the tool failures"
+    "root_cause": "One precise sentence: the specific tool that failed + the exact error or timeout value + the downstream effect on the agent's task"
 }
 """
 

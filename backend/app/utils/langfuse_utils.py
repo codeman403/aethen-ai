@@ -34,12 +34,16 @@ def make_langfuse_handler():
         if not os.getenv("LANGFUSE_HOST") and host:
             os.environ["LANGFUSE_HOST"] = host
 
-        client = Langfuse(
+        handler = CallbackHandler()
+        # Use the handler's own internal Langfuse client for flushing so that
+        # traces created by the handler are flushed — not a separate instance.
+        internal_client = getattr(handler, "_langfuse_client", None)
+        flush_client = internal_client or Langfuse(
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,
             host=host,
         )
-        return CallbackHandler(), client
+        return handler, flush_client
     except Exception as exc:
         logger.warning("langfuse_handler_init_failed", error=str(exc))
         return None, None

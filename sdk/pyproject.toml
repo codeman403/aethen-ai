@@ -1,0 +1,16 @@
+[project]
+name = "aethen-sdk"
+version = "0.1.0"
+description = "Connect your AI agent to Aethen diagnostics in 3 lines"
+authors = [{ name = "Abu" }]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.urls]
+Homepage = "https://github.com/codeman403/aethen-ai"
