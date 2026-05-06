@@ -46,7 +46,7 @@ const PHASE_DURATIONS: Record<Phase, number> = {
 const PHASES: Phase[] = ["flow", "alert", "investigate", "resolve"];
 
 const PHASE_CONFIG = {
-  flow:        { accent: "#3B82F6", glow: "#3B82F618", label: "TRACING",              sublabel: "Ingesting 12 live sessions" },
+  flow:        { accent: "#3B82F6", glow: "#3B82F618", label: "TRACING",              sublabel: "Ingesting trace sessions" },
   alert:       { accent: "#EF4444", glow: "#EF444422", label: "ANOMALY DETECTED",     sublabel: "Confidence 0.94 — cross-referencing" },
   investigate: { accent: "#7C3AED", glow: "#7C3AED20", label: "DIAGNOSING",           sublabel: "Traversing causal graph" },
   resolve:     { accent: "#10B981", glow: "#10B98118", label: "ROOT CAUSE CONFIRMED", sublabel: "Knowledge gap isolated" },
@@ -286,7 +286,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
                   {isRes ? <CheckCircle2 className="w-4 h-4" /> : node.icon}
                 </motion.div>
               </motion.div>
-              <motion.span className="text-[10px] font-mono whitespace-nowrap font-medium"
+              <motion.span className="text-[12px] font-mono whitespace-nowrap font-medium"
                 animate={{ color: isAct || isAlarm ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.22)" }}
                 transition={{ duration: 0.4 }}>
                 {node.label}
@@ -303,13 +303,13 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
               initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 14 }}
               transition={{ duration: 0.3 }}>
               <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: config.accent, boxShadow: `0 0 8px ${config.accent}` }} />
-              <span className="text-xs font-black tracking-[0.14em] uppercase" style={{ color: config.accent }}>{config.label}</span>
-              <span className="text-[10px] font-mono text-white/28 hidden sm:block">— {config.sublabel}</span>
+              <span className="text-sm font-black tracking-[0.14em] uppercase" style={{ color: config.accent }}>{config.label}</span>
+              <span className="text-xs font-mono text-white/55 hidden sm:block">— {config.sublabel}</span>
             </motion.div>
           </AnimatePresence>
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-md border border-white/[0.07] bg-[#07071a]/80">
-            <span className="text-[10px] font-mono text-white/30">reliability</span>
-            <motion.span className="text-sm font-black tabular-nums font-mono"
+            <span className="text-xs font-mono text-white/55">reliability</span>
+            <motion.span className="text-base font-black tabular-nums font-mono"
               animate={{ color: score > 80 ? "#10B981" : score > 50 ? "#F59E0B" : "#EF4444" }}>
               {score}%
             </motion.span>
@@ -330,7 +330,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
         {/* Center popup */}
         <AnimatePresence mode="wait">
           {phase === "flow" && (
-            <motion.div key="flow-popup" className="absolute z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            <motion.div key="flow-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
               initial={{ opacity: 0, scale: 0.8, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: -12 }} transition={{ type: "spring", bounce: 0.35, duration: 0.5 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-blue-500/30 bg-[#00050f]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(59,130,246,0.2)]">
@@ -341,47 +341,47 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
                     transition={{ duration: 1.4, repeat: Infinity }} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-300">Ingesting Live Traces</p>
-                  <p className="text-xs text-white/40 mt-0.5">12 sessions · Langfuse → Pinecone → Neo4j</p>
+                  <p className="text-base font-bold text-blue-300">Ingesting Live Traces</p>
+                  <p className="text-sm text-white/65 mt-0.5">Langfuse → Pinecone → Neo4j</p>
                 </div>
               </div>
             </motion.div>
           )}
           {phase === "alert" && (
-            <motion.div key="alert-popup" className="absolute z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            <motion.div key="alert-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
               initial={{ opacity: 0, scale: 0.8, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: -12 }} transition={{ type: "spring", bounce: 0.4, duration: 0.5 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-red-500/40 bg-[#0c0008]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(239,68,68,0.3)]">
                 <div className="p-1.5 rounded-lg bg-red-500/15 shrink-0"><AlertTriangle className="w-5 h-5 text-red-400" /></div>
                 <div>
-                  <p className="text-sm font-bold text-red-300">Anomaly Detected in Trace</p>
-                  <p className="text-xs text-white/40 mt-0.5">Hallucination · Confidence 0.94 · Trace a8f92b41</p>
+                  <p className="text-base font-bold text-red-300">Anomaly Detected in Trace</p>
+                  <p className="text-sm text-white/65 mt-0.5">Hallucination · Confidence 0.94</p>
                 </div>
               </div>
             </motion.div>
           )}
           {phase === "investigate" && (
-            <motion.div key="invest-popup" className="absolute z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            <motion.div key="invest-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }} transition={{ type: "spring", bounce: 0.3 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-purple-500/40 bg-[#080012]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(124,58,237,0.25)]">
                 <div className="p-1.5 rounded-lg bg-purple-500/15 shrink-0"><Zap className="w-5 h-5 text-purple-400" /></div>
                 <div>
-                  <p className="text-sm font-bold text-purple-300">Traversing Causal Graph</p>
-                  <p className="text-xs text-white/40 mt-0.5">Neo4j · 13 edges · cross-session analysis</p>
+                  <p className="text-base font-bold text-purple-300">Traversing Causal Graph</p>
+                  <p className="text-sm text-white/65 mt-0.5">Neo4j · 13 edges · cross-session analysis</p>
                 </div>
               </div>
             </motion.div>
           )}
           {phase === "resolve" && (
-            <motion.div key="resolve-popup" className="absolute z-40 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            <motion.div key="resolve-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }} transition={{ type: "spring", bounce: 0.3 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-emerald-500/40 bg-[#00100a]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(16,185,129,0.25)]">
                 <div className="p-1.5 rounded-lg bg-emerald-500/15 shrink-0"><CheckCircle2 className="w-5 h-5 text-emerald-400" /></div>
                 <div>
-                  <p className="text-sm font-bold text-emerald-300">Root Cause Confirmed</p>
-                  <p className="text-xs text-white/40 mt-0.5">Knowledge gap: "Refund Policies" · 47 traces affected</p>
+                  <p className="text-base font-bold text-emerald-300">Root Cause Confirmed</p>
+                  <p className="text-sm text-white/65 mt-0.5">Knowledge gap: "Refund Policies" · traces affected</p>
                 </div>
               </div>
             </motion.div>
@@ -398,7 +398,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
                     animate={{ backgroundColor: phaseIdx === i ? PHASE_CONFIG[p].accent : phaseIdx > i ? PHASE_CONFIG[p].accent + "55" : "rgba(255,255,255,0.1)", scale: phaseIdx === i ? 1.5 : 1 }}
                     transition={{ duration: 0.4 }}
                     style={{ boxShadow: phaseIdx === i ? `0 0 6px ${PHASE_CONFIG[p].accent}` : "none" }} />
-                  <span className="text-[9px] font-mono text-white/25">{["Ingest","Detect","Diagnose","Prescribe"][i]}</span>
+                  <span className="text-[11px] font-mono text-white/60">{["Ingest","Detect","Diagnose","Prescribe"][i]}</span>
                 </div>
                 {i < 3 && <div className="w-4 h-px bg-white/[0.07] mb-3" />}
               </div>
@@ -415,18 +415,18 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
                 <div className="w-2 h-2 rounded-full bg-amber-500/60" />
                 <div className="w-2 h-2 rounded-full bg-emerald-500/60" />
               </div>
-              <span className="text-[10px] font-mono text-white/22 ml-1">aethen · diagnostic log</span>
+              <span className="text-xs font-mono text-white/55 ml-1">aethen · diagnostic log</span>
               <div className="ml-auto w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: config.accent }} />
             </div>
             <AnimatePresence mode="wait">
               <motion.div key={phase} className="px-3 py-2 h-[80px] overflow-hidden"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
-                <pre className="font-mono text-[11px] leading-[1.65] text-white/55 whitespace-pre-wrap">
-                  {phase === "flow"        && "● Tracing 12 active sessions...\n  └─ Ingesting spans · Langfuse\n  └─ Vectorizing chunks → Pinecone\n  └─ Indexing graph → Neo4j"}
-                  {phase === "alert"       && "⚠ ANOMALY DETECTED\n  Trace: a8f92b41 · Confidence: 0.94\n  Signal: hallucination in response\n  Retrieval: NOT FOUND in indexed chunks"}
+                <pre className="font-mono text-[13px] leading-[1.65] text-white/55 whitespace-pre-wrap">
+                  {phase === "flow"        && "● Tracing active sessions...\n  └─ Ingesting spans · Langfuse\n  └─ Vectorizing chunks → Pinecone\n  └─ Indexing graph → Neo4j"}
+                  {phase === "alert"       && "⚠ ANOMALY DETECTED\n  Confidence: 0.94\n  Signal: hallucination in response\n  Retrieval: NOT FOUND in indexed chunks"}
                   {phase === "investigate" && "🔍 Cross-trace diagnosis started\n  Neo4j: (Trace A)─[:EXHIBITS]→(Anomaly)\n  Neo4j: (Anomaly)─[:CAUSED_BY]→(Gap)\n  Found: Trace B shares same knowledge gap"}
-                  {phase === "resolve"     && "✓ ROOT CAUSE: Knowledge gap confirmed\n  Topic: 'Refund Policies' (47 traces)\n  Fix: Re-index documentation cluster #7\n  Reliability: 45% → 98% ✓"}
+                  {phase === "resolve"     && "✓ ROOT CAUSE: Knowledge gap confirmed\n  Topic: 'Refund Policies'\n  Fix: Re-index documentation cluster #7\n  Reliability: 45% → 98% ✓"}
                 </pre>
               </motion.div>
             </AnimatePresence>

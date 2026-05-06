@@ -126,8 +126,40 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight font-bold;
+  }
+}
+
+/* Scroll snap (gentle proximity) */
+@media (min-width: 768px) {
+  .snap-container {
+    scroll-snap-type: y proximity;
+  }
+  .snap-section {
+    scroll-snap-align: start;
+  }
+}
+
+/* Dash animation for evidence trail */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.animate-dash {
+  animation: dash 1s linear infinite;
+}
+
+/* Reduced motion: disable scroll-linked animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

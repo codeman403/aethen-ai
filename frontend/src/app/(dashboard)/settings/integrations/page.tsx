@@ -580,12 +580,12 @@ export default function IntegrationsPage() {
             </div>
           </div>
 
-          {/* Demo Agent Source selector */}
+          {/* Demo Agent analysis source selector */}
           <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
             <div className="px-6 py-5 border-b border-border/50 bg-muted/10">
-              <h3 className="font-semibold text-base tracking-tight">Demo Agent Source</h3>
+              <h3 className="font-semibold text-base tracking-tight">Aethen reads Demo traces from</h3>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Which source should the Demo Agent use when calling Aethen&apos;s analysis pipeline?
+                After a demo run, Aethen fetches the trace from this source to run the analysis pipeline. Must match where the Demo Agent sends its traces.
               </p>
             </div>
             <div className="p-5 space-y-2">

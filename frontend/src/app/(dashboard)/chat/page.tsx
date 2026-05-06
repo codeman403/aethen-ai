@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
+import { useElapsedSeconds } from "@/hooks/useElapsedSeconds";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -46,6 +48,17 @@ import {
   type ChatMessageRecord,
   type ModelOption,
 } from "@/lib/api";
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
 // ── Copy button — appears on hover beside each message ─────────────────────
 
@@ -533,13 +546,35 @@ export default function ChatPage() {
     }
   };
 
+  const filtered = sessions.filter(s =>
+    !sessionSearch || s.title.toLowerCase().includes(sessionSearch.toLowerCase())
+  );
+
   return (
-    <div className="flex gap-4 h-[calc(100vh-9rem)] animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500">
+
+      {/* ── Page header ───────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent flex items-center gap-3">
+            <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
+              <MessageSquare className="size-6" />
+            </div>
+            Chat Debug
+          </h2>
+          <p className="text-muted-foreground text-base">
+            Freeform diagnostic queries powered by the LangGraph pipeline.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-4 h-[calc(100vh-15rem)]">
 
       {/* ── Sessions Panel ────────────────────────────────────────────── */}
-      <div className="w-52 flex-shrink-0 flex flex-col rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden">
+      <div className="w-56 flex-shrink-0 flex flex-col rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+        {/* Header */}
         <div className="px-3 py-3 border-b bg-muted/10 flex items-center justify-between">
-          <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
               <button onClick={handleClearChat} title="Clear current chat"
@@ -553,62 +588,91 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
+
+        {/* Search */}
         <div className="px-2 py-1.5 border-b bg-muted/5">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
-            <input type="text" placeholder="Search sessions…" value={sessionSearch}
+            <input type="text" placeholder="Search…" value={sessionSearch}
               onChange={e => setSessionSearch(e.target.value)}
               className="w-full pl-6 pr-2 py-1 text-xs rounded-lg border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" />
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-1.5 space-y-0.5">
-          {/* Current unsaved session */}
+
+        {/* List */}
+        <div className="flex-1 overflow-auto p-1.5">
           {currentSessionId === null && messages.length > 0 && (
-            <div className="px-2.5 py-2 rounded-2xl text-sm bg-primary/10 text-primary font-medium truncate">
+            <div className="px-2.5 py-2 mb-1 rounded-md border border-primary/50 bg-primary/5 ring-1 ring-primary/20 text-xs font-medium text-primary truncate">
               Current session
             </div>
           )}
-          {currentSessionId === null && messages.length === 0 && !loadingSessions && (
-            <p className="text-[11px] text-muted-foreground text-center py-4 px-2">
-              Start typing to begin a session
+          {loadingSessions && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {!loadingSessions && filtered.length === 0 && (
+            <p className="text-[11px] text-muted-foreground text-center py-6 px-2">
+              {sessionSearch ? "No sessions match" : "Start typing to begin"}
             </p>
           )}
-          {sessions.filter(s => !sessionSearch || s.title.toLowerCase().includes(sessionSearch.toLowerCase())).map((s) => (
-            <button
-              key={s.id}
-              onClick={() => handleSelectSession(s.id)}
-              className={`w-full text-left px-2.5 py-2 rounded-2xl transition-colors group ${
-                s.id === currentSessionId
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <p className="text-sm font-medium truncate">{s.title}</p>
-              <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-60">
-                <Clock className="size-2.5" />
-                <span>{s.message_count} msg{s.message_count !== 1 ? "s" : ""}</span>
-              </div>
-            </button>
-          ))}
+          <FadeInStagger key={sessions.length} className="flex flex-col gap-1">
+            {filtered.map((s) => (
+              <FadeInItem key={s.id}>
+                <button
+                  onClick={() => handleSelectSession(s.id)}
+                  className={`group w-full text-left p-2.5 rounded-md border transition-all duration-150 ${
+                    s.id === currentSessionId
+                      ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                      : "border-transparent hover:border-border hover:bg-muted/40"
+                  }`}
+                >
+                  {/* Row 1 — title */}
+                  <p className={`text-[11px] font-medium truncate leading-tight mb-1 ${
+                    s.id === currentSessionId ? "text-primary" : "text-foreground"
+                  }`}>
+                    {s.title}
+                  </p>
+                  {/* Row 2 — message count · relative time */}
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <MessageSquare className="size-2.5" />
+                      <span>{s.message_count} msg{s.message_count !== 1 ? "s" : ""}</span>
+                    </div>
+                    {(s.updated_at || s.created_at) && (
+                      <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">
+                        {formatRelativeTime(s.updated_at ?? s.created_at)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </FadeInItem>
+            ))}
+          </FadeInStagger>
+        </div>
+
+        {/* Footer count */}
+        <div className="px-3 py-2 border-t bg-muted/10 text-[10px] text-muted-foreground text-center">
+          {filtered.length} session{filtered.length !== 1 ? "s" : ""}
         </div>
       </div>
 
       {/* ── Chat Interface ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden">
         <div className="px-6 py-4 border-b bg-muted/10 flex items-center gap-3">
-          <div className="size-9 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <div className="size-8 rounded-xl bg-primary/10 flex items-center justify-center">
             <MessageSquare className="size-4 text-primary" />
           </div>
           <div>
-            <h2 className="font-semibold tracking-tight">Chat Debug</h2>
-            <p className="text-sm text-muted-foreground">
-              Freeform diagnostic queries
+            <h3 className="font-semibold tracking-tight text-sm">Conversation</h3>
+            <p className="text-xs text-muted-foreground">
+              Ask about agent failures or run a structured analysis
             </p>
           </div>
         </div>
 
         {/* Message history */}
-        <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-auto px-6 py-4">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
               <div className="size-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
@@ -621,11 +685,13 @@ export default function ChatPage() {
             </div>
           )}
 
+          <FadeInStagger key={currentSessionId ?? "new"} className="flex flex-col gap-4" stagger={0.45} delay={0.1}>
           {messages.map((msg) => {
             if (msg.kind === "user") {
               const isEditing = editingId === msg.id;
               return (
-                <div key={msg.id} className="flex justify-end group">
+                <FadeInItem key={msg.id} slow>
+                <div className="flex justify-end group">
                   <div className="max-w-[80%] flex flex-col items-end gap-1">
                     {isEditing ? (
                       <div className="w-full space-y-1.5">
@@ -658,6 +724,7 @@ export default function ChatPage() {
                     )}
                   </div>
                 </div>
+                </FadeInItem>
               );
             }
             if (msg.kind === "analysis" && msg.report) {
@@ -670,7 +737,8 @@ export default function ChatPage() {
                   }`;
 
               return (
-                <div key={msg.id} className="flex justify-start group">
+                <FadeInItem key={msg.id} slow>
+                <div className="flex justify-start group">
                   <div className="max-w-[90%]">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center">
@@ -702,10 +770,12 @@ export default function ChatPage() {
                     )}
                   </div>
                 </div>
+                </FadeInItem>
               );
             }
             return (
-              <div key={msg.id} className="flex justify-start group">
+              <FadeInItem key={msg.id} slow>
+              <div className="flex justify-start group">
                 <div className="max-w-[80%]">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center">
@@ -728,8 +798,10 @@ export default function ChatPage() {
                   </div>
                 </div>
               </div>
+              </FadeInItem>
             );
           })}
+          </FadeInStagger>
 
           {isLoading && (
             <div className="flex justify-start">
@@ -826,7 +898,7 @@ export default function ChatPage() {
       </div>
 
       {/* ── Right: Suggested Queries + Evidence ───────────────────────── */}
-      <div className="w-72 flex-shrink-0 flex flex-col gap-4 overflow-auto">
+      <div className="w-72 flex-shrink-0 flex flex-col gap-4">
         {/* Structured Analysis shortcuts */}
         <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/10">
@@ -862,63 +934,9 @@ export default function ChatPage() {
             })}
           </div>
         </div>
-
-        {/* Evidence Panel — always visible */}
-        <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex-1">
-          <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
-            <h3 className="font-semibold tracking-tight text-sm">Latest Evidence</h3>
-            {lastReport && (
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-                lastReport.confidence >= 0.7
-                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
-                  : lastReport.confidence >= 0.4
-                  ? "bg-amber-500/10 border-amber-500/20 text-amber-600"
-                  : "bg-rose-500/10 border-rose-500/20 text-rose-600"
-              }`}>
-                {Math.round(lastReport.confidence * 100)}% confidence
-              </span>
-            )}
-          </div>
-          {lastReport ? (
-            <>
-              <div className="p-3 space-y-2">
-                {lastReport.findings.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">No findings in last analysis.</p>
-                ) : (
-                  lastReport.findings.slice(0, 3).map((f: Finding, i: number) => (
-                    <div key={i} className={`rounded-xl border p-3 ${SEVERITY_CONFIG[f.severity] ?? "border-border bg-muted/20"}`}>
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <AlertCircle className="size-3 flex-shrink-0" />
-                        <span className="text-xs font-semibold line-clamp-1">{f.title}</span>
-                      </div>
-                      <p className="text-xs opacity-70 line-clamp-2 leading-relaxed">{f.description}</p>
-                    </div>
-                  ))
-                )}
-                {lastReport.findings.length > 3 && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    +{lastReport.findings.length - 3} more in chat above
-                  </p>
-                )}
-              </div>
-              <div className="px-3 pb-3">
-                <a href={`/traces?type=${lastReport.failure_type ?? ""}`}
-                  className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl border text-xs font-medium hover:bg-muted transition-colors">
-                  Explore in Trace Explorer <ChevronRight className="size-3" />
-                </a>
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-2">
-              <AlertCircle className="size-8 text-muted-foreground/20" />
-              <p className="text-xs font-medium text-muted-foreground">No analysis yet</p>
-              <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
-                Ask a question or run a structured analysis — findings will appear here.
-              </p>
-            </div>
-          )}
-        </div>
       </div>
+
+      </div>{/* end flex row */}
     </div>
   );
 }
