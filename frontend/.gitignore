@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+perf-audit.ts
+perf-audit.mjs
+scroll-test.mjs
+header-test.mjs
 
 # next.js
 /.next/
