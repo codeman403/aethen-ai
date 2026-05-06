@@ -808,6 +808,7 @@ export default function LandingPage() {
 
         <section className="py-28 md:py-36 px-4 sm:px-6">
           <SectionReveal className="max-w-5xl mx-auto">
+            <Reveal><SectionLabel text="Take Action · stop guessing, start knowing" /></Reveal>
             <motion.div
               className="relative rounded-3xl border bg-white overflow-hidden"
               animate={{
