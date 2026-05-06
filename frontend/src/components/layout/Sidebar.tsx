@@ -64,7 +64,7 @@ export function Sidebar() {
   return (
     <aside className="w-[240px] border-r border-border bg-background/80 backdrop-blur-2xl flex flex-col h-full border-r border-border/30">
       <div className="h-16 flex items-center px-6 border-b border-border/50">
-        <Link href="/overview" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+        <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
           <div className="size-7 rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-bold text-base shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.1)]">
             Ae
           </div>
