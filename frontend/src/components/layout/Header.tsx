@@ -3,6 +3,7 @@
 import { Search, Bell, Settings, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
@@ -15,12 +16,12 @@ export function Header() {
   return (
     <header className="h-16 border-b border-border/30 bg-background/60 backdrop-blur-2xl sticky top-0 z-30 flex items-center justify-between px-8">
       <div className="flex items-center gap-4">
-        <div className="text-base font-medium text-muted-foreground/80 flex items-center gap-2">
+        <Link href="/" className="text-base font-medium text-muted-foreground/80 flex items-center gap-2 hover:text-foreground transition-colors duration-200">
           <span>Agent Reliability Studio</span>
           <span className="px-1.5 py-0.5 rounded-xl bg-muted text-[10px] font-semibold text-muted-foreground border">
             v0.1.0
           </span>
-        </div>
+        </Link>
       </div>
 
       <div className="flex items-center gap-3">

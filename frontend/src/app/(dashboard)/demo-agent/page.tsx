@@ -515,12 +515,18 @@ export default function DemoAgentPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-foreground flex items-center gap-3">
-          <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
-            <Bot className="size-6" />
-          </div>
-          Demo Agent
-        </h2>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
+              <Bot className="size-6" />
+            </div>
+            Demo Agent
+          </h2>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase border border-amber-400/40 bg-amber-400/10 text-amber-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Simulated · Not a real agent
+          </span>
+        </div>
         <p className="text-muted-foreground text-base">
           Generate real failure traces directly from the browser. Each scenario fires a live LLM call, sends the trace to{" "}
           {traceDestination === "langsmith" ? "LangSmith" : "Langfuse"}, and displays the response below.
@@ -633,36 +639,39 @@ export default function DemoAgentPage() {
                 No demo chats yet. Start a conversation below.
               </p>
             ) : (
-              sessions.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => handleSessionClick(s)}
-                  className={`w-full text-left px-3 py-2 rounded-xl border transition-all duration-150 ${
-                    activeSessionId === s.id
-                      ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-                      : "border-transparent hover:border-border hover:bg-muted/40"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <p className={`text-sm font-medium truncate ${activeSessionId === s.id ? "text-primary" : ""}`}>
-                      {s.title}
-                    </p>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${
-                      s.trace_destination === "langsmith" ? "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20" :
-                      s.trace_destination === "both"      ? "text-primary bg-primary/10 border-primary/20" :
-                      "text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
-                    }`}>
-                      {s.trace_destination === "langsmith" ? "LS" : s.trace_destination === "both" ? "Both" : "LF"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
-                    <Clock className="size-2.5" />
-                    <span>{formatRelativeTime(s.updated_at)}</span>
-                    <span>·</span>
-                    <span>{s.message_count} msgs</span>
-                  </div>
-                </button>
-              ))
+              <FadeInStagger key={sessions.length} className="flex flex-col gap-1">
+                {sessions.map((s) => (
+                  <FadeInItem key={s.id}>
+                    <button
+                      onClick={() => handleSessionClick(s)}
+                      className={`w-full text-left px-3 py-2 rounded-xl border transition-all duration-150 ${
+                        activeSessionId === s.id
+                          ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                          : "border-transparent hover:border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <p className={`text-sm font-medium truncate ${activeSessionId === s.id ? "text-primary" : ""}`}>
+                          {s.title}
+                        </p>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${
+                          s.trace_destination === "langsmith" ? "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20" :
+                          s.trace_destination === "both"      ? "text-primary bg-primary/10 border-primary/20" :
+                          "text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20"
+                        }`}>
+                          {s.trace_destination === "langsmith" ? "LS" : s.trace_destination === "both" ? "Both" : "LF"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
+                        <Clock className="size-2.5" />
+                        <span>{formatRelativeTime(s.updated_at)}</span>
+                        <span>·</span>
+                        <span>{s.message_count} msgs</span>
+                      </div>
+                    </button>
+                  </FadeInItem>
+                ))}
+              </FadeInStagger>
             )}
           </div>
         </div>
@@ -684,14 +693,16 @@ export default function DemoAgentPage() {
                 onClick={() => setTraceMenuOpen((v) => !v)}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border bg-background hover:bg-muted/50 transition-colors text-xs font-medium"
               >
+                <span className="text-muted-foreground">Trace →</span>
                 <span className={`size-2 rounded-full shrink-0 ${traceDestination === "langsmith" ? "bg-orange-500" : "bg-indigo-500"}`} />
                 <span>{traceDestination === "langsmith" ? "LangSmith" : "Langfuse"}</span>
                 <ChevronDown className={`size-3 text-muted-foreground transition-transform ${traceMenuOpen ? "rotate-180" : ""}`} />
               </button>
               {traceMenuOpen && (
-                <div className="absolute z-50 top-full mt-1 right-0 w-44 rounded-xl border bg-card shadow-xl overflow-hidden">
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b">
-                    Send traces to
+                <div className="absolute z-50 top-full mt-1 right-0 w-52 rounded-xl border bg-card shadow-xl overflow-hidden">
+                  <div className="px-3 py-1.5 border-b">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Send traces to</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">Configure analysis source in Settings → Integrations</p>
                   </div>
                   {[
                     { key: "langfuse" as const,  label: "Langfuse",  dot: "bg-indigo-500" },
@@ -764,12 +775,6 @@ export default function DemoAgentPage() {
               )}
             </div>
 
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0 ${
-              traceDestination === "langsmith" ? "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20" :
-              "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-            }`}>
-              {traceDestination === "langsmith" ? "LangSmith traced" : "Langfuse traced"}
-            </span>
           </div>
 
           {/* Messages */}
