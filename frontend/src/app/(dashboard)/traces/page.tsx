@@ -435,7 +435,7 @@ export default function TracesPage() {
                 <p className="text-xs mt-1 opacity-70">Pull traces from the dashboard first</p>
               </div>
             ) : (
-              <FadeInStagger className="flex flex-col gap-1">
+              <FadeInStagger key={sessions.length} className="flex flex-col gap-1">
                 {filtered.map((s) => (
                   <FadeInItem key={s.session_id}>
                     <button

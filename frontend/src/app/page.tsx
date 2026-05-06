@@ -17,8 +17,9 @@ function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; 
   const isInView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.div ref={ref} className={className}
-      initial={{ opacity: 0, y: 28 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] }}>
+      initial={{ opacity: 0, y: 28, filter: "blur(6px)" }}
+      animate={isInView ? { opacity: 1, y: 0, filter: "blur(0px)" } : {}}
+      transition={{ duration: 0.65, delay, ease: [0.16, 1, 0.3, 1] }}>
       {children}
     </motion.div>
   );
@@ -40,6 +41,23 @@ function EvidenceTape({ color }: { color: string }) {
       <div className="absolute top-5 right-[-20px] w-24 h-[14px] rotate-45"
         style={{ background: `repeating-linear-gradient(90deg, ${color}55 0px, ${color}55 5px, transparent 5px, transparent 10px)` }} />
     </div>
+  );
+}
+
+// ── Section-level scroll entrance ────────────────────────────────────────────
+function SectionReveal({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount: 0.10 });
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 56, scale: 0.94, filter: "blur(14px)", clipPath: "inset(0 0 6% 0)" }}
+      animate={isInView ? { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", clipPath: "inset(0 0 0% 0)" } : {}}
+      transition={{ duration: 0.90, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -68,15 +86,14 @@ function CaseFolder({ caseId, type, title, evidence, resolution, color, index }:
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <motion.div className="relative cursor-default group"
+    <motion.div className="relative cursor-default group h-full flex flex-col"
       initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+      whileHover={{ y: -6 }}
       transition={{ delay: index * 0.09, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       onHoverStart={() => setOpen(true)} onHoverEnd={() => setOpen(false)}>
-      <div className="absolute inset-0 rounded-2xl border -translate-y-1.5 translate-x-1.5"
-        style={{ borderColor: color + "20", backgroundColor: color + "06" }} />
-      <motion.div className="relative rounded-2xl border bg-white overflow-hidden"
+      <motion.div className="relative rounded-2xl border bg-white overflow-hidden flex flex-col flex-1"
         style={{ borderColor: color + "15" }}
-        animate={{ y: open ? -6 : 0, boxShadow: open ? `0 20px 40px rgba(0,0,0,0.12), 0 0 0 1px ${color}25` : "0 4px_20px rgba(0,0,0,0.06)" }}
+        animate={{ boxShadow: open ? `0 20px 40px rgba(0,0,0,0.12), 0 0 0 1px ${color}25` : "0 4px 20px rgba(0,0,0,0.06)" }}
         transition={{ duration: 0.22 }}>
         <EvidenceTape color={color} />
         {/* Header */}
@@ -90,9 +107,9 @@ function CaseFolder({ caseId, type, title, evidence, resolution, color, index }:
           <div className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: color + "15", color }}>OPEN</div>
         </div>
         {/* Body */}
-        <div className="p-4 md:p-5">
+        <div className="p-4 md:p-5 flex flex-col flex-1">
           <h3 className="text-[15px] font-bold text-foreground mb-4 leading-snug pr-4">{title}</h3>
-          <div className="space-y-2.5 mb-4">
+          <div className="space-y-2.5 mb-4 flex-1">
             {evidence.map((e, i) => (
               <div key={i} className="flex items-start gap-2.5">
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 mt-0.5 border"
@@ -683,7 +700,7 @@ export default function LandingPage() {
         </motion.div>
 
         <section id="cases" className="py-20 md:py-24 px-4 sm:px-6 scroll-mt-20">
-          <div className="max-w-7xl mx-auto">
+          <SectionReveal className="max-w-7xl mx-auto">
             {/* Staggered section header */}
             <div className="mb-12 md:mb-14">
               <Reveal><SectionLabel text="Failure Reports · four incident types Aethen diagnoses" /></Reveal>
@@ -703,7 +720,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 items-stretch">
               <CaseFolder caseId="HAL-01" type="Hallucination" color="#EF4444" index={0}
                 title="LLM fabricated a fact not present in any retrieved chunk"
                 evidence={[
@@ -737,11 +754,11 @@ export default function LandingPage() {
                 ]}
                 resolution="Root cause: refund policy docs never ingested. Gap closed, reliability +53%." />
             </div>
-          </div>
+          </SectionReveal>
         </section>
 
         <section id="pipeline" className="py-20 md:py-24 px-4 sm:px-6 scroll-mt-20">
-          <div className="max-w-7xl mx-auto">
+          <SectionReveal className="max-w-7xl mx-auto">
             <div className="mb-12 md:mb-14">
               <Reveal><SectionLabel text="Diagnostic Pipeline · from trace to remediation in 25 seconds" /></Reveal>
               <div className="grid md:grid-cols-2 gap-8 md:gap-10">
@@ -770,11 +787,11 @@ export default function LandingPage() {
                 <StatCounter value={98} label="Reliability Target" suffix="%" color="#10B981" />
               </div>
             </Reveal>
-          </div>
+          </SectionReveal>
         </section>
 
         <section id="stack" className="py-20 md:py-24 px-4 sm:px-6 scroll-mt-20">
-          <div className="max-w-7xl mx-auto">
+          <SectionReveal className="max-w-7xl mx-auto">
             <div className="mb-14 md:mb-16">
               <Reveal><SectionLabel text="Diagnostic Stack · infrastructure behind every diagnosis" /></Reveal>
               <div className="grid md:grid-cols-2 gap-8 md:gap-10">
@@ -793,11 +810,11 @@ export default function LandingPage() {
               </div>
             </div>
             <StackGrid />
-          </div>
+          </SectionReveal>
         </section>
 
         <section className="py-28 md:py-36 px-4 sm:px-6">
-          <div className="max-w-5xl mx-auto">
+          <SectionReveal className="max-w-5xl mx-auto">
             <div className="relative rounded-3xl border border-black/[0.06] bg-white shadow-[0_8px_48px_rgba(0,0,0,0.10)] overflow-hidden">
               {/* Ambient gradient bg */}
               <div className="absolute inset-0 pointer-events-none"
@@ -841,7 +858,7 @@ export default function LandingPage() {
                 </Reveal>
               </div>
             </div>
-          </div>
+          </SectionReveal>
         </section>
       </main>
 
