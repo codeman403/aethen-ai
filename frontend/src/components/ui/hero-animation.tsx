@@ -330,7 +330,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
         {/* Center popup */}
         <AnimatePresence mode="wait">
           {phase === "flow" && (
-            <motion.div key="flow-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
+            <motion.div key="flow-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "52%", top: "48%" }}
               initial={{ opacity: 0, scale: 0.8, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: -12 }} transition={{ type: "spring", bounce: 0.35, duration: 0.5 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-blue-500/30 bg-[#00050f]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(59,130,246,0.2)]">
@@ -348,7 +348,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
             </motion.div>
           )}
           {phase === "alert" && (
-            <motion.div key="alert-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
+            <motion.div key="alert-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "52%", top: "48%" }}
               initial={{ opacity: 0, scale: 0.8, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: -12 }} transition={{ type: "spring", bounce: 0.4, duration: 0.5 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-red-500/40 bg-[#0c0008]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(239,68,68,0.3)]">
@@ -361,7 +361,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
             </motion.div>
           )}
           {phase === "investigate" && (
-            <motion.div key="invest-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
+            <motion.div key="invest-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "52%", top: "48%" }}
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }} transition={{ type: "spring", bounce: 0.3 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-purple-500/40 bg-[#080012]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(124,58,237,0.25)]">
@@ -374,7 +374,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
             </motion.div>
           )}
           {phase === "resolve" && (
-            <motion.div key="resolve-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "53%", top: "50%" }}
+            <motion.div key="resolve-popup" className="absolute z-40 -translate-x-1/2 -translate-y-1/2" style={{ left: "52%", top: "48%" }}
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }} transition={{ type: "spring", bounce: 0.3 }}>
               <div className="px-5 py-3.5 rounded-xl border-2 border-emerald-500/40 bg-[#00100a]/95 backdrop-blur-md flex items-center gap-3 shadow-[0_8px_40px_rgba(16,185,129,0.25)]">
