@@ -4,7 +4,12 @@ import { useEffect, useRef, useState, ReactNode } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "framer-motion";
 import { ArrowRight, Database, Activity, Menu, X, GitBranch, Workflow, CheckCircle2, Play, BrainCircuit, Search, Zap, Globe, BarChart3, Cpu, Layers, Server } from "lucide-react";
-import { HeroAnimation } from "../components/ui/hero-animation";
+import dynamic from "next/dynamic";
+
+const HeroAnimation = dynamic(
+  () => import("../components/ui/hero-animation").then(m => m.HeroAnimation),
+  { ssr: false }
+);
 
 function ScrollProgress() {
   const { scrollYProgress } = useScroll();
@@ -17,8 +22,8 @@ function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; 
   const isInView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.div ref={ref} className={className}
-      initial={{ opacity: 0, y: 28, filter: "blur(6px)" }}
-      animate={isInView ? { opacity: 1, y: 0, filter: "blur(0px)" } : {}}
+      initial={{ opacity: 0, y: 28 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.65, delay, ease: [0.16, 1, 0.3, 1] }}>
       {children}
     </motion.div>
@@ -47,14 +52,14 @@ function EvidenceTape({ color }: { color: string }) {
 // ── Section-level scroll entrance ────────────────────────────────────────────
 function SectionReveal({ children, className = "" }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, amount: 0.10 });
+  const isInView = useInView(ref, { once: true, margin: "0px 0px -40px 0px" });
   return (
     <motion.div
       ref={ref}
       className={className}
-      initial={{ opacity: 0, y: 56, scale: 0.94, filter: "blur(14px)", clipPath: "inset(0 0 6% 0)" }}
-      animate={isInView ? { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", clipPath: "inset(0 0 0% 0)" } : {}}
-      transition={{ duration: 0.90, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, y: 48, scale: 0.96 }}
+      animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
+      transition={{ duration: 0.80, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
     </motion.div>
@@ -159,9 +164,12 @@ function stagePos(i: number) {
 
 function AnimatedPipeline() {
   const [active, setActive] = useState(0);
-  const [progress, setProgress] = useState(0); // 0→1 within current stage
+  const [progress, setProgress] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(containerRef, { once: false, margin: "-80px" });
 
   useEffect(() => {
+    if (!isInView) return;
     const start = performance.now();
     let raf: number;
     const tick = (now: number) => {
@@ -174,7 +182,7 @@ function AnimatedPipeline() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [isInView]);
 
   // Arc fill: how many full stages + partial current stage
   const filledAngle = (active + progress) / N; // 0→1 of full circle
@@ -188,7 +196,7 @@ function AnimatedPipeline() {
   const activeStage = PIPELINE_STAGES[active % N] ?? PIPELINE_STAGES[0];
 
   return (
-    <div className="flex flex-col lg:flex-row items-center gap-16 w-full max-w-5xl mx-auto px-4">
+    <div ref={containerRef} className="flex flex-col lg:flex-row items-center gap-16 w-full max-w-5xl mx-auto px-4">
       {/* Circle diagram */}
       <div className="relative shrink-0" style={{ width: VBSIZE * 0.96, height: VBSIZE * 0.96 }}>
         <svg
@@ -527,14 +535,23 @@ export default function LandingPage() {
           style={{ left: "35%", bottom: "5%", background: "radial-gradient(circle, rgba(16,185,129,0.6), transparent)" }} />
       </div>
 
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-background/90 backdrop-blur-xl border-b border-black/[0.07]" : "bg-transparent"}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group/logo">
-            <div className="size-8 rounded-lg bg-foreground flex items-center justify-center shadow-sm group-hover/logo:scale-110 transition-transform duration-200">
-              <span className="font-black text-background text-[11px]">Ae</span>
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl">
+        <div className={`absolute inset-0 bg-background/90 border-b border-black/[0.07] transition-opacity duration-300 ${isScrolled ? "opacity-100" : "opacity-0"}`} />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3 group/logo">
+              <div className="size-8 rounded-lg bg-foreground flex items-center justify-center shadow-sm group-hover/logo:scale-110 transition-transform duration-200">
+                <span className="font-black text-background text-[11px]">Ae</span>
+              </div>
+              <span className="font-bold tracking-tight text-foreground">Aethen-AI</span>
+            </Link>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/[0.07]">
+              <motion.div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"
+                animate={{ opacity: [1, 0.3, 1], scale: [1, 1.4, 1] }}
+                transition={{ duration: 1.6, repeat: Infinity }} />
+              <span className="text-xs font-mono font-bold text-red-600 tracking-[0.14em]">Agent Reliability Studio</span>
             </div>
-            <span className="font-bold tracking-tight text-foreground">Aethen-AI</span>
-          </Link>
+          </div>
           <nav className="hidden md:flex items-center gap-0.5">
             {NAV_ITEMS.map(item => {
               const sectionId = item.href.replace("#", "");
@@ -564,7 +581,7 @@ export default function LandingPage() {
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
-              className="md:hidden absolute top-full left-0 w-full bg-background/97 backdrop-blur-xl border-b border-black/[0.06] overflow-hidden"
+              className="relative md:hidden absolute top-full left-0 w-full bg-background/97 backdrop-blur-xl border-b border-black/[0.06] overflow-hidden"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -595,32 +612,8 @@ export default function LandingPage() {
 
       <main className="relative z-10">
         {/* ── Hero — full viewport, animation always visible on load ── */}
-        <section className="flex flex-col px-4 sm:px-6" style={{ minHeight: "calc(100vh - 56px)" }}>
-          <div className="max-w-6xl mx-auto w-full flex flex-col flex-1 pt-10 md:pt-14 pb-4">
-
-            {/* Badge row */}
-            <motion.div className="flex flex-wrap items-center gap-2 md:gap-3 mb-5"
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.45 }}>
-              <motion.div
-                className="relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-red-500/30 bg-red-500/[0.07] overflow-hidden cursor-default"
-                animate={{ boxShadow: ["0 0 0px rgba(239,68,68,0)", "0 0 14px rgba(239,68,68,0.25)", "0 0 0px rgba(239,68,68,0)"] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              >
-                {/* sweeping glow */}
-                <motion.div
-                  className="absolute inset-0 pointer-events-none"
-                  animate={{ x: ["-100%", "160%"] }}
-                  transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
-                  style={{ background: "linear-gradient(90deg, transparent, rgba(239,68,68,0.18), transparent)", width: "60%" }}
-                />
-                <motion.div
-                  className="w-1.5 h-1.5 rounded-full bg-red-500"
-                  animate={{ opacity: [1, 0.3, 1], scale: [1, 1.4, 1] }}
-                  transition={{ duration: 1.6, repeat: Infinity }}
-                />
-                <span className="relative text-xs font-mono font-bold text-red-600 tracking-[0.14em]">Agent Reliability Studio</span>
-              </motion.div>
-            </motion.div>
+        <section className="flex flex-col px-4 sm:px-6 min-h-screen">
+          <div className="max-w-6xl mx-auto w-full flex flex-col flex-1 pt-[72px] md:pt-[88px] pb-4">
 
             {/* Headline + CTAs — compact row */}
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 mb-6">
@@ -713,7 +706,7 @@ export default function LandingPage() {
                 <Reveal delay={0.2}>
                   <div className="flex items-end">
                     <p className="text-base md:text-[17px] text-black/55 leading-relaxed">
-                      <Typewriter text="Unlike observability tools that surface logs, Aethen reconstructs the failure trace — linking each incident back to its structural root cause across sessions." />
+                      <Typewriter text="Unlike observability tools that surface logs, Aethen reconstructs the failure trace - linking each incident back to its structural root cause across sessions." />
                     </p>
                   </div>
                 </Reveal>
@@ -815,25 +808,30 @@ export default function LandingPage() {
 
         <section className="py-28 md:py-36 px-4 sm:px-6">
           <SectionReveal className="max-w-5xl mx-auto">
-            <div className="relative rounded-3xl border border-black/[0.06] bg-white shadow-[0_8px_48px_rgba(0,0,0,0.10)] overflow-hidden">
-              {/* Ambient gradient bg */}
-              <div className="absolute inset-0 pointer-events-none"
-                style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06), transparent 65%), radial-gradient(ellipse at 80% 100%, rgba(16,185,129,0.05), transparent 55%)" }} />
+            <motion.div
+              className="relative rounded-3xl border bg-white overflow-hidden"
+              animate={{
+                boxShadow: [
+                  "0 8px 48px rgba(0,0,0,0.10), 0 0 0 1px rgba(99,102,241,0.10)",
+                  "0 12px 56px rgba(0,0,0,0.13), 0 0 0 1px rgba(16,185,129,0.22)",
+                  "0 8px 48px rgba(0,0,0,0.10), 0 0 0 1px rgba(99,102,241,0.10)",
+                ],
+                borderColor: ["rgba(0,0,0,0.06)", "rgba(16,185,129,0.18)", "rgba(0,0,0,0.06)"],
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            >
               {/* Top status bar */}
-              <div className="relative border-b border-black/[0.05] px-8 md:px-12 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <motion.div className="w-2 h-2 rounded-full bg-emerald-400"
-                    animate={{ opacity: [1, 0.35, 1], scale: [1, 1.35, 1] }}
-                    transition={{ duration: 1.8, repeat: Infinity }} />
-                  <span className="text-xs font-mono font-bold text-black/45 tracking-[0.14em] uppercase">Aethen · Agent Reliability Studio</span>
-                </div>
-                <span className="text-xs font-mono text-black/40 hidden sm:block">Ingest · Diagnose · Recommend Fix</span>
+              <div className="relative border-b border-black/[0.05] px-8 md:px-12 py-4 flex items-center gap-3">
+                <motion.div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"
+                  animate={{ opacity: [1, 0.35, 1], scale: [1, 1.35, 1] }}
+                  transition={{ duration: 1.8, repeat: Infinity }} />
+                <span className="text-xs font-mono text-black/40 tracking-[0.14em]">Ingest · Diagnose · Recommend Fix</span>
               </div>
               <div className="relative z-10 px-8 md:px-16 lg:px-24 py-16 md:py-20 lg:py-24 text-center">
                 <Reveal>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] mb-10">
-                    <CheckCircle2 className="size-4 text-emerald-500" />
-                    <span className="text-xs font-mono font-bold text-emerald-600 tracking-widest uppercase">Root Cause Confirmed</span>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-purple-500/25 bg-purple-500/[0.07] mb-10">
+                    <BrainCircuit className="size-4 text-purple-500" />
+                    <span className="text-xs font-mono font-bold text-purple-600 tracking-widest uppercase">Causal Intelligence</span>
                   </div>
                 </Reveal>
                 <Reveal delay={0.1}>
@@ -857,7 +855,7 @@ export default function LandingPage() {
                   </div>
                 </Reveal>
               </div>
-            </div>
+            </motion.div>
           </SectionReveal>
         </section>
       </main>
