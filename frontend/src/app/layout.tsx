@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aethen-AI — Agent Reliability Studio",
+  title: "Aethen AI — Agent Reliability Studio",
   description: "AI failure intelligence platform — diagnose why AI agents fail",
 };
 

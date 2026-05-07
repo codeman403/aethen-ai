@@ -17,6 +17,9 @@ perf-audit.mjs
 scroll-test.mjs
 header-test.mjs
 
+# dev-only preview pages and design tools
+src/app/logo-preview/
+
 # next.js
 /.next/
 /out/
