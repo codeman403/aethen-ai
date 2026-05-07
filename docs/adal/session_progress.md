@@ -2,7 +2,7 @@
 
 > **Purpose**: Track development progress across AI agent sessions. Update this file at the end of every session.
 >
-> **Last updated**: 2026-05-05 (Session 26)
+> **Last updated**: 2026-05-06 (Session 27)
 
 ---
 
@@ -62,6 +62,52 @@ Three clearly separated data stores — each owns a distinct responsibility:
 ---
 
 ## Completed Work
+
+### Session 27 — 2026-05-06 (Claude Code)
+
+**Landing page performance, UI polish, logo design, branding**
+
+**Performance:**
+- [x] Scroll jank fixed — rAF-throttled scroll handler, cached `offsetTop` positions (no DOM queries per scroll event)
+- [x] `AnimatedPipeline` extracted to `components/features/AnimatedPipeline.tsx` → dynamic import (`ssr: false`)
+- [x] `StackGrid` extracted to `components/features/StackGrid.tsx` → dynamic import (`ssr: false`)
+- [x] `page.js` reduced: 587KB → 572KB; `Load event`: 1064ms → 936ms
+- [x] Typewriter `setInterval`: 18ms → 30ms (−40% CPU during typing)
+- [x] Ticker items: 24 → 12 DOM nodes (same visual, CSS animation adjusted)
+- [x] `SectionReveal` blur removed: `filter:blur(8px)` initial state eliminated — removed GPU layer promotions (`will-change` nodes: 4 → 0)
+- [x] Header flicker fixed: `backdrop-blur-xl` always on, inner overlay fades opacity only (no layer promotion/demotion)
+
+**Logo:**
+- [x] New `AethenLogo` SVG component — `src/components/ui/logo.tsx`
+- [x] Design: two overlapping rotated squares (C-base), purple→emerald gradient on all strokes, corner nodes, dashed diagonal causal trace
+- [x] Replaces "Ae" text boxes in header, footer, sidebar
+- [x] `logo-preview/` page added to `.gitignore`
+
+**Branding & naming:**
+- [x] "Aethen-AI" → "Aethen AI" everywhere in UI (3 files: `page.tsx`, `layout.tsx`, `Sidebar.tsx`)
+- [x] "Aethen AI" text uses purple→emerald gradient (`from-[#6D28D9] to-[#059669]`)
+- [x] "Agent Reliability Studio" badge moved from hero to header (collapses to logo on scroll)
+- [x] Footer "Cases" → "Reports"
+
+**Header:**
+- [x] Header flicker on fast scroll fixed (CSS transition vs framer-motion)
+- [x] "Aethen AI" + badge smoothly collapse to logo on scroll (CSS `max-width` + `opacity` transition)
+- [x] Logo click always scrolls to top when already on `/`
+- [x] `v0.1.0` badge removed from dashboard header
+
+**Landing page structure:**
+- [x] Pipeline section moved above Reports section
+- [x] Stats bar (Node Types / Rel. Types / MTTR / Reliability) moved from Pipeline to Reports section
+- [x] Last CTA section: box removed, blended into page, `max-w-7xl` matching other sections
+- [x] "Take Action · stop guessing, start knowing" section label added to CTA
+- [x] "Causal Intelligence" badge with `BrainCircuit` icon in CTA
+- [x] Status bar: "Aethen · Agent Reliability Studio" → pulsing dot + "Ingest · Diagnose · Recommend Fix"
+
+**Perf audit tooling:**
+- [x] `perf-audit.mjs`, `scroll-test.mjs`, `header-test.mjs` — added to `.gitignore`
+- [x] All added to `tsconfig.json` exclude to prevent Vercel build failures
+
+---
 
 ### Session 24 — 2026-05-03 (Claude Code)
 
