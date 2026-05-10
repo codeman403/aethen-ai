@@ -35,28 +35,28 @@ _OPEN_PATHS = frozenset({
     "/redoc",
 })
 
-# Cache: token → (user_id, org_id, is_admin, expires_at)
-_TOKEN_CACHE: dict[str, tuple[str, str | None, bool, float]] = {}
+# Cache: token → (user_id, org_id, is_admin, expires_at, email)
+_TOKEN_CACHE: dict[str, tuple[str, str | None, bool, float, str]] = {}
 _CACHE_TTL = 60  # seconds
 _CACHE_MAX_SIZE = 500
 
 
-def _cache_get(token: str) -> tuple[str, str | None, bool] | None:
+def _cache_get(token: str) -> tuple[str, str | None, bool, str] | None:
     entry = _TOKEN_CACHE.get(token)
     if entry and entry[3] > time.monotonic():
-        return entry[0], entry[1], entry[2]
+        return entry[0], entry[1], entry[2], entry[4]
     if entry:
         _TOKEN_CACHE.pop(token, None)
     return None
 
 
-def _cache_set(token: str, user_id: str, org_id: str | None, is_admin: bool) -> None:
+def _cache_set(token: str, user_id: str, org_id: str | None, is_admin: bool, email: str = "") -> None:
     if len(_TOKEN_CACHE) >= _CACHE_MAX_SIZE:
         cutoff = time.monotonic()
         stale = [k for k, v in _TOKEN_CACHE.items() if v[3] <= cutoff]
         for k in stale[:_CACHE_MAX_SIZE // 4]:
             _TOKEN_CACHE.pop(k, None)
-    _TOKEN_CACHE[token] = (user_id, org_id, is_admin, time.monotonic() + _CACHE_TTL)
+    _TOKEN_CACHE[token] = (user_id, org_id, is_admin, time.monotonic() + _CACHE_TTL, email)
 
 
 async def _verify_token(token: str) -> dict | None:
@@ -109,7 +109,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         # Check cache first
         cached = _cache_get(token)
         if cached:
-            request.state.user_id, request.state.org_id, request.state.is_admin = cached
+            request.state.user_id, request.state.org_id, request.state.is_admin, request.state.email = cached
             return await call_next(request)
 
         # Verify via Supabase Auth API
@@ -131,12 +131,17 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         org_id = await self._get_org_id(user_id)
         if is_admin:
             logger.info("admin_authenticated", user_id=user_id, email=email, path=path)
+        elif settings.admin_email_set:
+            # Log the mismatch so we can diagnose email differences
+            logger.info("admin_check_failed", email=email,
+                        configured_count=len(settings.admin_email_set), path=path)
 
-        _cache_set(token, user_id, org_id, is_admin)
+        _cache_set(token, user_id, org_id, is_admin, email)
 
         request.state.user_id = user_id
         request.state.org_id = org_id
         request.state.is_admin = is_admin
+        request.state.email = email
 
         logger.debug("jwt_authenticated", user_id=user_id, is_admin=is_admin, path=path)
         return await call_next(request)

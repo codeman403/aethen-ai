@@ -22,12 +22,18 @@ async def auth_status(request: Request) -> ApiResponse[dict]:
     user_id: str = getattr(request.state, "user_id", "") or ""
     org_id: str | None = getattr(request.state, "org_id", None)
     is_admin: bool = getattr(request.state, "is_admin", False)
+    email: str = getattr(request.state, "email", "") or ""
+    # Mask email: show first 3 chars + domain so user can confirm without exposing full address
+    if "@" in email:
+        local, domain = email.split("@", 1)
+        masked = local[:3] + "***@" + domain
+    else:
+        masked = email[:3] + "***" if email else ""
     return ApiResponse(
         data={
             "authenticated": bool(user_id),
-            "user_id": user_id,
-            "org_id": org_id,
             "is_admin": is_admin,
+            "email_seen_by_backend": masked,
         },
         error=None,
     )
