@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+
+// withSentryConfig removed — it injects Edge-incompatible code into the
+// middleware bundle, causing MIDDLEWARE_INVOCATION_FAILED on Vercel.
+// Sentry error capture still works via sentry.client.config.ts,
+// sentry.server.config.ts, and sentry.edge.config.ts (loaded automatically
+// by @sentry/nextjs without the build-time wrapper).
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -8,18 +13,4 @@ const nextConfig: NextConfig = {
   turbopack: {},
 };
 
-export default withSentryConfig(nextConfig, {
-  // Only enable Sentry plugin when DSN is configured
-  silent: !process.env.NEXT_PUBLIC_SENTRY_DSN,
-  disableLogger: true,
-  // Don't upload source maps unless SENTRY_AUTH_TOKEN is set
-  sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
-  },
-  // Disabled — autoInstrument wraps Edge Runtime middleware with Node.js
-  // APIs unavailable in the Edge Runtime, causing MIDDLEWARE_INVOCATION_FAILED.
-  // Errors in API routes and server components are still captured via
-  // sentry.server.config.ts and sentry.edge.config.ts.
-  autoInstrumentServerFunctions: false,
-  widenClientFileUpload: false,
-});
+export default nextConfig;
