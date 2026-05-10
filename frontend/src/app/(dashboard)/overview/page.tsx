@@ -12,11 +12,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
-  Zap,
   ChevronRight,
-  ChevronDown,
 } from "lucide-react";
-import { fetchDashboardStats, fetchTrends, pullLangfuseTraces, pullLangsmithTraces, type DashboardStats, type TrendPoint } from "@/lib/api";
+import { fetchDashboardStats, fetchTrends, type DashboardStats, type TrendPoint } from "@/lib/api";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
 import { NumberTicker } from "@/components/ui/number-ticker";
@@ -32,10 +32,7 @@ export default function HomePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
-  const [pulling, setPulling] = useState(false);
-  const [pullMenuOpen, setPullMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pullResult, setPullResult] = useState<string | null>(null);
 
   const loadStats = async (showSpinner = true) => {
     try {
@@ -47,55 +44,6 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Failed to load stats");
     } finally {
       if (showSpinner) setLoading(false);
-    }
-  };
-
-  const handlePull = async (provider: "langfuse" | "langsmith" | "both") => {
-    setPulling(true);
-    setPullMenuOpen(false);
-    setError(null);
-    setPullResult(null);
-    try {
-      const results = await Promise.allSettled([
-        provider !== "langsmith" ? pullLangfuseTraces(20) : Promise.resolve(null),
-        provider !== "langfuse"  ? pullLangsmithTraces(20) : Promise.resolve(null),
-      ]);
-
-      const [langfuseRes, langsmithRes] = results;
-      const parts: string[] = [];
-      const errs: string[] = [];
-
-      if (langfuseRes.status === "fulfilled" && langfuseRes.value) {
-        const r = langfuseRes.value;
-        if (r.sessions_ingested > 0)
-          parts.push(`Langfuse: ${r.sessions_ingested} sessions (${r.events_processed} events)`);
-        else
-          parts.push("Langfuse: no new traces");
-        if (r.errors.length > 0) errs.push(...r.errors.slice(0, 2));
-      } else if (langfuseRes.status === "rejected") {
-        errs.push(`Langfuse: ${langfuseRes.reason?.message ?? "pull failed"}`);
-      }
-      // null = provider returned 503 (not configured) — skip silently
-
-      if (langsmithRes.status === "fulfilled" && langsmithRes.value) {
-        const r = langsmithRes.value;
-        if (r.sessions_ingested > 0)
-          parts.push(`LangSmith: ${r.sessions_ingested} sessions (${r.events_processed} events)`);
-        else
-          parts.push("LangSmith: no new traces");
-        if (r.errors.length > 0) errs.push(...r.errors.slice(0, 2));
-      } else if (langsmithRes.status === "rejected") {
-        errs.push(`LangSmith: ${langsmithRes.reason?.message ?? "pull failed"}`);
-      }
-      // null = provider returned 503 (not configured) — skip silently
-
-      await loadStats();
-      if (errs.length > 0) setError(errs.join(" | "));
-      if (parts.length > 0) setPullResult(`✓ ${parts.join("  ·  ")}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Pull failed");
-    } finally {
-      setPulling(false);
     }
   };
 
@@ -238,50 +186,10 @@ export default function HomePage() {
           </p>
         </div>
         <div className="flex gap-2 items-center">
-          {/* Pull Traces dropdown */}
-          <div className="relative">
-            <div className="flex rounded-full overflow-hidden border border-primary/20 bg-primary text-primary-foreground">
-              <button
-                onClick={() => handlePull("both")}
-                disabled={pulling}
-                className="inline-flex items-center gap-2 px-4 py-2 text-base font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                <Zap className={`size-4 ${pulling ? "animate-pulse" : ""}`} />
-                {pulling ? "Pulling…" : "Pull Traces"}
-              </button>
-              <button
-                onClick={() => setPullMenuOpen((v) => !v)}
-                disabled={pulling}
-                className="px-2 py-2 hover:bg-primary/80 transition-colors border-l border-primary-foreground/20 disabled:opacity-50"
-              >
-                <ChevronDown className={`size-4 transition-transform ${pullMenuOpen ? "rotate-180" : ""}`} />
-              </button>
-            </div>
-            {pullMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border bg-card shadow-xl overflow-hidden z-50">
-                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b">
-                  Select source
-                </div>
-                {[
-                  { key: "both" as const,      label: "Pull Both",     desc: "Langfuse + LangSmith",      dot: "bg-primary" },
-                  { key: "langfuse" as const,   label: "Langfuse only", desc: "Pull from Langfuse",         dot: "bg-indigo-500" },
-                  { key: "langsmith" as const,  label: "LangSmith only",desc: "Pull from LangSmith",        dot: "bg-orange-500" },
-                ].map((opt) => (
-                  <button
-                    key={opt.key}
-                    onClick={() => handlePull(opt.key)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors border-b last:border-0"
-                  >
-                    <span className={`size-2 rounded-full ${opt.dot} shrink-0`} />
-                    <div>
-                      <p className="text-sm font-medium">{opt.label}</p>
-                      <p className="text-xs text-muted-foreground">{opt.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Link href="/docs"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+            Get Started
+          </Link>
           <button
             onClick={() => loadStats()}
             disabled={loading}
@@ -297,11 +205,10 @@ export default function HomePage() {
           {error}
         </div>
       )}
-      {pullResult && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 text-base text-emerald-700 dark:text-emerald-400">
-          {pullResult}
-        </div>
-      )}
+
+
+      {/* Onboarding checklist — hidden once all steps complete or dismissed */}
+      <OnboardingChecklist />
 
       <FadeInStagger>
         {/* ── Metric Cards (all clickable) ───────────────────────────── */}

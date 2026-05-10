@@ -61,6 +61,19 @@ _EXTRA_PII_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("IP_ADDRESS", re.compile(
         r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b",
     )),
+    # Spaced-out email: "j o h n . s m i t h @ e x a m p l e . c o m"
+    # Each character (including TLD) separated by spaces — the TLD is also spaced
+    # so we can't anchor on "com". Instead match the single-char @ pattern directly.
+    ("EMAIL_SPACED", re.compile(
+        r"[a-zA-Z0-9](?:\s+[a-zA-Z0-9.]){4,}\s+@\s+[a-zA-Z0-9.](?:\s+[a-zA-Z0-9.]){3,}",
+        re.IGNORECASE,
+    )),
+    # Unicode/homoglyph email: scrubadub's ASCII-only regex misses Cyrillic/Greek
+    # chars in the local part (e.g. jпhn@example.com). \w in UNICODE mode catches them.
+    ("EMAIL_UNICODE", re.compile(
+        r"[\w._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",
+        re.UNICODE,
+    )),
 ]
 
 # ── Medical/PHI patterns not covered by scrubadub ─────────────────────────────
@@ -72,9 +85,16 @@ _MEDICAL_PATTERNS: list[tuple[str, re.Pattern]] = [
         r"\bMRN[:\s\-#]*\d{5,10}\b",
         re.IGNORECASE,
     )),
-    # Health Plan Beneficiary / Member IDs (e.g. H1234567890, INS-123456789)
+    # Health Plan Beneficiary / Member IDs — prefix-based (INS-xxx, MEM-xxx) and
+    # label-based ("Health Plan ID: HP-9876543-21")
     ("HEALTH_PLAN_ID", re.compile(
-        r"\b(?:INS|MEM|BEN|HMO|PPO)[:\s\-#]*[A-Z0-9]{6,12}\b",
+        r"\b(?:Health\s+Plan\s+(?:ID|Number|No\.?|#)\s*[:\s]|INS|MEM|BEN|HMO|PPO)[:\s\-#]*[A-Z0-9][A-Z0-9\-]{5,14}\b",
+        re.IGNORECASE,
+    )),
+    # Date of birth (explicit label + date value)
+    ("DATE_OF_BIRTH", re.compile(
+        r"\b(?:DOB|D\.O\.B\.?|Date\s+of\s+[Bb]irth|Born(?:\s+on)?)\s*[:\-]?\s*"
+        r"(?:\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})",
         re.IGNORECASE,
     )),
     # ICD-10 diagnosis codes (e.g. J06.9, E11.65, F32.1)

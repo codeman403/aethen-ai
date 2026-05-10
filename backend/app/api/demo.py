@@ -9,7 +9,10 @@ import json
 import uuid
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from app.utils.request_context import get_data_org_id
+from app.agents.llm import set_org_llm_context
+from app.services.llm_key_service import get_config as _get_llm_config
+from fastapi import APIRouter, HTTPException, Request
 from langchain_core.tools import tool
 from pydantic import BaseModel
 
@@ -156,7 +159,7 @@ def search_knowledge_base(query: str, namespace: str = "general") -> str:
                 "content": (
                     "API Key Security: All API keys use HMAC-SHA256 request signing for "
                     "authentication. Keys must be stored securely and should be regenerated "
-                    "periodically according to your organisation's security policy. "
+                    "periodically according to your organization's security policy. "
                     "Standard plan supports 3 keys; Pro plan supports 10 keys."
                 ),
                 "score": 0.81,
@@ -356,11 +359,12 @@ async def list_scenarios() -> ApiResponse[list[ScenarioInfo]]:
 
 
 @router.post("/demo/run", response_model=ApiResponse[DemoRunResult])
-async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResult]:
-    """Run a single demo LLM scenario with Langfuse tracing.
+async def run_demo_scenario(request: DemoRunRequest, http_request: Request) -> ApiResponse[DemoRunResult]:
+    """Run a single demo LLM scenario.
 
-    The LLM call is made synchronously in a thread so the async event loop
-    is not blocked. The Langfuse trace is flushed before returning.
+    Langfuse/LangSmith tracing only happens for authenticated users — public
+    visitors run the scenario without tracing so their sessions don't appear
+    in the operator's Langfuse account.
     """
     scenario_key = request.scenario.lower()
     if scenario_key not in SCENARIOS:
@@ -369,6 +373,8 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
             detail=f"Unknown scenario '{scenario_key}'. Valid: {list(SCENARIOS)}",
         )
 
+    org_id = get_data_org_id(http_request)
+    set_org_llm_context(await _get_llm_config(org_id))
     scenario = SCENARIOS[scenario_key]
     session_id = f"demo-{scenario_key}-{uuid.uuid4().hex[:8]}"
     logger.info("demo_run_start", scenario=scenario_key, session_id=session_id)
@@ -377,7 +383,8 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
         from langchain_core.messages import HumanMessage, SystemMessage
         from app.agents.llm import get_demo_llm
 
-        dest = request.trace_destination
+        # Only trace for authenticated users
+        dest = request.trace_destination if org_id else "none"
         callbacks, langfuse_client, langfuse_handler = _build_callbacks(dest, session_id)
         langfuse_traced = langfuse_client is not None
         langsmith_traced = dest in ("langsmith", "both") and any(
@@ -450,7 +457,7 @@ async def run_demo_scenario(request: DemoRunRequest) -> ApiResponse[DemoRunResul
 
 
 @router.post("/demo/chat", response_model=ApiResponse[DemoChatResult])
-async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
+async def demo_chat(request: DemoChatRequest, http_request: Request) -> ApiResponse[DemoChatResult]:
     """Free-form chat with Langfuse tracing and Postgres persistence.
 
     On the first turn (session_id=None) a new demo session is created and the
@@ -460,13 +467,23 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
     """
     request.message = sanitize_input(request.message, "message")
 
-    # Resolve or create session
+    # actual_org_id: raw value from JWT state.
+    #   - Public users  → None (middleware skips open paths, state never set)
+    #   - Regular users → their org UUID
+    #   - Admin users   → None (bypasses org filter by design)
+    # persist: True for any authenticated user (regular + admin), False for public.
+    # Distinguishing factor: middleware sets user_id on authenticated requests.
+    actual_org_id: str | None = getattr(http_request.state, "org_id", None)
+    persist: bool = bool(getattr(http_request.state, "user_id", None))
+
+    query_org_id = get_data_org_id(http_request)  # sentinel UUID for public users
+    set_org_llm_context(await _get_llm_config(query_org_id))
     is_new_session = request.session_id is None
     session_id = request.session_id or f"demo-cs-{uuid.uuid4().hex[:12]}"
 
-    if is_new_session:
+    if persist and is_new_session:
         title = request.message[:60]
-        await postgres_service.create_demo_session(session_id, title, request.trace_destination)
+        await postgres_service.create_demo_session(session_id, title, request.trace_destination, org_id=actual_org_id)
 
     logger.info("demo_chat_start", session_id=session_id, message_len=len(request.message))
 
@@ -515,13 +532,14 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
                 messages.append(AIMessage(content=turn.content))
         messages.append(HumanMessage(content=request.message))
 
-        await postgres_service.append_demo_message(
-            message_id=f"dm-{uuid.uuid4().hex[:12]}",
-            session_id=session_id,
-            role="user",
-            content=request.message,
-            langfuse_traced=False,
-        )
+        if persist:
+            await postgres_service.append_demo_message(
+                message_id=f"dm-{uuid.uuid4().hex[:12]}",
+                session_id=session_id,
+                role="user",
+                content=request.message,
+                langfuse_traced=False,
+            )
 
         # ── Phase 1: tool loop — NO Langfuse callbacks ───────────────────────────
         # Runs all tool iterations without creating Langfuse observations.
@@ -579,14 +597,15 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
             if not langfuse_trace_id:
                 langfuse_trace_id = await _get_langfuse_trace_id_from_api(session_id)
 
-        # Save assistant response
-        await postgres_service.append_demo_message(
-            message_id=f"dm-{uuid.uuid4().hex[:12]}",
-            session_id=session_id,
-            role="assistant",
-            content=assistant_text,
-            langfuse_traced=langfuse_traced,
-        )
+        # Save assistant response (authenticated users only)
+        if persist:
+            await postgres_service.append_demo_message(
+                message_id=f"dm-{uuid.uuid4().hex[:12]}",
+                session_id=session_id,
+                role="assistant",
+                content=assistant_text,
+                langfuse_traced=langfuse_traced,
+            )
 
         logger.info("demo_chat_complete", session_id=session_id,
                     trace_id=langfuse_trace_id)
@@ -613,10 +632,22 @@ async def demo_chat(request: DemoChatRequest) -> ApiResponse[DemoChatResult]:
 # ---------------------------------------------------------------------------
 
 @router.get("/demo/sessions", response_model=ApiResponse[list[dict]])
-async def list_demo_sessions() -> ApiResponse[list[dict]]:
-    """Return demo chat sessions ordered by most recent activity."""
-    sessions = await postgres_service.list_demo_sessions()
+async def list_demo_sessions(http_request: Request) -> ApiResponse[list[dict]]:
+    """Return demo chat sessions for the caller's org ordered by most recent activity."""
+    org_id = get_data_org_id(http_request)
+    sessions = await postgres_service.list_demo_sessions(org_id=org_id)
     return ApiResponse(data=sessions)
+
+
+@router.delete("/demo/sessions/{session_id}", response_model=ApiResponse[dict])
+async def delete_demo_session(session_id: str, http_request: Request) -> ApiResponse[dict]:
+    """Delete a demo chat session and all its messages."""
+    org_id = get_data_org_id(http_request)
+    deleted = await postgres_service.delete_demo_session(session_id, org_id=org_id)
+    if not deleted:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Demo session '{session_id}' not found")
+    return ApiResponse(data={"deleted": session_id})
 
 
 @router.get("/demo/sessions/{session_id}/messages", response_model=ApiResponse[list[dict]])
@@ -624,6 +655,65 @@ async def get_demo_messages(session_id: str) -> ApiResponse[list[dict]]:
     """Return the full message history for a demo session."""
     messages = await postgres_service.get_demo_messages(session_id)
     return ApiResponse(data=messages)
+
+
+class DirectAnalysisRequest(BaseModel):
+    """Inline session data for public demo analysis — no Postgres or Langfuse required."""
+    scenario: str                       # e.g. "memory", "tool_misfire"
+    user_message: str
+    assistant_response: str
+
+
+@router.post("/demo/analyze-direct", response_model=ApiResponse[dict])
+async def analyze_direct(request: DirectAnalysisRequest) -> ApiResponse[dict]:
+    """Run Aethen's LangGraph pipeline on inline session data.
+
+    Public endpoint — no auth required. Used by the public demo agent so visitors
+    can see a real diagnosis without Langfuse tracing or Postgres persistence.
+    """
+    from app.agents.graph import fast_analysis_graph
+    from app.models.trace import FailureType, Session, LLMCall
+
+    session_id = f"demo-direct-{uuid.uuid4().hex[:12]}"
+
+    # Map scenario key to the failure type the pipeline should expect
+    _FAILURE_MAP = {
+        "memory":       FailureType.MEMORY,
+        "tool_misfire": FailureType.TOOL_MISFIRE,
+        "hallucination": FailureType.HALLUCINATION,
+        "blind_spot":   FailureType.BLIND_SPOT,
+    }
+    failure_type = _FAILURE_MAP.get(request.scenario)
+
+    session = Session(
+        session_id=session_id,
+        agent_id="Demo Agent",
+        outcome="failure",
+        failure_type=failure_type,
+        failure_summary=f"Demo scenario: {request.scenario}",
+        llm_calls=[
+            LLMCall(
+                call_id=f"lc-{uuid.uuid4().hex[:8]}",
+                model="demo",
+                prompt=request.user_message,
+                response=request.assistant_response,
+            )
+        ],
+    )
+
+    try:
+        result = await fast_analysis_graph.ainvoke({"session": session})
+        report = result.get("report")
+        if not report:
+            raise ValueError("Pipeline returned no report")
+        return ApiResponse(
+            data=report if isinstance(report, dict) else report.model_dump(mode="json"),
+            error=None,
+            metadata=ResponseMetadata(request_id=str(uuid.uuid4())),
+        )
+    except Exception as exc:
+        logger.error("demo_analyze_direct_failed", error=str(exc), scenario=request.scenario)
+        raise HTTPException(status_code=502, detail="Analysis pipeline failed")
 
 
 @router.post("/demo/analyze-chat/{session_id}", response_model=ApiResponse[dict])

@@ -3,7 +3,10 @@
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from app.utils.request_context import get_data_org_id
+from app.agents.llm import set_org_llm_context
+from app.services.llm_key_service import get_config as _get_llm_config
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.config import settings
@@ -89,16 +92,39 @@ def _get_provider() -> LangSmithProvider:
 async def pull_langsmith_traces(
     request: LangSmithPullRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ) -> ApiResponse[IngestResult]:
     """Pull new traces from LangSmith since the last pull, adapt, and ingest.
 
     Uses an incremental watermark (`langsmith_last_pull_at` in app_settings)
     so only traces created after the previous pull are fetched.
     """
-    provider = _get_provider()
+    org_id = get_data_org_id(http_request)
+    set_org_llm_context(await _get_llm_config(org_id))
+
+    # In multi-tenant mode, only pull from org-configured LangSmith sources.
+    if org_id:
+        from app.api.sources import list_all_sources
+        org_sources = await list_all_sources(org_id=org_id)
+        ls_sources = [s for s in org_sources if s.get("provider") == "langsmith"]
+        if not ls_sources:
+            raise HTTPException(
+                status_code=503,
+                detail="No LangSmith source configured for your organization. Add one in Integrations.",
+            )
+        src = ls_sources[0]
+        provider = LangSmithProvider(
+            api_key=src["secret_key"],
+            endpoint=settings.langsmith_endpoint,
+            project_name=settings.langsmith_project,
+        )
+        watermark_key = f"langsmith_last_pull_at_{org_id}_{src['name']}"
+    else:
+        provider = _get_provider()
+        watermark_key = "langsmith_last_pull_at"
 
     since = None
-    watermark_str = await postgres_service.get_setting("langsmith_last_pull_at")
+    watermark_str = await postgres_service.get_setting(watermark_key)
     if watermark_str:
         try:
             since = datetime.fromisoformat(watermark_str)
@@ -139,7 +165,7 @@ async def pull_langsmith_traces(
                 errors.append(f"Neo4j error for {session.session_id}: {e}")
                 logger.error("langsmith_ingest_neo4j_error", session_id=session.session_id, error=str(e))
 
-        await postgres_service.save_session(session)
+        await postgres_service.save_session(session, org_id=org_id)
         sessions_ok += 1
         ingested_ids.append(session.session_id)
         logger.info("langsmith_session_ingested", session_id=session.session_id, events=event_count)
@@ -150,7 +176,7 @@ async def pull_langsmith_traces(
         except Exception as e:
             errors.append(f"Pattern linking error: {e}")
 
-    await postgres_service.set_setting("langsmith_last_pull_at", pull_started_at.isoformat())
+    await postgres_service.set_setting(watermark_key, pull_started_at.isoformat())
 
     if ingested_ids:
         background_tasks.add_task(_analyze_sessions_background, ingested_ids)

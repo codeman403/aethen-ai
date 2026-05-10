@@ -1,3 +1,7 @@
+# Anti-Aethen red-team module and security report — never commit
+anti_aethen/
+docs/security_red_team_report.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -260,6 +264,7 @@ frontend/*.jpg
 docs/stakeholder_blog.md
 docs/technical_blog.md
 docs/enhancement_ideas.md
+docs/saas_readiness.md
 
 # Demo GIF and video artifacts — large files, recorded locally
 demo.gif
@@ -268,3 +273,5 @@ demo.mp4
 *.gif
 *.webm
 scripts/record_demo.mjs
+
+

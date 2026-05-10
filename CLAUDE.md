@@ -182,3 +182,66 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 - Always check existing code patterns before introducing new ones.
 - Do not modify documentation files (`capstone_proj_proposal_codeman403.md`, `existing_product_comparison.md`, `proj_plan.md`) — they are reference material.
 - Keep this file updated as the project evolves.
+
+## LangGraph Graph Architecture (Critical — Read Before Changing)
+
+**Two compiled graph singletons** exist in `app/agents/graph.py`:
+
+| Singleton | Builder | Used by |
+|-----------|---------|---------|
+| `analysis_graph` | `build_optimized_analysis_graph()` | Chat Debug, Trace Explorer, langfuse/langsmith analysis, all production paths |
+| `fast_analysis_graph` | `build_fast_analysis_graph()` | Demo Agent `analyzeDirectly` endpoint only |
+| `_legacy_analysis_graph` | `build_analysis_graph()` | Reference / rollback — NOT used in production |
+
+**Optimised graph flow** (~9-12s):
+```
+parallel_start → [classify_intent ‖ vector_retrieve ‖ graph_traverse*]
+                        → merge_retrieval → (UNKNOWN → early_exit | known → fast_analyze)
+```
+`* graph_traverse` returns `[]` immediately when `AgentState["skip_graph"] = True`
+
+**`fast_analyze`** (`app/agents/nodes/fast_analyze.py`) — ONE LLM call replaces the separate analysis module + synthesize steps. Handles all 4 failure types. Eval confirmed: 100% accuracy, 85.56% judge score.
+
+**DO NOT** reintroduce `synthesize` into the `analysis_graph` flow without running evals first. The combined prompt performs better than two sequential calls.
+
+## Confidence Scoring (Critical — Do Not Revert to LLM Self-Reporting)
+
+`AnalysisReport.confidence` is computed by `compute_confidence()` in `app/agents/nodes/confidence.py` — **NOT** by the LLM.
+
+The LLM returns a raw confidence suggestion (0.0–1.0) which is used only as a `±0.075` secondary adjustment. The primary score is deterministic evidence-based computation from session trace signals.
+
+**Signal weights** (abbreviated — see full table in `docs/adal/aethen_internal_flow.md` Part 6):
+- `tool_misfire`: failed status (0.45) + error message (0.25) + timeout (0.10)
+- `memory`: doc_id_full_miss (0.58), partial_mismatch (scaled), low scores (0.20–0.30)
+- `hallucination`: flag × proportion (0.30–0.50) + no_sources × proportion (0.15–0.30)
+- `blind_spot`: zero_chunks (0.50), very_low_scores (0.30)
+
+**DO NOT** replace with `float(parsed.get("confidence", 0.5))` from the LLM response — that was the old broken approach.
+
+**Tests**: `tests/test_confidence_scorer.py` — 40 unit tests covering all failure types, determinism, clamping, and ordering guarantees. Run before any changes to the scorer.
+
+**Rollback**: Change `analysis_graph = build_optimized_analysis_graph()` to `analysis_graph = _legacy_analysis_graph`.
+
+## Fundamental Architectural Constraint — Trace-Only Analysis
+
+**Aethen never accesses the monitored agent's knowledge base, embedding model, or domain content.** Every classification is made from observable execution trace signals only.
+
+This has direct implications for code changes:
+
+- **Score thresholds (0.5, 0.3) in `confidence.py` are universal heuristics**, not domain-calibrated values. Do not treat them as ground truth — they are the best approximation without KB access.
+- **`expected_doc_ids` is the highest-accuracy signal** (weight 0.58). Changes that remove or ignore this field will significantly degrade memory failure classification accuracy.
+- **Hallucination detection is surface-level** — LLM output vs retrieved `doc_content` comparison. False positives are expected when the LLM uses correct training knowledge not present in retrieved docs.
+- **Aethen is a signal amplifier, not a domain expert.** Classification outputs mean "this pattern looks anomalous in the trace" — not "this answer is factually wrong." Low confidence scores (< 0.5) mean investigate, not condemn.
+
+When modifying classification logic: ask "does this change require knowing the agent's KB?" If yes, it's out of scope for Aethen's current architecture.
+
+## Per-Org LLM Credentials
+
+LLM credentials are stored per org (Fernet-encrypted, `app_settings` table) and injected via `contextvars.ContextVar` (`_org_llm_ctx` in `app/agents/llm.py`). Route handlers call `set_org_llm_context(config)` before `ainvoke()`. Never pass credentials through function arguments — use the context var.
+
+## Authentication
+
+- **JWT middleware** (`app/middleware/auth.py`) verifies Supabase tokens via `/auth/v1/user` API (60s cache). Sets `request.state.user_id`, `org_id`, `is_admin`.
+- **Admin users**: `ADMIN_EMAILS` env var — bypasses org scoping, sees all data including `org_id=NULL`.
+- **`get_data_org_id(request)`** (`app/utils/request_context.py`) — use this in ALL data route handlers, not `getattr(request.state, "org_id", None)` directly. Returns `None` for admin (no filter), org UUID for regular users, sentinel UUID for users without org.
+- **Public paths**: `/api/demo/chat`, `/api/demo/run`, `/api/demo/scenarios`, `/api/demo/analyze-direct`, `/api/health` — no JWT required.

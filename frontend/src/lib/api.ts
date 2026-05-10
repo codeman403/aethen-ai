@@ -1,26 +1,42 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const AETHEN_API_KEY = process.env.NEXT_PUBLIC_AETHEN_API_KEY ?? "";
+import { createClient } from "@/lib/supabase/client";
 
-function _authHeaders(): Record<string, string> {
-  return AETHEN_API_KEY ? { "Authorization": `Bearer ${AETHEN_API_KEY}` } : {};
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+async function _getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return { "Authorization": `Bearer ${session.access_token}` };
+    }
+  } catch {
+    // Supabase not configured (local dev without auth) — proceed unauthenticated
+  }
+  return {};
 }
 
 /**
  * Wrapper around fetch with exponential backoff retries.
  * Retries on network errors and 5xx/429 status codes.
+ * On 401, redirects to /login (session expired mid-flight).
  */
 async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
   let lastError: Error | null = null;
-  // Merge auth header into every request
+  const authHeaders = await _getAuthHeaders();
   const merged: RequestInit = {
     ...options,
-    headers: { ...(_authHeaders()), ...(options?.headers ?? {}) },
+    headers: { ...authHeaders, ...(options?.headers ?? {}) },
   };
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, merged);
       // 503 = provider not configured — don't retry, return immediately
       if (res.status === 503) return res;
+      // 401 = session expired — redirect to login
+      if (res.status === 401 && typeof window !== "undefined") {
+        window.location.href = "/login?expired=1";
+        return res;
+      }
       if (!res.ok && (res.status >= 500 || res.status === 429)) {
         if (i === retries - 1) return res;
       } else {
@@ -231,6 +247,7 @@ export interface RoleConfig {
 
 export interface ModelSettingsData {
   roles: RoleConfig[];
+  available_providers: string[]; // providers with a configured key (org or system)
 }
 
 export interface TestModelResult {
@@ -363,6 +380,30 @@ export async function listDemoSessions(): Promise<DemoSession[]> {
   const body: ApiResponse<DemoSession[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
+}
+
+export async function analyzeDirectly(
+  scenario: string,
+  userMessage: string,
+  assistantResponse: string,
+): Promise<AethenAnalysisReport> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/analyze-direct`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scenario, user_message: userMessage, assistant_response: assistantResponse }),
+  });
+  const body: ApiResponse<AethenAnalysisReport> = await res.json();
+  if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("No analysis returned");
+  return body.data;
+}
+
+export async function deleteDemoSession(sessionId: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/demo/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  });
+  const body: ApiResponse<unknown> = await res.json();
+  if (body.error) throw new Error(body.error);
 }
 
 export async function getDemoMessages(sessionId: string): Promise<DemoStoredMessage[]> {
@@ -534,6 +575,14 @@ export async function listChatSessions(): Promise<ChatSessionSummary[]> {
   const body: ApiResponse<ChatSessionSummary[]> = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data ?? [];
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  });
+  const body: ApiResponse<unknown> = await res.json();
+  if (body.error) throw new Error(body.error);
 }
 
 export async function loadChatSession(sessionId: string): Promise<ChatMessageRecord[]> {
@@ -811,6 +860,225 @@ export async function testSource(name: string): Promise<TestSourceResult> {
   const body = await res.json();
   if (body.error) throw new Error(body.error);
   return body.data;
+}
+
+// ── Usage & Quotas ───────────────────────────────────────────────────────────
+
+export interface TrialStatus {
+  in_trial: boolean;
+  trial_expired: boolean;
+  converted: boolean;
+  trial_ends_at: string | null;
+  days_remaining: number;
+}
+
+export interface OrgUsage {
+  period: string;
+  sessions_ingested: number;
+  sessions_limit: number;
+  analysis_runs: number;
+  analysis_runs_limit: number;
+  sessions_pct: number;
+  analysis_pct: number;
+  trial: TrialStatus | null;
+}
+
+export async function fetchUsage(): Promise<OrgUsage> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/usage`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+// ── Admin ────────────────────────────────────────────────────────────────────
+
+export interface AdminOrgSummary {
+  org_id: string;
+  org_name: string;
+  org_slug: string;
+  member_count: number;
+  session_count: number;
+  sessions_this_month: number;
+  sessions_limit: number;
+  analysis_this_month: number;
+  analysis_limit: number;
+  created_at: string | null;
+}
+
+export interface AdminOrgDetail {
+  org_id: string;
+  org_name: string;
+  org_slug: string;
+  created_at: string | null;
+  members: Array<{ user_id: string; full_name: string; email: string; role: string; signed_up_at: string | null }>;
+  usage_history: Array<{ period: string; sessions_ingested: number; analysis_runs: number }>;
+  quota: { sessions_per_month: number; analysis_runs_per_month: number };
+}
+
+export interface PlatformStats {
+  total_orgs: number;
+  total_users: number;
+  total_sessions: number;
+  unassigned_sessions: number;
+  sessions_this_month: number;
+  analysis_this_month: number;
+}
+
+export async function fetchAdminOrgs(): Promise<AdminOrgSummary[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/orgs`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function fetchAdminOrg(orgId: string): Promise<AdminOrgDetail> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/orgs/${orgId}`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function fetchPlatformStats(): Promise<PlatformStats> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/stats`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function updateAdminQuota(orgId: string, sessionsPerMonth: number, analysisRunsPerMonth: number): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/quota`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ org_id: orgId, sessions_per_month: sessionsPerMonth, analysis_runs_per_month: analysisRunsPerMonth }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+
+export async function removeOrgMember(orgId: string, userId: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/orgs/${orgId}/members/${userId}`, { method: "DELETE" });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+export async function updateOrgName(orgId: string, name: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/orgs/${orgId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+export async function fetchUsageHistory(): Promise<OrgUsage[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/usage/history`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+// ── Webhooks ──────────────────────────────────────────────────────────────
+
+export interface WebhookConfig {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  created_at: string;
+}
+
+export const WEBHOOK_EVENTS = [
+  { id: "analysis.completed",      label: "Analysis Completed",      description: "Fires after every LangGraph analysis run" },
+  { id: "high_confidence_failure", label: "High Confidence Failure", description: "Fires when a failure is detected with confidence ≥ 70%" },
+  { id: "ingest.completed",        label: "Ingest Completed",        description: "Fires after a batch of sessions is ingested" },
+  { id: "daily.digest",            label: "Daily Digest",            description: "Fires once a day with yesterday's failure intelligence summary" },
+] as const;
+
+export async function fetchWebhooks(): Promise<WebhookConfig[]> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/webhooks`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data ?? [];
+}
+
+export async function createWebhook(url: string, events: string[], secret?: string): Promise<WebhookConfig> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/webhooks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, events, secret }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function deleteWebhook(id: string): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/webhooks/${id}`, { method: "DELETE" });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+export async function updateWebhook(id: string, url?: string, events?: string[]): Promise<WebhookConfig> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/webhooks/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, events }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function testWebhook(id: string): Promise<{ ok: boolean; status_code?: number; error?: string }> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/webhooks/${id}/test`, { method: "POST" });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+// ── Digest & Limits ───────────────────────────────────────────────────────
+
+export async function fetchDigestSettings(): Promise<{ recipients: string[] }> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/digest/settings`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function updateDigestSettings(recipients: string[]): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/digest/settings`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recipients }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+}
+
+export async function fetchBatchLimit(): Promise<{ limit: number; unlimited: boolean }> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/digest/batch-limit`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function fetchGlobalLimits(): Promise<{ max_batch_analysis: number; max_daily_auto_analysis: number }> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/limits`);
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
+  return body.data;
+}
+
+export async function updateGlobalLimits(maxBatch: number, maxDaily: number): Promise<void> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/admin/limits`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ max_batch_analysis: maxBatch, max_daily_auto_analysis: maxDaily }),
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error);
 }
 
 export function buildBlindSpotSession(sessionId: string) {

@@ -115,12 +115,19 @@ async def vector_retrieve(state: AgentState) -> dict:
 async def graph_traverse(state: AgentState) -> dict:
     """Traverse Neo4j to find related sessions and failure patterns.
 
+    Skipped immediately (returns empty) when state["skip_graph"] is True —
+    saves ~3s for orgs without cross-session history in Neo4j.
+
     Performs multi-hop traversals to discover:
     1. Direct relationships (1-hop): FAILED_WITH, RELATED_TO
     2. Shared chunk patterns (2-hop): sessions retrieving the same documents
     3. Systemic blind spots (2-hop): recurring knowledge gaps across agents
     4. Same-query failures (2-hop): identical queries failing in different ways
     """
+    if state.get("skip_graph"):
+        logger.debug("graph_traverse_skipped", reason="skip_graph=True")
+        return {"graph_results": []}
+
     session = ensure_session(state["session"])
     failure_type = state.get("failure_type", session.failure_type)
 

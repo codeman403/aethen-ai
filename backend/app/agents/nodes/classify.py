@@ -11,6 +11,7 @@ from app.agents.llm import get_openai_llm
 from app.agents.state import AgentState, ensure_session
 from app.config import settings
 from app.models.trace import FailureType
+from app.utils.sanitize import strip_injection
 
 logger = structlog.get_logger()
 
@@ -137,7 +138,7 @@ def _session_to_evidence_text(state: AgentState) -> str:
     if session.tool_calls:
         parts.append("\n--- Tool Calls ---")
         for tc in session.tool_calls:
-            error_info = f", Error: {tc.error}" if tc.error else ""
+            error_info = f", Error: {strip_injection(tc.error, full_redact=True)}" if tc.error else ""
             parts.append(
                 f"  {tc.tool_name}: status={tc.status}, latency={tc.latency_ms:.0f}ms{error_info}"
             )
@@ -155,7 +156,7 @@ def _session_to_evidence_text(state: AgentState) -> str:
                 parts.append(f"  Prompt: {lc.prompt[:300]}")
             if lc.response:
                 # Full response is critical for hallucination detection — compare against doc_content
-                parts.append(f"  Response: {lc.response[:600]}")
+                parts.append(f"  Response: {strip_injection(lc.response, full_redact=True)[:600]}")
 
     return "\n".join(parts)
 

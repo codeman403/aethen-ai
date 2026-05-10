@@ -18,8 +18,25 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# ── Sentry — init before app creation so all exceptions are captured ──────
+from app.config import settings as _settings
+if _settings.sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=_settings.sentry_dsn,
+        environment=_settings.sentry_environment,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.1,   # 10% of requests traced for performance
+        send_default_pii=False,   # never send PII to Sentry
+    )
+
 from app.api.analyze_raw import router as analyze_raw_router
 from app.api.api_key import router as api_key_router
+from app.api.profile import router as profile_router
+from app.api.llm_keys import router as llm_keys_router
+from app.api.backfill import router as backfill_router
 from app.api.chat import router as chat_router
 from app.api.eval import router as eval_router
 from app.api.sources import router as sources_router
@@ -38,7 +55,15 @@ from app.services.embedding_service import embedding_service
 from app.services.neo4j_service import neo4j_service
 from app.services.pinecone_service import pinecone_service
 from app.services.postgres_service import postgres_service
+from app.api.usage import router as usage_router
+from app.api.admin import router as admin_router
+from app.api.onboarding import router as onboarding_router
+from app.api.webhooks import router as webhooks_router
+from app.api.digest import router as digest_router
 from app.utils.rate_limit import RateLimitMiddleware
+from app.utils.body_size_limit import BodySizeLimitMiddleware
+from app.utils.security_headers import SecurityHeadersMiddleware
+from app.middleware.auth import JWTAuthMiddleware
 
 structlog.configure(
     processors=[
@@ -93,33 +118,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# API key middleware — logs Bearer token, does not enforce (single-tenant stub).
-# Validates Bearer token against stored SHA-256 hash.
-# Open when no key is configured (local dev / fresh install).
-# When a key IS configured, all /api/* requests must include it.
-class ApiKeyMiddleware(BaseHTTPMiddleware):
-    _OPEN_PATHS = {"/api/health", "/api/settings/api-key"}
+# JWT auth middleware — verifies Supabase-issued JWTs on all /api/* requests.
+# Skips verification when SUPABASE_JWT_SECRET is not configured (local dev).
+# Attaches request.state.user_id and request.state.org_id for route handlers.
+if settings.supabase_jwt_secret:
+    app.add_middleware(JWTAuthMiddleware)
+else:
+    logger.warning("supabase_jwt_secret_not_set", msg="JWT auth disabled — set SUPABASE_JWT_SECRET for production")
 
-    async def dispatch(self, request: Request, call_next):
-        # Skip auth for health check and key management itself
-        if request.url.path in self._OPEN_PATHS or not request.url.path.startswith("/api"):
-            return await call_next(request)
+# Security headers — X-Frame-Options, X-Content-Type-Options, CSP, etc.
+app.add_middleware(SecurityHeadersMiddleware)
 
-        key = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        if key:
-            logger.info("api_key_received", key_prefix=key[:8] + "...")
-
-        from app.api.api_key import validate_api_key
-        if not await validate_api_key(key):
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                status_code=401,
-                content={"error": "Invalid or missing API key", "data": None, "metadata": None},
-            )
-
-        return await call_next(request)
-
-app.add_middleware(ApiKeyMiddleware)
+# Body size limit — rejects requests larger than 1MB to prevent resource exhaustion
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=1_048_576)  # 1MB
 
 # Rate limiting — applied before CORS so it fires first
 app.add_middleware(RateLimitMiddleware, per_minute=100, per_hour=1000)
@@ -155,3 +166,11 @@ app.include_router(eval_router, prefix="/api")
 app.include_router(sources_router, prefix="/api")
 app.include_router(analyze_raw_router, prefix="/api")
 app.include_router(api_key_router, prefix="/api")
+app.include_router(profile_router, prefix="/api")
+app.include_router(llm_keys_router, prefix="/api")
+app.include_router(backfill_router, prefix="/api")
+app.include_router(usage_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
+app.include_router(onboarding_router, prefix="/api")
+app.include_router(webhooks_router, prefix="/api")
+app.include_router(digest_router,   prefix="/api")

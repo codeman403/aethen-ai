@@ -15,18 +15,23 @@ import secrets
 import uuid
 
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from app.models.response import ApiResponse, ResponseMetadata
 from app.services.postgres_service import postgres_service
+from app.utils.request_context import get_data_org_id
 
 logger = structlog.get_logger()
 router = APIRouter(tags=["api-key"])
 
-_SETTINGS_KEY = "aethen_api_key_hash"
-_PREFIX_KEY = "aethen_api_key_prefix"   # stores first 12 chars for display only
 _KEY_PREFIX = "aethen-"
+
+def _settings_key(org_id: str | None) -> str:
+    return f"aethen_api_key_hash:{org_id}" if org_id else "aethen_api_key_hash"
+
+def _prefix_key(org_id: str | None) -> str:
+    return f"aethen_api_key_prefix:{org_id}" if org_id else "aethen_api_key_prefix"
 
 
 class ApiKeyStatus(BaseModel):
@@ -48,21 +53,22 @@ def _generate_raw_key() -> str:
 
 
 @router.post("/settings/api-key", response_model=ApiResponse[GeneratedKey])
-async def generate_api_key() -> ApiResponse[GeneratedKey]:
-    """Generate a new Aethen API key.
+async def generate_api_key(http_request: Request) -> ApiResponse[GeneratedKey]:
+    """Generate a new Aethen API key for this org.
 
     Revokes any existing key. Returns the raw key exactly once —
     it cannot be retrieved again. Store it securely (e.g. Render env var,
     Claude Desktop config).
     """
+    org_id = get_data_org_id(http_request)
     raw = _generate_raw_key()
     key_hash = _hash_key(raw)
-    key_prefix = raw[:12]   # "aethen-a3f9"
+    key_prefix = raw[:12]
 
-    await postgres_service.set_setting(_SETTINGS_KEY, key_hash)
-    await postgres_service.set_setting(_PREFIX_KEY, key_prefix)
+    await postgres_service.set_setting(_settings_key(org_id), key_hash)
+    await postgres_service.set_setting(_prefix_key(org_id), key_prefix)
 
-    logger.info("api_key_generated", prefix=key_prefix)
+    logger.info("api_key_generated", prefix=key_prefix, org_id=org_id)
     return ApiResponse(
         data=GeneratedKey(key=raw, key_prefix=key_prefix),
         error=None,
@@ -71,10 +77,11 @@ async def generate_api_key() -> ApiResponse[GeneratedKey]:
 
 
 @router.get("/settings/api-key", response_model=ApiResponse[ApiKeyStatus])
-async def get_api_key_status() -> ApiResponse[ApiKeyStatus]:
-    """Return whether an API key is configured and its masked prefix."""
-    key_hash = await postgres_service.get_setting(_SETTINGS_KEY)
-    prefix = await postgres_service.get_setting(_PREFIX_KEY) if key_hash else None
+async def get_api_key_status(http_request: Request) -> ApiResponse[ApiKeyStatus]:
+    """Return whether an API key is configured for this org."""
+    org_id = get_data_org_id(http_request)
+    key_hash = await postgres_service.get_setting(_settings_key(org_id))
+    prefix = await postgres_service.get_setting(_prefix_key(org_id)) if key_hash else None
 
     return ApiResponse(
         data=ApiKeyStatus(exists=bool(key_hash), key_prefix=prefix),
@@ -84,11 +91,12 @@ async def get_api_key_status() -> ApiResponse[ApiKeyStatus]:
 
 
 @router.delete("/settings/api-key", response_model=ApiResponse[dict])
-async def revoke_api_key() -> ApiResponse[dict]:
-    """Revoke the current API key. All agents using it will lose access."""
-    await postgres_service.set_setting(_SETTINGS_KEY, "")
-    await postgres_service.set_setting(_PREFIX_KEY, "")
-    logger.info("api_key_revoked")
+async def revoke_api_key(http_request: Request) -> ApiResponse[dict]:
+    """Revoke the current API key for this org."""
+    org_id = get_data_org_id(http_request)
+    await postgres_service.set_setting(_settings_key(org_id), "")
+    await postgres_service.set_setting(_prefix_key(org_id), "")
+    logger.info("api_key_revoked", org_id=org_id)
     return ApiResponse(
         data={"revoked": True},
         error=None,

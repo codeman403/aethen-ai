@@ -52,6 +52,31 @@ class Settings(BaseSettings):
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     langsmith_project: str = "Aethen"
 
+    # Supabase — auth middleware + token verification
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_jwt_secret: str = ""  # kept for HS256 fallback if needed
+
+    # Admin / root users — comma-separated emails that bypass org scoping
+    # and can see all data across every organization.
+    # Example: ADMIN_EMAILS=admin@example.com,ops@example.com
+    admin_emails: str = ""
+
+    @property
+    def admin_email_set(self) -> frozenset[str]:
+        return frozenset(e.strip().lower() for e in self.admin_emails.split(",") if e.strip())
+
+    # Resend — transactional email
+    resend_api_key: str = ""
+    email_from: str = ""   # e.g. "Aethen <hello@yourdomain.com>"
+
+    # Sentry — error monitoring
+    sentry_dsn: str = ""
+    sentry_environment: str = "development"
+
+    # Cron — shared secret for Vercel cron job authentication
+    cron_secret: str = ""
+
     # Frontend
     frontend_url: str = "http://localhost:3000"
 

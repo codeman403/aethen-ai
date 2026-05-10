@@ -9,12 +9,14 @@ import uuid
 
 import httpx
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from app.config import settings
 from app.models.response import ApiResponse, ResponseMetadata
 from app.services.postgres_service import postgres_service
+from app.services.llm_key_service import get_config as _get_llm_keys
+from app.utils.request_context import get_data_org_id
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -72,6 +74,7 @@ class RoleConfig(BaseModel):
 
 class ModelSettingsResponse(BaseModel):
     roles: list[RoleConfig]
+    available_providers: list[str]  # providers with a configured key (org or system)
 
 class UpdateModelRequest(BaseModel):
     role: str
@@ -141,7 +144,27 @@ async def _test_anthropic(model_id: str) -> tuple[bool, str]:
 # ── Endpoints ──────────────────────────────────────────────────────────────
 
 @router.get("/settings/models", response_model=ApiResponse[ModelSettingsResponse])
-async def get_model_settings() -> ApiResponse[ModelSettingsResponse]:
+async def get_model_settings(request: Request) -> ApiResponse[ModelSettingsResponse]:
+    org_id = get_data_org_id(request)
+
+    # Determine which providers are actually available.
+    # Org-specific keys always take priority.
+    # Env var fallback is only for admin users — regular users must configure their own keys.
+    is_admin: bool = getattr(request.state, "is_admin", False)
+    available: set[str] = set()
+    org_cfg = await _get_llm_keys(org_id)
+    for provider in ("openai", "anthropic"):
+        if org_cfg.get(provider, {}).get("api_key"):
+            available.add(provider)
+    if is_admin:
+        if settings.openai_api_key:
+            available.add("openai")
+        if settings.anthropic_api_key:
+            available.add("anthropic")
+
+    # Filter model list to available providers only
+    available_models = [m for m in ALL_MODELS if m["provider"] in available]
+
     roles = []
     for role in _ROLES:
         current = await _get_model(role)
@@ -152,10 +175,10 @@ async def get_model_settings() -> ApiResponse[ModelSettingsResponse]:
             role_subtitle=labels["subtitle"],
             current_model=current,
             current_provider=_infer_provider(current),
-            options=[ModelOption(**m) for m in ALL_MODELS],
+            options=[ModelOption(**m) for m in available_models],
         ))
     return ApiResponse(
-        data=ModelSettingsResponse(roles=roles),
+        data=ModelSettingsResponse(roles=roles, available_providers=sorted(available)),
         metadata=ResponseMetadata(request_id=str(uuid.uuid4()), duration_ms=0),
     )
 

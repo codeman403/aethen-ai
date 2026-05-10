@@ -8,7 +8,8 @@ blind spot clusters), not aggregate counting.
 """
 
 import structlog
-from fastapi import APIRouter, Query
+from app.utils.request_context import get_data_org_id
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
 from app.models.response import ApiResponse
@@ -41,14 +42,16 @@ class DashboardStats(BaseModel):
 
 
 @router.get("/stats", response_model=ApiResponse[DashboardStats])
-async def get_dashboard_stats() -> ApiResponse[DashboardStats]:
+async def get_dashboard_stats(request: Request) -> ApiResponse[DashboardStats]:
     """Return aggregated dashboard metrics from Postgres."""
     if not postgres_service.is_available:
         logger.warning("stats_postgres_unavailable")
         return ApiResponse(data=DashboardStats())
 
+    org_id = get_data_org_id(request)
+
     try:
-        aggregated = await postgres_service.compute_stats()
+        aggregated = await postgres_service.compute_stats(org_id=org_id)
         breakdown = aggregated["failure_breakdown"]
         total = aggregated["total_sessions"]
         failed = sum(breakdown.values())
@@ -89,12 +92,13 @@ class TrendResponse(BaseModel):
 
 
 @router.get("/stats/trends", response_model=ApiResponse[TrendResponse])
-async def get_failure_trends(days: int = Query(default=30, ge=7, le=90)) -> ApiResponse[TrendResponse]:
+async def get_failure_trends(request: Request, days: int = Query(default=30, ge=7, le=90)) -> ApiResponse[TrendResponse]:
     """Return per-failure-type daily counts over the requested window."""
     if not postgres_service.is_available:
         return ApiResponse(data=TrendResponse(points=[], days=days))
+    org_id = get_data_org_id(request)
     try:
-        points = await postgres_service.compute_trends(days)
+        points = await postgres_service.compute_trends(days, org_id=org_id)
         return ApiResponse(data=TrendResponse(points=[TrendPoint(**p) for p in points], days=days))
     except Exception as exc:
         logger.error("trends_error", error=str(exc))
@@ -131,8 +135,17 @@ class PatternsResponse(BaseModel):
 
 
 @router.get("/stats/patterns", response_model=ApiResponse[PatternsResponse])
-async def get_patterns() -> ApiResponse[PatternsResponse]:
+async def get_patterns(request: Request) -> ApiResponse[PatternsResponse]:
     """Return cross-session failure patterns from Neo4j graph."""
+    org_id = get_data_org_id(request)
+
+    # Only query Neo4j if the org has ingested sessions — prevents leaking
+    # global graph data to orgs that have no data of their own yet.
+    if org_id:
+        org_session_count = await postgres_service.count_sessions(org_id=org_id)
+        if org_session_count == 0:
+            return ApiResponse(data=PatternsResponse(neo4j_available=False))
+
     if not neo4j_service.is_available:
         return ApiResponse(data=PatternsResponse(neo4j_available=False))
     try:
@@ -162,12 +175,13 @@ class AgentProfile(BaseModel):
 
 
 @router.get("/stats/agents", response_model=ApiResponse[list[AgentProfile]])
-async def get_agent_profiles() -> ApiResponse[list[AgentProfile]]:
+async def get_agent_profiles(request: Request) -> ApiResponse[list[AgentProfile]]:
     """Return per-agent failure breakdown from Postgres."""
     if not postgres_service.is_available:
         return ApiResponse(data=[])
+    org_id = get_data_org_id(request)
     try:
-        rows = await postgres_service.get_agent_profiles()
+        rows = await postgres_service.get_agent_profiles(org_id=org_id)
         return ApiResponse(data=[AgentProfile(**r) for r in rows])
     except Exception as exc:
         logger.error("agent_profiles_error", error=str(exc))
@@ -185,12 +199,13 @@ class RecommendationItem(BaseModel):
 
 
 @router.get("/stats/recommendations", response_model=ApiResponse[list[RecommendationItem]])
-async def get_recommendations() -> ApiResponse[list[RecommendationItem]]:
+async def get_recommendations(request: Request) -> ApiResponse[list[RecommendationItem]]:
     """Return aggregated recommendations from cached analysis reports."""
     if not postgres_service.is_available:
         return ApiResponse(data=[])
+    org_id = get_data_org_id(request)
     try:
-        rows = await postgres_service.get_recommendations()
+        rows = await postgres_service.get_recommendations(org_id=org_id)
         return ApiResponse(data=[RecommendationItem(**r) for r in rows])
     except Exception as exc:
         logger.error("recommendations_error", error=str(exc))

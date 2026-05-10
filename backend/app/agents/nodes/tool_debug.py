@@ -9,6 +9,7 @@ import structlog
 from app.agents.llm import get_openai_llm
 from app.agents.state import AgentState, ensure_session
 from app.config import settings
+from app.utils.sanitize import strip_injection
 
 logger = structlog.get_logger()
 
@@ -73,8 +74,8 @@ def _build_tool_context(state: AgentState) -> str:
                 f"\n#{i} {tc.tool_name}\n"
                 f"  Status: {tc.status}\n"
                 f"  Parameters: {tc.parameters}\n"
-                f"  Result: {tc.result or 'N/A'}\n"
-                f"  Error: {tc.error or 'none'}\n"
+                f"  Result: {strip_injection(tc.result or 'N/A', full_redact=True)}\n"
+                f"  Error: {strip_injection(tc.error or 'none', full_redact=True)}\n"
                 f"  Latency: {tc.latency_ms:.0f}ms"
             )
 

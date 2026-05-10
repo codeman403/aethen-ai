@@ -17,12 +17,13 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.models.response import ApiResponse, ResponseMetadata
 from app.services.postgres_service import postgres_service
 from app.utils.credential_crypto import decrypt, encrypt, encryption_available
+from app.utils.request_context import get_data_org_id
 
 logger = structlog.get_logger()
 router = APIRouter(tags=["sources"])
@@ -52,30 +53,32 @@ class TestResult(BaseModel):
     message: str
 
 
-def _source_key(name: str) -> str:
-    return f"{_SOURCE_KEY_PREFIX}{name}"
+def _source_key(name: str, org_id: str | None = None) -> str:
+    prefix = f"org:{org_id}:" if org_id else ""
+    return f"{prefix}{_SOURCE_KEY_PREFIX}{name}"
+
+def _index_key(org_id: str | None = None) -> str:
+    return f"org:{org_id}:sources_index" if org_id else "sources_index"
 
 
-async def _load_source_raw(name: str) -> dict | None:
-    raw = await postgres_service.get_setting(_source_key(name))
+async def _load_source_raw(name: str, org_id: str | None = None) -> dict | None:
+    raw = await postgres_service.get_setting(_source_key(name, org_id))
     return json.loads(raw) if raw else None
 
 
-async def list_all_sources() -> list[dict]:
+async def list_all_sources(org_id: str | None = None) -> list[dict]:
     """Return all registered sources with their decrypted credentials.
 
     Used internally by the cron pull — not exposed in API responses.
     """
     sources = []
-    # app_settings has no prefix-scan helper, so we track source names
-    # in a separate index key
-    index_raw = await postgres_service.get_setting("sources_index")
+    index_raw = await postgres_service.get_setting(_index_key(org_id))
     if not index_raw:
         return sources
 
     names = json.loads(index_raw)
     for name in names:
-        raw = await _load_source_raw(name)
+        raw = await _load_source_raw(name, org_id)
         if raw:
             try:
                 secret = decrypt(raw["secret_key_enc"]) if raw.get("secret_key_enc") else ""
@@ -91,19 +94,20 @@ async def list_all_sources() -> list[dict]:
     return sources
 
 
-async def _update_index(name: str, remove: bool = False) -> None:
-    raw = await postgres_service.get_setting("sources_index")
+async def _update_index(name: str, remove: bool = False, org_id: str | None = None) -> None:
+    raw = await postgres_service.get_setting(_index_key(org_id))
     names: list[str] = json.loads(raw) if raw else []
     if remove:
         names = [n for n in names if n != name]
     elif name not in names:
         names.append(name)
-    await postgres_service.set_setting("sources_index", json.dumps(names))
+    await postgres_service.set_setting(_index_key(org_id), json.dumps(names))
 
 
 @router.post("/settings/sources", response_model=ApiResponse[SourceConfig])
-async def add_source(request: AddSourceRequest) -> ApiResponse[SourceConfig]:
+async def add_source(request: AddSourceRequest, http_request: Request) -> ApiResponse[SourceConfig]:
     """Register a Langfuse or LangSmith source with encrypted credentials."""
+    org_id = get_data_org_id(http_request)
     if not _NAME_RE.match(request.name):
         raise HTTPException(status_code=422, detail="Name must be a lowercase slug (letters, digits, hyphens, underscores)")
     if request.provider not in ("langfuse", "langsmith"):
@@ -121,8 +125,8 @@ async def add_source(request: AddSourceRequest) -> ApiResponse[SourceConfig]:
         "base_url": request.base_url,
         "created_at": created_at,
     }
-    await postgres_service.set_setting(_source_key(request.name), json.dumps(payload))
-    await _update_index(request.name)
+    await postgres_service.set_setting(_source_key(request.name, org_id), json.dumps(payload))
+    await _update_index(request.name, org_id=org_id)
 
     logger.info("source_registered", name=request.name, provider=request.provider)
     return ApiResponse(
@@ -139,14 +143,15 @@ async def add_source(request: AddSourceRequest) -> ApiResponse[SourceConfig]:
 
 
 @router.get("/settings/sources", response_model=ApiResponse[list[SourceConfig]])
-async def get_sources() -> ApiResponse[list[SourceConfig]]:
+async def get_sources(http_request: Request) -> ApiResponse[list[SourceConfig]]:
     """List registered sources. Never returns raw credentials."""
-    index_raw = await postgres_service.get_setting("sources_index")
+    org_id = get_data_org_id(http_request)
+    index_raw = await postgres_service.get_setting(_index_key(org_id))
     names: list[str] = json.loads(index_raw) if index_raw else []
 
     configs: list[SourceConfig] = []
     for name in names:
-        raw = await _load_source_raw(name)
+        raw = await _load_source_raw(name, org_id)
         if raw:
             configs.append(SourceConfig(
                 name=name,
@@ -160,22 +165,24 @@ async def get_sources() -> ApiResponse[list[SourceConfig]]:
 
 
 @router.delete("/settings/sources/{name}", response_model=ApiResponse[dict])
-async def delete_source(name: str) -> ApiResponse[dict]:
+async def delete_source(name: str, http_request: Request) -> ApiResponse[dict]:
     """Remove a registered source and its encrypted credentials."""
-    existing = await _load_source_raw(name)
+    org_id = get_data_org_id(http_request)
+    existing = await _load_source_raw(name, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Source '{name}' not found")
 
-    await postgres_service.set_setting(_source_key(name), "")
-    await _update_index(name, remove=True)
+    await postgres_service.set_setting(_source_key(name, org_id), "")
+    await _update_index(name, remove=True, org_id=org_id)
     logger.info("source_deleted", name=name)
     return ApiResponse(data={"deleted": name}, error=None, metadata=ResponseMetadata(request_id=str(uuid.uuid4())))
 
 
 @router.post("/settings/sources/{name}/test", response_model=ApiResponse[TestResult])
-async def test_source(name: str) -> ApiResponse[TestResult]:
+async def test_source(name: str, http_request: Request) -> ApiResponse[TestResult]:
     """Test connectivity for a registered source using its stored credentials."""
-    raw = await _load_source_raw(name)
+    org_id = get_data_org_id(http_request)
+    raw = await _load_source_raw(name, org_id)
     if not raw:
         raise HTTPException(status_code=404, detail=f"Source '{name}' not found")
 

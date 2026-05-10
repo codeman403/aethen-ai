@@ -4,7 +4,10 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from app.utils.request_context import get_data_org_id
+from app.agents.llm import set_org_llm_context
+from app.services.llm_key_service import get_config as _get_llm_config
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.agents.graph import analysis_graph
@@ -102,17 +105,42 @@ def _get_provider() -> LangfuseProvider:
 async def pull_langfuse_traces(
     request: LangfusePullRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ) -> ApiResponse[IngestResult]:
     """Pull NEW traces from Langfuse since the last pull, adapt, and ingest.
 
     Uses an incremental watermark stored in Postgres so only traces created
     after the previous pull are fetched — no re-ingestion of existing sessions.
     """
-    provider = _get_provider()
+    org_id = get_data_org_id(http_request)
+    set_org_llm_context(await _get_llm_config(org_id))
+
+    # In multi-tenant mode, only pull from org-configured sources.
+    # The backend's default credentials are for internal use (cron/admin), not user pulls.
+    if org_id:
+        from app.api.sources import list_all_sources
+        org_sources = await list_all_sources(org_id=org_id)
+        langfuse_sources = [s for s in org_sources if s.get("provider") == "langfuse"]
+        if not langfuse_sources:
+            raise HTTPException(
+                status_code=503,
+                detail="No Langfuse source configured for your organization. Add one in Integrations.",
+            )
+        # Use the first configured Langfuse source
+        src = langfuse_sources[0]
+        provider = LangfuseProvider(
+            public_key=src["public_key"],
+            secret_key=src["secret_key"],
+            host=src.get("base_url") or settings.langfuse_base_url,
+        )
+        watermark_key = f"langfuse_last_pull_at_{org_id}_{src['name']}"
+    else:
+        provider = _get_provider()
+        watermark_key = "langfuse_last_pull_at"
 
     # Read last-pull watermark for incremental ingestion
     since = None
-    watermark_str = await postgres_service.get_setting("langfuse_last_pull_at")
+    watermark_str = await postgres_service.get_setting(watermark_key)
     if watermark_str:
         try:
             since = datetime.fromisoformat(watermark_str)
@@ -158,7 +186,7 @@ async def pull_langfuse_traces(
                 logger.error("langfuse_ingest_neo4j_error", session_id=session.session_id, error=str(e))
                 errors.append(msg)
 
-        is_new = await postgres_service.save_session(session)
+        is_new = await postgres_service.save_session(session, org_id=org_id)
         if is_new:
             sessions_ok += 1
             ingested_ids.append(session.session_id)
@@ -174,7 +202,7 @@ async def pull_langfuse_traces(
             errors.append(f"Pattern linking error: {e}")
 
     # Update watermark so next pull only fetches traces created after this pull started
-    await postgres_service.set_setting("langfuse_last_pull_at", pull_started_at.isoformat())
+    await postgres_service.set_setting(watermark_key, pull_started_at.isoformat())
 
     # Queue background analysis for every newly ingested session.
     # Runs sequentially after the response is sent — skips sessions already cached
@@ -209,6 +237,7 @@ async def _pull_single_source(
     source_name: str,
     limit: int,
     background_tasks: BackgroundTasks,
+    org_id: str | None = None,
 ) -> IngestResult:
     """Pull traces for one source with its own watermark."""
     watermark_key = f"langfuse_last_pull_at_{source_name}"
@@ -252,7 +281,7 @@ async def _pull_single_source(
             except Exception as e:
                 errors.append(f"Neo4j error {session.session_id}: {e}")
 
-        is_new = await postgres_service.save_session(session)
+        is_new = await postgres_service.save_session(session, org_id=org_id)
         if is_new:
             sessions_ok += 1
             ingested_ids.append(session.session_id)
@@ -278,6 +307,7 @@ async def _pull_single_source(
 @router.post("/langfuse/pull/all", response_model=ApiResponse[dict])
 async def pull_all_sources(
     background_tasks: BackgroundTasks,
+    http_request: Request,
     limit: int = 20,
 ) -> ApiResponse[dict]:
     """Pull traces from ALL registered sources + Aethen's own account.
@@ -286,6 +316,7 @@ async def pull_all_sources(
     """
     from app.api.sources import list_all_sources
 
+    org_id = get_data_org_id(http_request)
     results: dict[str, dict] = {}
 
     # Pull Aethen's own account (env vars) if configured
@@ -295,11 +326,11 @@ async def pull_all_sources(
             secret_key=settings.langfuse_secret_key,
             host=settings.langfuse_base_url,
         )
-        own_result = await _pull_single_source(own_provider, "default", limit, background_tasks)
+        own_result = await _pull_single_source(own_provider, "default", limit, background_tasks, org_id=org_id)
         results["default"] = own_result.model_dump()
 
     # Pull each registered external source
-    sources = await list_all_sources()
+    sources = await list_all_sources(org_id=org_id)
     for source in sources:
         try:
             provider = LangfuseProvider(
@@ -307,7 +338,7 @@ async def pull_all_sources(
                 secret_key=source["secret_key"],
                 host=source.get("base_url") or "https://us.cloud.langfuse.com",
             )
-            result = await _pull_single_source(provider, source["name"], limit, background_tasks)
+            result = await _pull_single_source(provider, source["name"], limit, background_tasks, org_id=org_id)
             results[source["name"]] = result.model_dump()
         except Exception as exc:
             logger.error("langfuse_external_pull_failed", source=source["name"], error=str(exc))
@@ -334,7 +365,7 @@ class SingleTraceResult(BaseModel):
 
 
 @router.post("/langfuse/trace", response_model=ApiResponse[SingleTraceResult])
-async def fetch_and_analyze_trace(request: SingleTraceRequest) -> ApiResponse[SingleTraceResult]:
+async def fetch_and_analyze_trace(request: SingleTraceRequest, http_request: Request) -> ApiResponse[SingleTraceResult]:
     """Fetch a specific Langfuse trace by ID using a registered source, then analyze it."""
     from app.api.sources import _load_source_raw
     from app.utils.credential_crypto import decrypt
@@ -376,7 +407,8 @@ async def fetch_and_analyze_trace(request: SingleTraceRequest) -> ApiResponse[Si
             await neo4j_service.create_session_node(session)
         except Exception as exc:
             logger.warning("trace_neo4j_error", error=str(exc))
-    await postgres_service.save_session(session)
+    org_id = get_data_org_id(http_request)
+    await postgres_service.save_session(session, org_id=org_id)
 
     report_dict: dict | None = None
     if request.analyze:

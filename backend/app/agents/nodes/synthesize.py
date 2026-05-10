@@ -15,6 +15,7 @@ import asyncio
 from app.agents.llm import get_anthropic_llm, get_openai_llm
 from app.agents.state import AgentState, AnalysisReport, Finding, ensure_session
 from app.models.trace import FailureType
+from app.utils.sanitize import strip_injection
 
 logger = structlog.get_logger()
 
@@ -95,7 +96,7 @@ def _session_evidence(session) -> str:
         for tc in session.tool_calls:
             status_str = f"status={tc.status}"
             if tc.error:
-                status_str += f" | error='{tc.error[:150]}'"
+                status_str += f" | error='{strip_injection(tc.error, full_redact=True)[:150]}'"
             if tc.latency_ms > 5000:
                 status_str += f" | latency={tc.latency_ms:.0f}ms (HIGH)"
             lines.append(f"Tool: {tc.tool_name} | {status_str}")
@@ -108,7 +109,7 @@ def _session_evidence(session) -> str:
                 f"LLM: model={lc.model} | sources={sources}{halluc}"
             )
             if lc.response:
-                lines.append(f"  Response snippet: {lc.response[:200]}")
+                lines.append(f"  Response snippet: {strip_injection(lc.response, full_redact=True)[:200]}")
 
     return "\n".join(lines) if lines else "No trace evidence available."
 

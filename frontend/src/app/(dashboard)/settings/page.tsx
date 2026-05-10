@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Settings,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
   Zap,
   BrainCircuit,
   ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 import {
   fetchModelSettings,
@@ -249,6 +251,7 @@ function ModelCard({ cfg, onSaved }: { cfg: RoleConfig; onSaved: () => void }) {
 
 export default function ModelSettingsPage() {
   const [settings, setSettings] = useState<RoleConfig[] | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -257,6 +260,7 @@ export default function ModelSettingsPage() {
     setError(null);
     try {
       const data = await fetchModelSettings();
+      setAvailableProviders(data.available_providers ?? []);
       // Exclude the demo role — it's configured directly in the Demo Agent page
       setSettings(data.roles.filter((r) => r.role !== "demo"));
     } catch (e) {
@@ -304,13 +308,29 @@ export default function ModelSettingsPage() {
         </div>
       )}
 
-      {settings && (
+      {settings && availableProviders.length === 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 px-5 py-4 flex items-start gap-3">
+          <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-600 dark:text-amber-400 text-sm">No LLM configured</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Add your API keys in{" "}
+              <Link href="/settings/integrations" className="text-primary hover:underline font-medium">
+                Integrations → LLM Keys
+              </Link>{" "}
+              to enable the analysis pipeline and select models.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {settings && availableProviders.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-2">
           {settings.map((cfg) => (
             <ModelCard key={cfg.role} cfg={cfg} onSaved={load} />
           ))}
         </div>
-      )}
+      )}  {/* end availableProviders.length > 0 */}
 
       {/* Info card — plain div, no animation */}
       {settings && (

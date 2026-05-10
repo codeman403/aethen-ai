@@ -1,0 +1,107 @@
+name: Smoke Test & Rollback
+
+# Runs after a push to main (production deployments).
+# Waits for Render/Vercel to finish deploying, then:
+#   1. Hits /api/health on the live backend
+#   2. Checks the frontend returns HTTP 200
+#   3. If either check fails, triggers a Render rollback via API
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      backend_url:
+        description: "Backend URL to test"
+        default: ""
+      frontend_url:
+        description: "Frontend URL to test"
+        default: ""
+
+jobs:
+  smoke-test:
+    name: Smoke test — health + critical path
+    runs-on: ubuntu-latest
+    # Only run when deploy secrets are present
+    if: vars.BACKEND_URL != '' || github.event.inputs.backend_url != ''
+
+    env:
+      BACKEND_URL: ${{ github.event.inputs.backend_url || vars.BACKEND_URL }}
+      FRONTEND_URL: ${{ github.event.inputs.frontend_url || vars.FRONTEND_URL }}
+
+    steps:
+      - name: Wait for deployment to stabilise
+        run: sleep 30
+
+      # ── Backend health check ─────────────────────────────────────────
+      - name: Backend — /api/health
+        id: health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/api/health" --max-time 15)
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Backend health check failed — HTTP $STATUS"
+            exit 1
+          fi
+          echo "✓ Backend healthy (HTTP $STATUS)"
+
+      # ── Backend critical path: docs page ────────────────────────────
+      - name: Backend — /docs reachable
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/docs" --max-time 15)
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Backend /docs returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "✓ Backend /docs reachable (HTTP $STATUS)"
+
+      # ── Frontend health check ────────────────────────────────────────
+      - name: Frontend — landing page
+        if: env.FRONTEND_URL != ''
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" --max-time 20)
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Frontend returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "✓ Frontend reachable (HTTP $STATUS)"
+
+      - name: All smoke tests passed
+        run: echo "✅ Deployment is healthy."
+
+  rollback:
+    name: Rollback on smoke test failure
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    if: failure() && vars.RENDER_SERVICE_ID != '' && secrets.RENDER_API_KEY != ''
+
+    steps:
+      - name: Trigger Render rollback
+        run: |
+          echo "::warning::Smoke tests failed — rolling back to previous Render deploy…"
+          # Get the previous successful deploy for the service
+          PREVIOUS=$(curl -s \
+            "https://api.render.com/v1/services/${{ vars.RENDER_SERVICE_ID }}/deploys?limit=5" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            | jq -r '[.[] | select(.deploy.status=="live")][1].deploy.id // empty')
+
+          if [ -z "$PREVIOUS" ]; then
+            echo "::error::Could not find a previous successful deploy to roll back to."
+            exit 1
+          fi
+
+          echo "Rolling back to deploy $PREVIOUS…"
+          curl -s -X POST \
+            "https://api.render.com/v1/services/${{ vars.RENDER_SERVICE_ID }}/deploys/$PREVIOUS/rollback" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json"
+
+          echo "✓ Rollback triggered for deploy $PREVIOUS"
+
+      - name: Notify rollback in job summary
+        run: |
+          echo "## ⚠️ Rollback Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Smoke tests failed on push to main. Render has been instructed to roll back to the previous live deploy." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Required variables:** \`BACKEND_URL\`, \`RENDER_SERVICE_ID\`, \`RENDER_API_KEY\`" >> $GITHUB_STEP_SUMMARY
