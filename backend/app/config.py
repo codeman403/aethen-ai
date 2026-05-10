@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     # Cron — shared secret for Vercel cron job authentication
     cron_secret: str = ""
 
+    # Vector DB — pgvector is now the primary vector store.
+    # Set USE_PGVECTOR=false to fall back to Pinecone instantly.
+    use_pgvector: bool = True
+
     # Frontend
     frontend_url: str = "http://localhost:3000"
 
@@ -93,11 +97,12 @@ class Settings(BaseSettings):
         required_fields = [
             "openai_api_key",
             "cohere_api_key",
-            "pinecone_api_key",
             "database_url",
             "neo4j_uri",
             "neo4j_password",
         ]
+        # Pinecone is optional — pgvector (Postgres-native) is now the default.
+        # pinecone_api_key only needed if USE_PGVECTOR=false for rollback.
         missing = [field for field in required_fields if not getattr(self, field)]
         
         # Anthropic is optional (falls back to GPT-4o-mini), Langfuse is optional for local runs 

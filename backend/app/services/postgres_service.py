@@ -151,6 +151,39 @@ CREATE INDEX IF NOT EXISTS idx_demo_chat_messages_session_id
     ON demo_chat_messages (session_id, created_at ASC);
 """
 
+_CREATE_PGVECTOR = """
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS session_vectors (
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT         NOT NULL,
+    namespace    TEXT         NOT NULL,
+    org_id       TEXT,
+    event_type   TEXT,
+    metadata     JSONB        NOT NULL DEFAULT '{}',
+    embedding    vector(1536) NOT NULL,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sv_session_id  ON session_vectors (session_id);
+CREATE INDEX IF NOT EXISTS idx_sv_org_ns      ON session_vectors (org_id, namespace)
+    WHERE org_id IS NOT NULL;
+"""
+
+_CREATE_PGVECTOR_HNSW = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE tablename = 'session_vectors' AND indexname = 'idx_sv_hnsw'
+    ) THEN
+        CREATE INDEX idx_sv_hnsw ON session_vectors
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
+    END IF;
+END;
+$$;
+"""
+
 _MIGRATE_PROFILES_WELCOMED = """
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS welcomed_at TIMESTAMPTZ;
 """
@@ -270,6 +303,11 @@ class PostgresService:
             await conn.execute(_CREATE_QUOTA_TABLES)
             # Run these with try/except — they touch Supabase-managed tables
             # that may have RLS restrictions in hosted environments.
+            try:
+                await conn.execute(_CREATE_PGVECTOR)
+                await conn.execute(_CREATE_PGVECTOR_HNSW)
+            except Exception as exc:
+                logger.warning("pgvector_schema_failed", error=str(exc))
             try:
                 await conn.execute(_MIGRATE_PROFILES_WELCOMED)
             except Exception:

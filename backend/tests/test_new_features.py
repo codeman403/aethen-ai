@@ -193,7 +193,7 @@ class TestRetrieveNode:
             captured_calls.append({"namespace": namespace, "filters": filters})
             return []
 
-        with patch("app.agents.nodes.retrieve.pinecone_service") as mock_svc:
+        with patch("app.agents.nodes.retrieve.vector_service") as mock_svc:
             mock_svc.is_available = True
             mock_svc.query_similar = AsyncMock(side_effect=mock_query_similar)
             await vector_retrieve(state)
@@ -217,7 +217,7 @@ class TestRetrieveNode:
             captured_calls.append({"namespace": namespace, "filters": filters})
             return []
 
-        with patch("app.agents.nodes.retrieve.pinecone_service") as mock_svc:
+        with patch("app.agents.nodes.retrieve.vector_service") as mock_svc:
             mock_svc.is_available = True
             mock_svc.query_similar = AsyncMock(side_effect=mock_query_similar)
             await vector_retrieve(state)
