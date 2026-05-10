@@ -38,8 +38,19 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Guard: Supabase not configured — pass through rather than crash
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return applySecurityHeaders(NextResponse.next({ request }));
+  }
+
   // Always refresh session (keeps Supabase cookies alive)
-  const { supabaseResponse, user } = await updateSession(request);
+  let supabaseResponse: NextResponse;
+  let user: { id: string } | null = null;
+  try {
+    ({ supabaseResponse, user } = await updateSession(request));
+  } catch {
+    return applySecurityHeaders(NextResponse.next({ request }));
+  }
 
   // Apply security headers to all responses
   applySecurityHeaders(supabaseResponse);
