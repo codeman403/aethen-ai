@@ -417,7 +417,7 @@ export default function LandingPage() {
               </motion.h1>
               <motion.div className="flex flex-row gap-2.5 shrink-0"
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-                <Link href="/overview" className="group inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-foreground text-background font-bold text-sm hover:bg-foreground/90 hover:scale-[1.02] transition-all duration-200 shadow-[0_2px_12px_rgba(0,0,0,0.15)]">
+                <Link href={isAuthenticated ? "/traces" : "/login"} className="group inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-foreground text-background font-bold text-sm hover:bg-foreground/90 hover:scale-[1.02] transition-all duration-200 shadow-[0_2px_12px_rgba(0,0,0,0.15)]">
                   Run Diagnosis <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link href="/demo-agent" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-black/[0.1] text-sm font-semibold text-black/55 hover:text-black/80 hover:border-black/[0.18] hover:bg-black/[0.03] transition-all duration-200">
@@ -697,7 +697,7 @@ export default function LandingPage() {
             </div>
             <Reveal delay={0.35}>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/overview" className="group inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base bg-foreground text-background hover:bg-foreground/90 hover:scale-[1.02] transition-all shadow-[0_4px_28px_rgba(0,0,0,0.14)]">
+                <Link href={isAuthenticated ? "/overview" : "/login"} className="group inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base bg-foreground text-background hover:bg-foreground/90 hover:scale-[1.02] transition-all shadow-[0_4px_28px_rgba(0,0,0,0.14)]">
                   Open Studio <ArrowRight className="size-5 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <a href="#" onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl border border-black/[0.1] text-base font-semibold text-black/55 hover:text-black/75 hover:bg-black/[0.03] transition-all duration-200">
