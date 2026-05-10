@@ -80,7 +80,9 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: startup and shutdown events."""
-    logger.info("aethen_backend_started", version="0.1.0")
+    logger.info("aethen_backend_started", version="0.1.0",
+                admin_emails_configured=bool(settings.admin_email_set),
+                admin_count=len(settings.admin_email_set))
 
     # Initialize services (graceful — missing credentials are warnings, not errors)
     await embedding_service.initialize()

@@ -60,7 +60,10 @@ class Settings(BaseSettings):
 
     @property
     def admin_email_set(self) -> frozenset[str]:
-        return frozenset(e.strip().lower() for e in self.admin_emails.split(",") if e.strip())
+        # Read directly from os.environ as well to catch cases where
+        # pydantic-settings case-folding doesn't pick up ADMIN_EMAILS on Linux.
+        raw = os.environ.get("ADMIN_EMAILS", self.admin_emails)
+        return frozenset(e.strip().lower() for e in raw.split(",") if e.strip())
 
     # Resend — transactional email
     resend_api_key: str = ""
