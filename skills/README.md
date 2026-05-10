@@ -12,7 +12,7 @@ skills/
 ├── README.md                  ← This file
 ├── langgraph_patterns.md      ← State machine & node patterns
 ├── neo4j_cypher_patterns.md   ← Graph traversal queries
-└── pinecone_patterns.md       ← Embedding & ingestion flows
+└── pgvector_patterns.md       ← Embedding & ingestion flows (pgvector, session_vectors table)
 ```
 
 ## When to Use
@@ -20,7 +20,7 @@ skills/
 Reference these files when:
 - Building new analysis modules or extending existing ones
 - Writing Neo4j queries for cross-trace reasoning
-- Adding new ingestion flows or embedding strategies
+- Adding new ingestion flows or embedding strategies (pgvector)
 - Onboarding new AI agents to the codebase
 
 ## How to Update

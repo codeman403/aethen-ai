@@ -20,7 +20,7 @@ RAG covers steps 2–4 of the LangGraph pipeline. Steps 1 and 5 are pure LLM wor
 │  ║  RAG                                                      ║    │
 │  ║                                                           ║    │
 │  ║  2. retrieve ── no LLM                   ← RETRIEVE       ║    │
-│  ║     Pinecone (vector search)                              ║    │
+│  ║     pgvector (vector search, session_vectors table)       ║    │
 │  ║       namespace: failure_patterns (top_k=5)               ║    │
 │  ║       namespace: traces           (top_k=7)               ║    │
 │  ║     Neo4j (graph traversal, parallel)                     ║    │
@@ -82,7 +82,7 @@ cross-session pattern recognition — e.g. "this blind spot also hit 3 other age
 Most RAG implementations only do vector search. The Neo4j graph traversal enables
 multi-hop reasoning that vectors alone can't find.
 
-### 2. Dual-namespace Pinecone search
+### 2. Dual-namespace pgvector search
 Searches both `failure_patterns` (session-level summaries, top_k=5) and
 `traces` (event-level granularity, top_k=7) then merges and deduplicates.
 Addresses the semantic gap between high-level summaries and granular events.
@@ -140,7 +140,7 @@ The session ID adds zero semantic signal. The rerank query should describe
 for hallucination: "LLM response unsupported by retrieved sources".
 Failure-type-specific queries would dramatically improve reranking relevance.
 
-### W4. No chunk-level granularity in Pinecone
+### W4. No chunk-level granularity in pgvector
 Each session is embedded as a single unit (the failure summary string).
 Real RAG splits source documents into overlapping passage-length chunks so
 retrieval happens at the paragraph level, not the document level.

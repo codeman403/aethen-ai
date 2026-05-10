@@ -156,7 +156,7 @@ systemic failure patterns, knowledge gaps, and causal chains. Aethen was propose
 **Key architectural bets made at proposal time:**
 - LangGraph over raw LangChain (stateful multi-step workflows)
 - Graph RAG via Neo4j (cross-session pattern traversal)
-- Pinecone for semantic search over trace embeddings
+- pgvector for semantic search over trace embeddings (Postgres extension, `session_vectors` table)
 - Cohere Rerank v3 for post-retrieval precision
 - Claude Sonnet 4.6 for final synthesis
 
@@ -170,7 +170,7 @@ systemic failure patterns, knowledge gaps, and causal chains. Aethen was propose
 - LangGraph state machine: `classify_intent → graph_traverse → vector_retrieve → rerank → [module] → synthesize`
 - All 4 analysis module nodes implemented
 - Data models: `Session`, `LLMCall`, `ToolCall`, `RetrievalEvent`
-- Basic Pinecone and Neo4j service integrations
+- Basic pgvector and Neo4j service integrations
 - 12 tests passing
 
 ### Decision: LangGraph over a simple LangChain chain
@@ -263,7 +263,7 @@ backward-compatible. Add adapter tests that validate the schema contract between
 
 ### What was built
 - Demo Agent UI (`/demo-agent`) — 4 scenario buttons + free-form chat, Langfuse badge per turn
-- Pinecone seeding: 1,100 vectors in `traces` namespace (rubric ≥1,000 met)
+- pgvector seeding: 1,100 vectors in `traces` namespace (rubric ≥1,000 met)
 - Data Quality page (`/data-quality`) — automated quality report across 4 sources
 - SessionsList component — real Langfuse sessions in all 4 module pages
 - Full session payload persistence in the in-memory store
@@ -313,7 +313,7 @@ This was the most significant architectural decision of the implementation phase
 |-------|------|---------|
 | **PostgreSQL (Supabase)** | All session CRUD, stats, chat history | asyncpg |
 | **Neo4j** | Graph structure only — nodes, relationships, traversal | neo4j driver |
-| **Pinecone** | Vector embeddings — semantic search | pinecone |
+| **pgvector** | Vector embeddings — semantic search (Postgres extension) | asyncpg |
 
 **Rejected alternatives:**
 
@@ -325,8 +325,8 @@ This was the most significant architectural decision of the implementation phase
    Large JSON blobs in node properties is an anti-pattern. The correct tool for document storage is
    a document/relational database.
 
-3. **Use only Pinecone + Neo4j, drop in-memory** — Rejected: Pinecone stores vectors, not full JSON.
-   Fetching raw session data from Pinecone requires vector lookup + filtering, which is wrong for CRUD.
+3. **Use only pgvector + Neo4j, drop in-memory** — Rejected: pgvector stores vectors, not full session JSON efficiently for CRUD.
+   Fetching raw session data by vector lookup is the wrong access pattern for session CRUD.
 
 4. **Keep Neo4j for everything including session data** — Rejected: same reasoning as #2.
    Graph databases are optimized for traversal, not arbitrary JSON retrieval.
@@ -379,7 +379,7 @@ The Chat Debug page went through three distinct design iterations before reachin
 ### Iteration 1: Generic LLM chat (wrong)
 
 **Initial approach:** Freeform text → `POST /api/demo/chat` → generic GPT-4o-mini response  
-**Problem:** The LLM had no access to trace data, Postgres, Pinecone, or Neo4j. Asking
+**Problem:** The LLM had no access to trace data, Postgres, pgvector, or Neo4j. Asking
 "give me top 10 tool failures" returned a generic answer about "software bugs and hardware malfunctions".
 The chat was useless for actual debugging.
 
@@ -578,17 +578,17 @@ was always empty — reranking had nothing to work with.
 embedding_svc = EmbeddingService()   # driver=None, never initialized
 neo4j_svc = Neo4jService()           # driver=None, never initialized
 ```
-The module-level singletons (`embedding_service`, `neo4j_service`, `pinecone_service`) are initialized
+The module-level singletons (`embedding_service`, `neo4j_service`, `vector_service`) are initialized
 once in the FastAPI lifespan hook. Per-call instantiation bypasses initialization entirely.
 
 Additionally, two method names were wrong: `embed()` (doesn't exist) and `execute_read()` (doesn't exist).
-`PineconeService.query()` also didn't exist — the correct method is `query_similar()`, which also handles
+`VectorService.query_similar()` is the correct method, which also handles
 embedding internally (making the separate embed step redundant).
 
-### Decision: Use singletons, add `execute_read`, simplify Pinecone call
-- `retrieve.py` now imports and uses `embedding_service`, `neo4j_service`, `pinecone_service` singletons
+### Decision: Use singletons, add `execute_read`, simplify pgvector call
+- `retrieve.py` now imports and uses `embedding_service`, `neo4j_service`, `vector_service` singletons
 - `execute_read(query, params)` added to `Neo4jService` — runs a read-only Cypher query via the driver session
-- `vector_retrieve` now calls `pinecone_service.query_similar(query_text, ...)` directly — one call instead of embed + query
+- `vector_retrieve` now calls `vector_service.query_similar(query_text, ...)` directly — one call instead of embed + query
 - `HAS_TOOL_CALL` / `HAS_LLM_CALL` removed from graph traverse Cypher — these relationship types were never created during seeding; Neo4j emitted DBMS warnings on every query
 
 ---
@@ -649,7 +649,7 @@ polluting the LLM's conversation context.
                     └──┬──────────┬────────────┬──────┘
                        │          │            │
               ┌────────▼───┐ ┌────▼────┐ ┌────▼──────┐
-              │  Postgres  │ │  Neo4j  │ │  Pinecone  │
+              │  Postgres  │ │  Neo4j  │ │  pgvector  │
               │  Supabase  │ │  Graph  │ │  Vectors   │
               │  sessions  │ │  only   │ │  traces    │
               │  chat_msgs │ │         │ │  namespace │
@@ -928,11 +928,11 @@ Layer 1 (`_infer_failure_type`) is kept because:
 Sending a simple greeting ("hi") to the Demo Agent produced a full LangGraph analysis report
 with high-severity findings about "critically low similarity scores" and "duplicate chunk retrieval."
 The session had zero tool calls, zero retrieval events, and no failure signals — yet the pipeline
-ran, pulled cross-session synthetic data from Pinecone, and synthesis fabricated findings from it
+ran, pulled cross-session synthetic data from pgvector, and synthesis fabricated findings from it
 as if they belonged to the current session.
 
 ### Root Cause
-The retrieve nodes (`vector_retrieve`, `graph_traverse`) run unconditionally and query Pinecone/Neo4j
+The retrieve nodes (`vector_retrieve`, `graph_traverse`) run unconditionally and query pgvector/Neo4j
 regardless of whether the current session has any failure evidence. With no session-specific data,
 synthesis has nothing to ground its findings in — it writes its report entirely from cross-session
 retrieval results, presenting them as findings about a session they don't belong to.
@@ -1060,7 +1060,7 @@ the Langfuse handler and LangGraph invocation. Returns a static `AnalysisReport`
 |----------|--------|-------|
 | Deployment (Render + Vercel) | **Not done — final step** | Config exists; needs ENV vars filled |
 | Claude direct API key | Not set | GPT-4o-mini used via proxy |
-| Pinecone namespaces (chunks, tool_calls) | Only `traces` seeded | 1,100 vectors meet rubric minimum |
+| pgvector namespaces (chunks, tool_calls) | Only `traces` seeded | 1,100 vectors meet rubric minimum |
 | Multi-process rate limiting | In-memory only | Redis needed for horizontal scale |
 | Neo4j free tier limits | Not hit | 500 sessions well within limits |
 

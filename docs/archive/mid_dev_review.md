@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Aethen-AI is a well-architected capstone project for the Spring 2026 AI Engineering Boot Camp (DataExpert.io). It demonstrates genuine technical depth — LangGraph state machine orchestration, 3-store architecture (Postgres/Neo4j/Pinecone), dual-mode trace ingestion (synthetic + Langfuse live), and a text-to-SQL chat interface. The documentation is exceptional, particularly the implementation decision log.
+Aethen-AI is a well-architected capstone project for the Spring 2026 AI Engineering Boot Camp (DataExpert.io). It demonstrates genuine technical depth — LangGraph state machine orchestration, 3-store architecture (Postgres+pgvector/Neo4j), dual-mode trace ingestion (synthetic + Langfuse live), and a text-to-SQL chat interface. The documentation is exceptional, particularly the implementation decision log.
 
 **Overall assessment**: Strong project at the finish line. Primary risks are uncommitted work and gaps between proposal ambition and 3-week implementation reality.
 
@@ -30,7 +30,7 @@ The 3-store separation wasn't the original plan — it emerged from discovering 
 
 | Rubric Item | Status |
 |---|---|
-| ≥1,000 embeddings | ✅ 1,100 vectors in Pinecone |
+| ≥1,000 embeddings | ✅ 1,100 vectors in pgvector |
 | Graph RAG (bonus) | ✅ Neo4j with session→failure graph |
 | Re-ranking (bonus) | ✅ Cohere Rerank v3.5 |
 | ≥5 integration tests | ✅ 32 tests passing |
@@ -39,7 +39,7 @@ The 3-store separation wasn't the original plan — it emerged from discovering 
 | Data quality checks | ✅ 8 checks across 4 sources |
 
 ### 5. Skills Directory
-Reusable pattern library for LangGraph, Neo4j Cypher, and Pinecone. Smart knowledge management for a project this size.
+Reusable pattern library for LangGraph, Neo4j Cypher, and pgvector. Smart knowledge management for a project this size.
 
 ---
 
@@ -88,7 +88,7 @@ No schema-based validation for required env vars at startup.
 | Frontend | Next.js 14, TypeScript, Tailwind, shadcn/ui | ✅ Modern, well-structured |
 | Backend | FastAPI, LangGraph, LangChain | ✅ Good orchestration |
 | LLMs | GPT-4o-mini (routing + synthesis) + Cohere Rerank | ✅ Cost-effective |
-| Data | Pinecone + Neo4j + Postgres | ✅ Purpose-built 3-store |
+| Data | pgvector (in Postgres) + Neo4j + Postgres | ✅ Purpose-built 3-store |
 | Observability | Langfuse | ✅ Eats its own dog food |
 | Documentation | Decision log + session tracker + rules | ✅ Exceptional |
 

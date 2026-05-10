@@ -94,7 +94,7 @@ When starting a new session with any AI agent (AdaL, Claude Code, Cursor, etc.):
 OPENAI_API_KEY, ANTHROPIC_API_KEY, COHERE_API_KEY
 OPENAI_BASE_URL=https://www.dataexpert.io/api/v1/openai
 ANTHROPIC_BASE_URL=https://www.dataexpert.io/api/v1/anthropic
-DATABASE_URL, PINECONE_API_KEY, PINECONE_INDEX
+DATABASE_URL
 NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
 LANGSMITH_API_KEY, LANGSMITH_PROJECT (must match your LangSmith project name)
@@ -107,9 +107,8 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 | Store | Role | Library |
 |-------|------|---------|
-| **PostgreSQL / Supabase** | Agent session CRUD + chat session history — single source of truth | `asyncpg` |
+| **PostgreSQL / Supabase** | Agent session CRUD + chat session history + embedded trace vectors — single source of truth | `asyncpg`, pgvector |
 | **Neo4j Aura** | Graph structure only — nodes + relationships for cross-session traversal | `neo4j` driver |
-| **Pinecone** | Embedded trace vectors — semantic search | `pinecone` |
 
 ---
 
@@ -400,14 +399,14 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 **RAG pipeline fixes, Model Settings UI, Comprehensive test suite**
 
-**Pinecone metadata fix (`backend/app/services/pinecone_service.py`):**
-- [x] All 3 event types (LLM call, tool call, retrieval) now store `text` and `failure_summary` in metadata
+**pgvector metadata fix (`backend/app/services/pgvector_service.py`):**
+- [x] All 3 event types (LLM call, tool call, retrieval) now store `text` and `failure_summary` in metadata JSONB
 - [x] `text` = the actual embedded content — what `rerank.py` reads via `meta.get('text', '')`
 - [x] Previously rerank got `"[Vector match, score=0.870] | "` (empty) for all traces-namespace vectors — now gets real content
 - [x] Retrieval event text includes `avg_score` when relevance scores are present
 
 **Retrieve node fix (`backend/app/agents/nodes/retrieve.py`):**
-- [x] Added `filters={"session_id": {"$ne": session.session_id}}` to traces namespace query
+- [x] Added `session_id != current` filter to traces namespace query
 - [x] Previously: current session's own events dominated cross-session results (scored highest against itself)
 - [x] Now matches `failure_patterns` namespace which already had this filter
 
@@ -424,7 +423,7 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 **Test suite expansion (32 → 169 passing):**
 - [x] `tests/conftest.py` — rate limit bypass fixture (prevents counter accumulation across 169 tests)
-- [x] `tests/test_new_features.py` — Pinecone metadata, retrieve filter, QC flagged IDs, model settings API, LLM cache, no-evidence guard, rate limit config (27 tests)
+- [x] `tests/test_new_features.py` — pgvector metadata, retrieve filter, QC flagged IDs, model settings API, LLM cache, no-evidence guard, rate limit config (27 tests)
 - [x] `tests/test_api_sessions.py` — GET /api/sessions, GET /api/sessions/{id} (7 tests)
 - [x] `tests/test_api_stats.py` — GET /api/stats, reliability score, fallback (7 tests)
 - [x] `tests/test_utils.py` — sanitize_input (14 cases), RateLimitMiddleware (8 tests)
@@ -458,7 +457,7 @@ Three clearly separated data stores — each owns a distinct responsibility:
 **Production hardening, UI overhaul, background analysis automation**
 
 **No-evidence guard (`backend/app/api/chat.py`):**
-- [x] `_has_analyzable_evidence(session)` — skips LangGraph when session has no tool calls, retrieval events, failure_type, or outcome=failure. Prevents fabricated findings from cross-session Pinecone data on clean/greeting sessions
+- [x] `_has_analyzable_evidence(session)` — skips LangGraph when session has no tool calls, retrieval events, failure_type, or outcome=failure. Prevents fabricated findings from cross-session pgvector data on clean/greeting sessions
 - [x] Returns `failure_type=unknown, confidence=1.0, findings=[]` immediately — zero LLM cost
 - [x] Documented in `docs/implementation_timeline.md` with full truth table
 
@@ -552,7 +551,7 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 #### PII/PHI Redaction (new — `backend/app/middleware/pii_redactor.py`)
 - Two-layer: **scrubadub** (email, phone, SSN, credit card, dates) + **custom regex** (medical record numbers, ICD-10 codes, NPI, DEA, health plan IDs)
-- Runs in `POST /api/ingest` and `POST /api/analyze/raw` before any storage (Postgres, Pinecone, Neo4j)
+- Runs in `POST /api/ingest` and `POST /api/analyze/raw` before any storage (Postgres/pgvector, Neo4j)
 - Controlled by `PII_REDACTION_ENABLED` env var (default: true)
 
 #### Credential Storage (new — `backend/app/api/sources.py`)
@@ -671,7 +670,7 @@ Three clearly separated data stores — each owns a distinct responsibility:
 
 - [ ] **Re-seed** — `cd backend && poetry run python scripts/reset_and_reseed.py`
 - [ ] **Clear Langfuse** — `cd backend && poetry run python scripts/clear_langfuse.py`
-- [ ] **Deploy Render** — Connect repo → New Blueprint → fill env vars: `DATABASE_URL`, `NEO4J_*`, `PINECONE_*`, `OPENAI_*`, `ANTHROPIC_*`, `COHERE_*`, `LANGFUSE_*`
+- [ ] **Deploy Render** — Connect repo → New Blueprint → fill env vars: `DATABASE_URL`, `NEO4J_*`, `OPENAI_*`, `ANTHROPIC_*`, `COHERE_*`, `LANGFUSE_*`
 - [ ] **Deploy Vercel** — Set `NEXT_PUBLIC_API_URL` to Render backend URL, set `CRON_SECRET` env var
 - [ ] **Smoke test post-deploy** — Run Demo Agent scenarios → Pull Langfuse → Run analysis on one session
 - [ ] **Record demo GIF** for README/submission
@@ -687,7 +686,7 @@ The following areas have NO tests yet — add when touching these files:
 - `_validate_sql()` in `chat.py` — SQL injection defense (critical)
 - `POST /api/langfuse/pull` + `GET /api/langfuse/health`
 - `POST /api/qc` (metrics for specific session IDs)
-- `GET /api/qc/report` (full endpoint with Pinecone mock)
+- `GET /api/qc/report` (full endpoint with pgvector mock)
 - Demo agent: `POST /api/demo/run`, `POST /api/demo/chat`, `GET /api/demo/sessions`
 - Individual analysis nodes: `classify_intent`, `memory_debug`, `tool_debug`, `hallucination_rca`, `blind_spot`, `synthesize`
 - Postgres service CRUD: `save_session`, `compute_stats`, `save_analysis_report`, `get_analysis_report`, `update_failure_type`
@@ -709,13 +708,13 @@ The following areas have NO tests yet — add when touching these files:
 6. **LLM proxy**: API keys use DataExpert.io proxy — always use `app/agents/llm.py` factory, never instantiate LLM clients directly.
 7. **Claude model**: Use `claude-sonnet-4-6` (not the full dated version name).
    **Proxy quirk**: DataExpert.io `/anthropic` endpoint always returns SSE (`text/event-stream`). `ChatAnthropic` must be instantiated with `streaming=True` so `langchain_anthropic` uses its SSE parser. Without this flag, synthesis crashes with `'str' object has no attribute 'model_dump'` inside `langchain_anthropic._format_output`. The `/openai` endpoint rejects non-GPT-4 model names — Claude must go through `/anthropic`.
-   **Service singletons**: Always import and use `embedding_service`, `neo4j_service`, `pinecone_service` module-level singletons (initialized in FastAPI lifespan). Never instantiate these classes directly inside node functions — the new instances have no initialized driver/connection.
+   **Service singletons**: Always import and use `embedding_service`, `neo4j_service`, `vector_service` (pgvector) module-level singletons (initialized in FastAPI lifespan). Never instantiate these classes directly inside node functions — the new instances have no initialized driver/connection.
 8. **Data store responsibilities** — strictly enforced:
    - Agent session CRUD (save/fetch/list) → **`postgres_service`** (`sessions` table) only
    - Chat conversation history → **`postgres_service`** (`chat_sessions` + `chat_messages` tables) only
    - Dashboard stats (counts, breakdown, daily) → **`postgres_service`** only
    - Graph traversal + cross-session patterns → **`neo4j_service`** only
-   - Semantic search → **`pinecone_service`** only
+   - Semantic search → **`vector_service`** (pgvector via `pgvector_service`) only
    - Do NOT add session storage back to the in-memory store or Neo4j
 9. **`store.py`** holds only `_reports` (volatile analysis cache). Never add session storage back to it.
 10. **Chat freeform routing** — `_llm_route()` in `POST /api/chat/freeform` returns one of three intents:

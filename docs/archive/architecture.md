@@ -8,7 +8,7 @@ The system consists of a Next.js frontend and a FastAPI/LangGraph backend.
 ```mermaid
 graph TD
     A[classify_intent: GPT-4o-mini] -->|memory/hallucination/etc| B(Parallel Retrieval)
-    B --> C1[vector_retrieve: Pinecone]
+    B --> C1[vector_retrieve: pgvector]
     B --> C2[graph_traverse: Neo4j]
     C1 --> D[merge]
     C2 --> D

@@ -19,7 +19,7 @@ This file is the single source of truth for AI-assisted development. It is compa
 | **Backend / Orchestration** | Python 3.11+, LangChain, LangGraph |
 | **LLMs** | Claude Sonnet 4.6 (Synthesis, via Anthropic proxy — GPT-4o-mini fallback), GPT-4o-mini (Routing), Cohere Rerank v3 |
 | **Session Store** | PostgreSQL via Supabase — full session JSON, CRUD, pagination (`asyncpg`) |
-| **Vector DB** | Pinecone — semantic search over embedded traces |
+| **Vector DB** | pgvector (Postgres extension) — semantic search over embedded traces (`session_vectors` table) |
 | **Graph DB** | Neo4j Aura — graph structure only: relationships, traversal, blind spot detection |
 | **Deployment** | Vercel (frontend), Render (backend) |
 | **Package Managers** | pnpm (frontend), poetry (backend) |
@@ -28,9 +28,8 @@ This file is the single source of truth for AI-assisted development. It is compa
 
 | Store | Owns | Does NOT own |
 |-------|------|--------------|
-| **PostgreSQL / Supabase** | Agent session JSON (`sessions` table), chat conversation history (`chat_sessions` + `chat_messages` tables), dashboard stats (primary) | Graph relationships, vectors |
+| **PostgreSQL / Supabase** | Agent session JSON (`sessions` table), chat conversation history (`chat_sessions` + `chat_messages` tables), dashboard stats (primary), embedded trace vectors (`session_vectors` table via pgvector) | Graph relationships |
 | **Neo4j Aura** | Graph nodes + relationships (Session→Query→Chunk→ToolCall→Response), cross-session patterns | Raw session data, stats counting, vectors |
-| **Pinecone** | Embedded trace vectors for semantic search | Session metadata, graph structure |
 
 ## Project Structure (Target)
 
@@ -55,7 +54,7 @@ aethen-ai/
 │   │   ├── chains/          # LangChain chains
 │   │   ├── api/             # FastAPI routes
 │   │   ├── models/          # Pydantic models & schemas
-│   │   ├── services/        # Business logic (Pinecone, Neo4j)
+│   │   ├── services/        # Business logic (pgvector, Neo4j)
 │   │   ├── utils/           # Helpers
 │   │   └── config.py        # Settings & env management
 │   ├── tests/
@@ -73,7 +72,7 @@ aethen-ai/
 
 Aethen-AI consists of four interconnected analysis modules orchestrated by LangGraph:
 
-1. **Memory Debug Module** — Analyzes retrieval failures (wrong chunks, stale embeddings, metadata mismatches) via Pinecone metadata inspection.
+1. **Memory Debug Module** — Analyzes retrieval failures (wrong chunks, stale embeddings, metadata mismatches) via pgvector semantic search.
 2. **Tool Misfire Module** — Detects tool call failures (wrong parameters, permission errors, timeout patterns) from execution traces.
 3. **Hallucination RCA Module** — Performs root cause analysis on hallucinations by cross-referencing LLM outputs against source documents.
 4. **Blind Spot Detector** — Uses Graph RAG (Neo4j) to find systemic knowledge gaps across multiple failure sessions.
@@ -111,13 +110,10 @@ ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 COHERE_API_KEY=
 
-# Session Store — Supabase/PostgreSQL (asyncpg)
+# Session Store + Vector DB — Supabase/PostgreSQL (asyncpg + pgvector extension)
 # Supabase: Settings → Database → Connection string → URI (Session mode, port 5432)
+# pgvector: session_vectors table (id, session_id, namespace, org_id, event_type, metadata, embedding vector(1536))
 DATABASE_URL=postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
-
-# Vector DB
-PINECONE_API_KEY=
-PINECONE_INDEX=aethen-traces
 
 # Graph DB — relationships + traversal only
 NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
@@ -173,7 +169,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ## TODO — Deferred Setup
 
-- [ ] **Create `skills/` directory** — After Week 1-2, once 1-2 modules are built, extract recurring patterns into auto-triggered skill files. Candidates: LangGraph state machine patterns, Neo4j Cypher query patterns, Pinecone ingestion flows. Remind the user when the first LangGraph module is functional.
+- [ ] **Create `skills/` directory** — After Week 1-2, once 1-2 modules are built, extract recurring patterns into auto-triggered skill files. Candidates: LangGraph state machine patterns, Neo4j Cypher query patterns, pgvector ingestion flows. Remind the user when the first LangGraph module is functional.
 
 ## Important Notes for AI Agents
 
