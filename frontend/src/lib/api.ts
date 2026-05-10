@@ -934,13 +934,15 @@ export async function fetchAdminOrgs(): Promise<AdminOrgSummary[]> {
   const res = await fetchWithRetry(`${BASE_URL}/api/admin/orgs`);
   const body = await res.json();
   if (body.error) throw new Error(body.error);
-  return body.data;
+  if (!res.ok) throw new Error(`Admin orgs fetch failed (${res.status})`);
+  return body.data ?? [];
 }
 
 export async function fetchAdminOrg(orgId: string): Promise<AdminOrgDetail> {
   const res = await fetchWithRetry(`${BASE_URL}/api/admin/orgs/${orgId}`);
   const body = await res.json();
   if (body.error) throw new Error(body.error);
+  if (!body.data) throw new Error("Org not found");
   return body.data;
 }
 
@@ -948,7 +950,8 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
   const res = await fetchWithRetry(`${BASE_URL}/api/admin/stats`);
   const body = await res.json();
   if (body.error) throw new Error(body.error);
-  return body.data;
+  if (!res.ok) throw new Error(`Platform stats fetch failed (${res.status})`);
+  return body.data ?? { total_orgs: 0, total_users: 0, total_sessions: 0, unassigned_sessions: 0, sessions_this_month: 0, analysis_this_month: 0 };
 }
 
 export async function updateAdminQuota(orgId: string, sessionsPerMonth: number, analysisRunsPerMonth: number): Promise<void> {
