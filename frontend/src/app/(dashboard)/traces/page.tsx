@@ -205,10 +205,16 @@ export default function TracesPage() {
     setAnalysisDuration(null);
     setAnalysisRefreshing(false);
     setActiveTab("context");
-    // Fetch session data only — no auto-analysis
     try {
       const data = await fetchSession(s.session_id);
-      if (data) setFullSession(data as Record<string, unknown>);
+      if (!data) return;
+      setFullSession(data as Record<string, unknown>);
+      // If a cached report exists (green dot), load it silently — no LLM call
+      if (s.has_report) {
+        try {
+          setReport(await analyzeSession(data, false));
+        } catch { /* non-fatal — user can still click Analyze */ }
+      }
     } catch { /* non-fatal */ }
   };
 
