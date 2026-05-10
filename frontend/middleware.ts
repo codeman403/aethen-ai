@@ -38,31 +38,42 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Guard: Supabase not configured — pass through rather than crash
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // For fully public paths (no auth needed at all), skip Supabase entirely.
+  // This prevents any Supabase/network issue from blocking the landing page.
+  const isPublic = isPublicPath(pathname);
+  if (isPublic && pathname !== "/login") {
     return applySecurityHeaders(NextResponse.next({ request }));
   }
 
-  // Always refresh session (keeps Supabase cookies alive)
+  // Guard: Supabase not configured — pass through rather than crash
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!isPublic) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    return applySecurityHeaders(NextResponse.next({ request }));
+  }
+
+  // Refresh session (keeps Supabase cookies alive)
   let supabaseResponse: NextResponse;
   let user: { id: string } | null = null;
   try {
     ({ supabaseResponse, user } = await updateSession(request));
   } catch {
+    // If session refresh fails, redirect to login for protected routes
+    if (!isPublic) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
     return applySecurityHeaders(NextResponse.next({ request }));
   }
 
   // Apply security headers to all responses
   applySecurityHeaders(supabaseResponse);
 
-  // Public routes — no further checks needed
-  if (isPublicPath(pathname)) {
-    // Redirect authenticated users away from /login back to dashboard
-    if (pathname === "/login" && user) {
-      return NextResponse.redirect(new URL("/overview", request.url));
-    }
-    // Clear any stale activity cookie so OAuth redirects never trigger
-    // a false "session expired" on the first protected-route visit after login
+  // /login — redirect authenticated users to dashboard
+  if (pathname === "/login" && user) {
+    return NextResponse.redirect(new URL("/overview", request.url));
+  }
+  if (isPublic) {
     supabaseResponse.cookies.delete(LAST_ACTIVITY_COOKIE);
     return supabaseResponse;
   }
