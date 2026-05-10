@@ -109,7 +109,7 @@
 
 ### A14. Add `docker-compose.yml` for full local stack
 **Gap**: Backend has `Dockerfile` but no compose file for running with local Postgres/Neo4j.
-**Action**: Create `docker-compose.yml` with backend + postgres services (Neo4j and Pinecone are cloud-only).
+**Action**: Create `docker-compose.yml` with backend + postgres services (Neo4j is cloud-only; pgvector runs inside Postgres).
 **Status**: ⬜
 
 ---

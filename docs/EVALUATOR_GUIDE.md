@@ -134,7 +134,7 @@ The most accurate signal Aethen has for memory failures is when agent developers
 RetrievalEvent(
     query="What is the API rate limit for free tier?",
     expected_doc_ids=["api-docs-rate-limits-v2"],  # ← agent developer provides this
-    actual_doc_ids=["billing-faq-2023"],            # ← what Pinecone actually returned
+    actual_doc_ids=["billing-faq-2023"],            # ← what the vector DB actually returned
     relevance_scores=[0.31],
 )
 ```
@@ -155,7 +155,7 @@ Aethen is a **signal amplifier** — it surfaces suspicious patterns in executio
 |-------|------|
 | **PostgreSQL / Supabase** | All session data, chat history, dashboard stats, analysis report cache |
 | **Neo4j Aura** | Graph traversal — cross-session failure pattern detection |
-| **Pinecone** | 1,500+ embedded trace vectors for semantic search |
+| **pgvector** | 1,500+ embedded trace vectors for semantic search (`session_vectors` table inside Postgres) |
 | **Langfuse** | Live LLM call tracing for all pipeline runs |
 | **LangSmith** | Alternative trace provider — same ingestion pipeline |
 

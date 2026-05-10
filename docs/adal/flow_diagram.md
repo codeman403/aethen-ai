@@ -21,11 +21,13 @@
        │           │           │           │
        ▼           ▼           ▼           ▼
 ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Postgres │ │  Neo4j   │ │ Pinecone │ │ Langfuse │
-│ (Source  │ │ (Graph   │ │ (Vector  │ │ (Live    │
-│  of      │ │  Patterns│ │  Search) │ │  Traces) │
-│  Truth)  │ │  7 nodes │ │ 2 ns:    │ │          │
-│          │ │  10 rels)│ │ traces + │ │          │
+│ Postgres │ │  Neo4j   │ │pgvector  │ │ Langfuse │
+│ (Source  │ │ (Graph   │ │(Vector   │ │ (Live    │
+│  of      │ │  Patterns│ │ Search,  │ │  Traces) │
+│  Truth)  │ │  7 nodes │ │ inside   │ │          │
+│          │ │  10 rels)│ │ Postgres)│ │          │
+│          │ │          │ │ 2 ns:    │ │          │
+│          │ │          │ │ traces + │ │          │
 │          │ │          │ │ failure_ │ │          │
 │          │ │          │ │ patterns │ │          │
 └──────────┘ └──────────┘ └──────────┘ └──────────┘
@@ -47,13 +49,13 @@
         │         • UPSERT session_data (JSONB)
         │         • Source of truth for SQL queries + chat
         │
-        ├──[2]──► Pinecone ("traces" namespace)
+        ├──[2]──► pgvector ("traces" namespace, session_vectors table)
         │         • Embed each trace step:
         │         │  LLM call: "prompt → response"
         │         │  Tool call: "tool_name(params) → status"
         │         │  Retrieval: "query → N chunks"
         │         │
-        │         └──► Pinecone ("failure_patterns" namespace)  ← NEW P2
+        │         └──► pgvector ("failure_patterns" namespace)  ← NEW P2
         │              • One embedding per failed session
         │              • Combines: failure_summary + queries +
         │                tool errors + hallucination flags
@@ -200,7 +202,7 @@
   └──────┬──────────────────┬────────────────┬───┘
          ▼                  ▼                ▼
   classify_intent    vector_retrieve   graph_traverse*
-  [GPT-4o-mini]        [Pinecone]        [Neo4j]
+  [GPT-4o-mini]       [pgvector]         [Neo4j]
          │                  │                │
          └──────────────────┴────────────────┘
                             │
@@ -256,7 +258,7 @@ Replaces the separate analysis module + synthesize steps.
           ▼                     ▼
   ┌───────────────┐   ┌─────────────────────────────────┐
   │vector_retrieve│   │       graph_traverse             │
-  │  [Pinecone]   │   │         [Neo4j]                  │
+  │  [pgvector]   │   │         [Neo4j]                  │
   │               │   │                                   │
   │ Dual-namespace│   │ 5 targeted traversals:            │  ← NEW P2
   │ search:       │   │                                   │
@@ -410,17 +412,22 @@ sessions (
 (:Response)    -[:INFLUENCED_BY]->    (:Chunk)
 ```
 
-### Pinecone (Vector Search)
-```
+### pgvector (Vector Search, `session_vectors` table inside Postgres)
+```sql
+-- Table: session_vectors
+-- Columns: id TEXT, session_id TEXT, namespace TEXT, org_id TEXT,
+--          event_type TEXT, metadata JSONB, embedding vector(1536)
+-- Similarity: cosine (exact search via SET LOCAL enable_indexscan = off)
+
 Namespace: "traces"
   Vectors: LLM call, Tool call, Retrieval event embeddings
-  Metadata: session_id, agent_id, event_type, failure_type, outcome
+  Metadata (JSONB): session_id, agent_id, event_type, failure_type, outcome, text
 
 Namespace: "failure_patterns"                                    ← NEW P2
   Vectors: Session-level failure summary embeddings
   Text: failure_summary + queries + tool errors + hallucination flags
-  Metadata: session_id, agent_id, failure_type, failure_summary,
-            llm_call_count, tool_call_count, retrieval_count
+  Metadata (JSONB): session_id, agent_id, failure_type, failure_summary,
+                    llm_call_count, tool_call_count, retrieval_count
 ```
 
 ---

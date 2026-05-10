@@ -86,7 +86,7 @@ flowchart TD
     subgraph FULL_GRAPH["⚙️ analysis_graph — Optimised Pipeline (~9-12s)"]
         PAR_START("parallel_start\n(fan-out entry node)")
         CLASSIFY("classify_intent\n[GPT-4o-mini]\nReads: LLM calls, tool errors,\nretrieval scores, hallucination flags\n→ {failure_type, reasoning}")
-        VEC_RET("vector_retrieve\n[Pinecone]\nDual-namespace search:\n• failure_patterns (session-level)\n• traces (event-level)\nTop 10 results")
+        VEC_RET("vector_retrieve\n[pgvector]\nDual-namespace search:\n• failure_patterns (session-level)\n• traces (event-level)\nTop 10 results")
         GRAPH_T("graph_traverse\n[Neo4j]\n5 traversal types:\n• 1-hop: FAILED_WITH, RELATED_TO\n• 2-hop: shared chunks\n• 2-hop: systemic blind spots\n• 2-hop: same-query failures\n*skipped if skip_graph=True")
         MERGE("merge_retrieval\nCheck failure_type from classify")
         EARLY_EXIT("early_exit\nUNKNOWN → minimal report\nconfidence=0, no findings")
@@ -103,7 +103,7 @@ flowchart TD
 
     subgraph FAST_GRAPH["⚡ fast_analysis_graph — Demo Path (~8-10s)"]
         F_CLASSIFY("classify_intent\n[GPT-4o-mini]\nSession built from\nscenario data directly")
-        F_VEC("vector_retrieve\n[Pinecone]")
+        F_VEC("vector_retrieve\n[pgvector]")
         F_EARLY("early_exit\n(UNKNOWN → no failure)")
         F_FAST("fast_analyze\n[Claude Haiku → GPT-4o-mini]")
     end
@@ -120,7 +120,7 @@ flowchart TD
 
     subgraph INGESTION["📥 Trace Ingestion"]
         PII("PII Redactor\nscrubadub + medical regex")
-        STORE_VEC("Pinecone upsert\nvector embeddings")
+        STORE_VEC("pgvector upsert\nvector embeddings")
         STORE_GRAPH("Neo4j node creation\n+ link_failure_patterns()")
         STORE_PG("PostgreSQL save_session\n(org_id stamped)")
         BG_ANALYSIS("Background analysis\n[analysis_graph]\nOptional — triggered\nfor new sessions")
@@ -144,7 +144,7 @@ flowchart TD
         OUT_DATA("Data Answer\n────────────────\nNatural language summary\nof SQL query results\n(counts, lists, trends)")
         OUT_CONV("Conversational Reply\n────────────────\nGeneral answer or\ndiagnosis offer")
         OUT_DEMO("Demo Agent Response\n────────────────\nAI agent reply\n(may include tool\ncall errors/results)")
-        OUT_RAW("Raw Session Stored\n────────────────\nPostgres + Pinecone\n+ Neo4j\nNo analysis yet")
+        OUT_RAW("Raw Session Stored\n────────────────\nPostgres + pgvector\n+ Neo4j\nNo analysis yet")
     end
 
     FAST_AN    --> OUT_REPORT
@@ -189,9 +189,9 @@ flowchart TD
 | Chat Debug — "what is X?" question | Auth | General intent → LLM | ~2-3s | Conversational reply |
 | Chat Debug — "diagnose this session" | Auth | Diagnostic intent → `analysis_graph` | ~9-12s | AnalysisReport |
 | Trace Explorer — click session | Auth | `analysis_graph` | ~9-12s | AnalysisReport |
-| Pull Traces (Langfuse/LangSmith) | Auth | Ingest → Postgres/Pinecone/Neo4j → optional background analysis | ~5-30s | Sessions stored |
+| Pull Traces (Langfuse/LangSmith) | Auth | Ingest → Postgres/pgvector/Neo4j → optional background analysis | ~5-30s | Sessions stored |
 | Backfill (bulk historical) | Auth | Raw storage only, 200/chunk, background | minutes–hours | Sessions stored (no analysis) |
-| Direct ingest API | Auth | Ingest → Postgres/Pinecone/Neo4j | ~1-2s/session | Session stored |
+| Direct ingest API | Auth | Ingest → Postgres/pgvector/Neo4j | ~1-2s/session | Session stored |
 
 ---
 

@@ -20,7 +20,7 @@
 ## 1. What's Going Right
 
 ### Architecture
-- **3-store design** (Postgres/Neo4j/Pinecone) is genuinely innovative — most observability tools use a single store. Aethen reasons across relational, graph, and vector data simultaneously.
+- **3-store design** (Postgres+pgvector/Neo4j) is genuinely innovative — most observability tools use a single store. Aethen reasons across relational, graph, and vector data simultaneously.
 - **LangGraph pipeline** with parallel retrieval (vector + graph), Cohere reranking, specialized routing to diagnostic nodes, and multi-model synthesis is production-grade orchestration.
 - **Multi-model fallback** (Claude Sonnet → GPT-4o-mini) in the synthesize node is smart for reliability.
 
@@ -229,17 +229,17 @@ ORDER BY occurrence_count DESC
 
 **File:** `backend/app/agents/nodes/retrieve.py` (L15-60)
 
-**Problem:** `vector_retrieve` builds its Pinecone query from the session's `failure_summary` (e.g., *"Retrieved stale/wrong chunks for query: How to reset billing password"*). But what's stored in Pinecone are **embeddings of individual trace steps** (LLM calls, tool calls, retrieval events).
+**Problem:** `vector_retrieve` builds its pgvector query from the session's `failure_summary` (e.g., *"Retrieved stale/wrong chunks for query: How to reset billing password"*). But what's stored in pgvector are **embeddings of individual trace steps** (LLM calls, tool calls, retrieval events).
 
 There's a semantic mismatch:
 - **Query intent:** "Find similar failure patterns"
 - **Stored content:** "Tool call: search_knowledge_base, status=failed, error=timeout"
 
-The embedding similarity between a failure summary and a trace step description is likely low, meaning Pinecone returns noisy or irrelevant results.
+The embedding similarity between a failure summary and a trace step description is likely low, meaning pgvector returns noisy or irrelevant results.
 
 **Fix:** Either:
 1. Store failure summaries as separate vectors in a `failure_patterns` namespace (search failures against failures)
-2. Use the original query text from retrieval events as the Pinecone query (search queries against queries)
+2. Use the original query text from retrieval events as the pgvector query (search queries against queries)
 3. Maintain both and merge results
 
 ---

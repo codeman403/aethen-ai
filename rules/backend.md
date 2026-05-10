@@ -52,11 +52,12 @@
 
 ## Database Access
 
-### Pinecone (Vector DB)
-- Use async client where available.
-- Always specify `namespace` for multi-tenant or multi-module isolation.
+### pgvector (Vector DB — `session_vectors` table in Postgres)
+- All queries run via `asyncpg` — natively async, no blocking.
+- Always filter by `namespace` column for multi-tenant or multi-module isolation.
 - Include metadata filters in queries — never rely on vector similarity alone.
 - Log query latency and result counts.
+- Use `SET LOCAL enable_indexscan = off` for exact cosine search at current scale.
 
 ### Neo4j (Graph DB)
 - Use async driver (`neo4j.AsyncDriver`).
@@ -104,4 +105,4 @@
 | Prompts in dedicated files | ⚠️ Partial | Prompts are constants in node files, not in a separate `app/prompts/` directory |
 | Secrets have no defaults | ⚠️ Not enforced | API keys default to `""` in config — allows graceful degradation but doesn't fail-fast on missing keys |
 | structlog logging | ✅ Implemented | JSON structured logging with request correlation |
-| Postgres as source of truth | ✅ Implemented | Neo4j is graph-only, Pinecone is vectors-only |
+| Postgres as source of truth | ✅ Implemented | Neo4j is graph-only, pgvector (`session_vectors` table) handles vectors inside Postgres |

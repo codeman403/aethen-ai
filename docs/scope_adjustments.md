@@ -18,7 +18,7 @@ The original proposal was written on 2026-04-18 as an ambitious, production-grad
 |---|---|
 | 4 diagnostic modules (Memory, Tool, Hallucination, Blind Spot) | ✅ All 4 modules implemented as LangGraph nodes with conditional routing |
 | LangGraph state machine orchestration | ✅ Full StateGraph with classify → parallel retrieve → rerank → module → synthesize |
-| Pinecone vector search (≥1,000 embeddings) | ✅ 1,100 vectors in `traces` namespace |
+| pgvector semantic search (≥1,000 embeddings) | ✅ 1,100 vectors in `traces` namespace (`session_vectors` table) |
 | Neo4j Graph RAG | ✅ Session nodes + SHARES_FAILURE_PATTERN relationships for cross-session traversal |
 | Cohere Rerank v3 | ✅ Post-retrieval re-ranking in the pipeline |
 | Langfuse live trace ingestion | ✅ Dual-mode: synthetic + live via `LangfuseTraceAdapter` |
@@ -75,7 +75,7 @@ These changes were not in the original proposal but improved the system:
 
 | Change | Why It's Better |
 |---|---|
-| **3-store architecture** (Postgres + Neo4j + Pinecone) | Original plan used an in-memory store that wiped on restart. Postgres via Supabase provides persistent, queryable session storage. This was the most significant architectural improvement. |
+| **3-store architecture** (Postgres + pgvector + Neo4j) | Original plan used an in-memory store that wiped on restart. Postgres via Supabase provides persistent, queryable session storage, with pgvector extension providing vector search in the same database. This was the most significant architectural improvement. |
 | **Text-to-SQL for Chat Debug** | Original plan used pattern-matching keyword handlers. LLM-generated SQL handles arbitrary queries (ordering, filtering, grouping) without fragile patterns. Discovered through the Aethen self-analysis scenario. |
 | **classify_intent always uses LLM** | Original implementation short-circuited on pre-set labels. Removing the short-circuit improved classification accuracy — the LLM reads actual evidence (retrieval scores, tool errors, response content) instead of trusting a heuristic label. |
 | **Chat session persistence** | Not in the original proposal. Added Postgres `chat_sessions` + `chat_messages` tables so debugging conversations survive page refreshes and are queryable. |

@@ -105,7 +105,7 @@ flowchart LR
 
     subgraph OUTPUT["Graph Evidence Output"]
         GOUT("graph_results: list[dict]\n────────────────────────\nEach result contains:\n• session_id of related session\n• failure_type of that session\n• agent_id\n• failure_summary\n• relationship type\n• hop distance\n• relevance signal")
-        MERGE_NOTE("Merged with Pinecone results\nin merge_retrieval node\nBoth feed into fast_analyze\nas reranked_evidence")
+        MERGE_NOTE("Merged with pgvector results\nin merge_retrieval node\nBoth feed into fast_analyze\nas reranked_evidence")
     end
 
     TRIGGER --> HOP1A & HOP1B & HOP2A & HOP2B & HOP2C
@@ -138,7 +138,7 @@ flowchart TD
         FE2("LLM calls\nprompt + response (400 chars each)\nhallucination_flag, source_documents")
         FE3("Tool calls\nstatus, error message, latency\nparameters passed")
         FE4("Retrieval events\nquery, scores, expected vs actual doc IDs\ndoc_content snippets")
-        FE5("Vector evidence\nTop-3 Pinecone results\nscore + content snippet (300 chars)\nSimilar failure patterns from KB")
+        FE5("Vector evidence\nTop-3 pgvector results\nscore + content snippet (300 chars)\nSimilar failure patterns from KB")
     end
 
     subgraph LLM_CALL["🤖 fast_analyze — Single LLM Call\n[Claude Haiku 4.5 → GPT-4o-mini fallback]"]
@@ -226,7 +226,7 @@ sequenceDiagram
     Note over CLS: Reads LLM calls, tool errors,<br/>retrieval scores, doc IDs.<br/>Applies 5-step priority chain.
     CLS-->>MRG: failure_type + reasoning
 
-    Note over VEC: Dual namespace search<br/>failure_patterns + traces<br/>Top 10 results, dedup by score
+    Note over VEC: Dual namespace search<br/>(pgvector session_vectors table)<br/>failure_patterns + traces<br/>Top 10 results, dedup by score
     VEC-->>MRG: vector_results[]
 
     alt skip_graph = True
@@ -246,7 +246,7 @@ sequenceDiagram
         EX-->>OUT: failure_type=unknown, confidence=0.0, findings=[]
     else failure_type is known
         MRG->>FA: session + vector_results + graph_results
-        Note over FA: Builds full context block<br/>LLM calls, tool calls, retrieval events,<br/>top-3 Pinecone evidence.<br/>Applies type-specific guidance.<br/>Root Cause Precision Rule enforced.<br/>Tries Claude Haiku first,<br/>falls back to GPT-4o-mini.
+        Note over FA: Builds full context block<br/>LLM calls, tool calls, retrieval events,<br/>top-3 pgvector evidence.<br/>Applies type-specific guidance.<br/>Root Cause Precision Rule enforced.<br/>Tries Claude Haiku first,<br/>falls back to GPT-4o-mini.
         FA-->>OUT: failure_type, summary, root_cause, confidence, findings[]
     end
 ```

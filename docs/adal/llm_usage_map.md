@@ -42,7 +42,7 @@
              │     (failure type from trace evidence)                        │
              │                                                               │
              │  2. retrieve ─────────────────────────── no LLM              │
-             │     (Pinecone vector search + Neo4j                           │
+             │     (pgvector semantic search + Neo4j                         │
              │      graph traversal in parallel)                             │
              │                                                               │
              │  3. rerank ───────────────────────────── Cohere Rerank v3    │

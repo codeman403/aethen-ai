@@ -42,7 +42,7 @@ Frontend (Next.js 14)  →  BFF API routes  →  Python Backend (FastAPI)
                               │  (analysis + synthesis merged)    │
                               └──────────────────────────────────┘
                                     │           │
-                               Pinecone      Neo4j
+                               pgvector      Neo4j
                              (vector search) (graph RAG)
 
   * graph_traverse skipped via skip_graph=True when no cross-session data
@@ -90,10 +90,6 @@ Copy `.env.example` to `.env` and fill in:
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 COHERE_API_KEY=
-
-# Vector DB
-PINECONE_API_KEY=
-PINECONE_INDEX=
 
 # Graph DB
 NEO4J_URI=
@@ -143,7 +139,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 2. Connect your GitHub repo — Render will detect `backend/render.yaml` automatically
 3. Fill in the secret env vars in the Render dashboard (the ones marked `sync: false`):
    - `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `COHERE_API_KEY`
-   - `PINECONE_API_KEY`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
+   - `DATABASE_URL`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
    - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`
 4. Click **Apply** — Render builds the Docker image and deploys
 
@@ -176,7 +172,7 @@ pnpm build
 | Frontend | Next.js 14, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | Python 3.11, FastAPI, LangGraph, LangChain |
 | LLMs | Claude Sonnet 4.6 (synthesis, via Anthropic proxy), GPT-4o-mini (routing/fallback), Cohere Rerank v3 |
-| Vector DB | Pinecone |
+| Vector DB | pgvector (Postgres extension, `session_vectors` table) |
 | Graph DB | Neo4j Aura |
 | Observability | Langfuse |
 | Deployment | Vercel (frontend), Render (backend) |
