@@ -13,7 +13,7 @@ import {
 const TRACE_POOL = [
   { kind: "llm",  icon: <BrainCircuit className="size-3" />, label: "gpt-4o-mini",      sub: "284ms",  color: "#7C3AED" },
   { kind: "tool", icon: <Wrench className="size-3" />,       label: "search_knowledge", sub: "timeout", color: "#EF4444", bad: true },
-  { kind: "ret",  icon: <Search className="size-3" />,       label: "pinecone query",   sub: "0 chunks",color: "#F59E0B", bad: true },
+  { kind: "ret",  icon: <Search className="size-3" />,       label: "pgvector query",   sub: "0 chunks",color: "#F59E0B", bad: true },
   { kind: "llm",  icon: <BrainCircuit className="size-3" />, label: "claude-sonnet",    sub: "1.2s",   color: "#7C3AED" },
   { kind: "tool", icon: <Code2 className="size-3" />,        label: "query_database",   sub: "ok 38ms", color: "#10B981" },
   { kind: "ret",  icon: <Search className="size-3" />,       label: "vector search",    sub: "score 0.41",color:"#F59E0B",bad:true},
