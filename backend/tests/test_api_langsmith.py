@@ -61,7 +61,7 @@ class TestLangSmithPullEndpoint:
                 mock_pg.get_setting = AsyncMock(return_value=None)
                 mock_pg.set_setting = AsyncMock()
                 mock_pg.save_session = AsyncMock()
-                with patch("app.api.langsmith.pinecone_service") as mock_pine:
+                with patch("app.api.langsmith.vector_service") as mock_pine:
                     mock_pine.is_available = False
                     with patch("app.api.langsmith.neo4j_service") as mock_neo:
                         mock_neo.is_available = False

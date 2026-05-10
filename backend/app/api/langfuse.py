@@ -18,7 +18,7 @@ from app.models.response import ApiResponse, ResponseMetadata
 from app.models.trace import FailureType, IngestResult, Session
 from app.providers.langfuse_provider import LangfuseProvider
 from app.services.neo4j_service import neo4j_service
-from app.services.pinecone_service import pinecone_service
+from app.services.vector_service import vector_service
 from app.services.postgres_service import postgres_service
 
 logger = structlog.get_logger()
@@ -170,12 +170,12 @@ async def pull_langfuse_traces(
         event_count = len(session.llm_calls) + len(session.tool_calls) + len(session.retrieval_events)
         total_events += event_count
 
-        if pinecone_service.is_available:
+        if vector_service.is_available:
             try:
-                await pinecone_service.upsert_session(session)
+                await vector_service.upsert_session(session)
             except Exception as e:
                 msg = f"Pinecone error for session {session.session_id}: {e}"
-                logger.error("langfuse_ingest_pinecone_error", session_id=session.session_id, error=str(e))
+                logger.error("langfuse_ingest_vector_error", session_id=session.session_id, error=str(e))
                 errors.append(msg)
 
         if neo4j_service.is_available:
@@ -269,9 +269,9 @@ async def _pull_single_source(
         event_count = len(session.llm_calls) + len(session.tool_calls) + len(session.retrieval_events)
         total_events += event_count
 
-        if pinecone_service.is_available:
+        if vector_service.is_available:
             try:
-                await pinecone_service.upsert_session(session)
+                await vector_service.upsert_session(session)
             except Exception as e:
                 errors.append(f"Pinecone error {session.session_id}: {e}")
 
@@ -397,11 +397,11 @@ async def fetch_and_analyze_trace(request: SingleTraceRequest, http_request: Req
     session = pii_redactor.redact_session(session)
 
     # Ingest
-    if pinecone_service.is_available:
+    if vector_service.is_available:
         try:
-            await pinecone_service.upsert_session(session)
+            await vector_service.upsert_session(session)
         except Exception as exc:
-            logger.warning("trace_pinecone_error", error=str(exc))
+            logger.warning("trace_vector_error", error=str(exc))
     if neo4j_service.is_available:
         try:
             await neo4j_service.create_session_node(session)

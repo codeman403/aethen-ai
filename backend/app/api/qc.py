@@ -204,34 +204,31 @@ def _check_agent_traces(sessions: list[dict]) -> SourceReport:
 
 
 async def _check_vector_db() -> SourceReport:
-    """2 checks on Pinecone index health (async-safe — runs sync Pinecone call in executor)."""
-    import asyncio
-    from app.services.pinecone_service import pinecone_service
+    """2 checks on pgvector session_vectors table health."""
+    from app.services.postgres_service import postgres_service
 
     report = SourceReport(source="Vector DB Chunks")
 
-    if not pinecone_service.is_available:
+    if not postgres_service.is_available:
         report.checks.append(QualityCheck(
             name="Index Connectivity",
             status="fail",
-            detail="Pinecone unavailable — PINECONE_API_KEY not set or index not initialized",
+            detail="pgvector unavailable — database not connected",
         ))
         report.checks.append(QualityCheck(
             name="Namespace Population",
             status="fail",
-            detail="Cannot check namespaces — Pinecone unavailable",
+            detail="Cannot check namespaces — database unavailable",
         ))
         return report
 
     try:
-        # Run sync Pinecone call in executor to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
-        stats = await asyncio.wait_for(
-            loop.run_in_executor(None, pinecone_service._index.describe_index_stats),
-            timeout=15.0,
-        )
-        total_vectors = stats.total_vector_count
-        namespaces = stats.namespaces or {}
+        async with postgres_service._pool.acquire() as conn:
+            total_vectors = await conn.fetchval("SELECT COUNT(*) FROM session_vectors") or 0
+            ns_rows = await conn.fetch(
+                "SELECT namespace, COUNT(*) AS cnt FROM session_vectors GROUP BY namespace"
+            )
+        namespaces = {r["namespace"]: r["cnt"] for r in ns_rows}
         report.total = total_vectors
 
         # ── Check 1: Coverage (≥1,000 vectors) ───────────────────────────
@@ -239,43 +236,32 @@ async def _check_vector_db() -> SourceReport:
         report.checks.append(QualityCheck(
             name="Coverage (≥1,000 vectors)",
             status="pass" if total_vectors >= threshold else "fail",
-            detail=f"{total_vectors:,} vectors in index (threshold: {threshold:,})",
+            detail=f"{total_vectors:,} vectors in session_vectors (threshold: {threshold:,})",
             count=total_vectors,
             flagged=0 if total_vectors >= threshold else 1,
         ))
 
         # ── Check 2: Namespace Population ────────────────────────────────
         expected_ns = "traces"
-        ns_count = namespaces.get(expected_ns, {})
-        ns_vectors = getattr(ns_count, "vector_count", 0) if hasattr(ns_count, "vector_count") else (ns_count.get("vector_count", 0) if isinstance(ns_count, dict) else 0)
-        empty_ns = [ns for ns, info in namespaces.items() if (getattr(info, "vector_count", 0) if hasattr(info, "vector_count") else 0) == 0]
+        ns_vectors = namespaces.get(expected_ns, 0)
+        empty_ns = [ns for ns, cnt in namespaces.items() if cnt == 0]
         report.checks.append(QualityCheck(
             name="Namespace Population",
             status="pass" if expected_ns in namespaces else "warn",
             detail=(
-                f"Namespaces: {list(namespaces.keys()) or ['(default)']}. "
-                f"'{expected_ns}' namespace: {ns_vectors:,} vectors"
+                f"Namespaces: {list(namespaces.keys()) or ['(none)']}. "
+                f"'traces': {ns_vectors:,} vectors, "
+                f"'failure_patterns': {namespaces.get('failure_patterns', 0):,} vectors"
             ),
             count=len(namespaces),
             flagged=len(empty_ns),
         ))
 
-    except asyncio.TimeoutError:
-        report.checks.append(QualityCheck(
-            name="Coverage (≥1,000 vectors)",
-            status="fail",
-            detail="Pinecone timed out after 15s — index may be unreachable",
-        ))
-        report.checks.append(QualityCheck(
-            name="Namespace Population",
-            status="fail",
-            detail="Pinecone timed out — cannot check namespaces",
-        ))
     except Exception as exc:
         report.checks.append(QualityCheck(
             name="Coverage (≥1,000 vectors)",
             status="fail",
-            detail=f"Error querying Pinecone stats: {exc}",
+            detail=f"Error querying pgvector stats: {exc}",
         ))
         report.checks.append(QualityCheck(
             name="Namespace Population",

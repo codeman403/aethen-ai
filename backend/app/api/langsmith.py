@@ -14,7 +14,7 @@ from app.models.response import ApiResponse
 from app.models.trace import FailureType, IngestResult, Session
 from app.providers.langsmith_provider import LangSmithProvider
 from app.services.neo4j_service import neo4j_service
-from app.services.pinecone_service import pinecone_service
+from app.services.vector_service import vector_service
 from app.services.postgres_service import postgres_service
 
 logger = structlog.get_logger()
@@ -152,12 +152,12 @@ async def pull_langsmith_traces(
         event_count = len(session.llm_calls) + len(session.tool_calls) + len(session.retrieval_events)
         total_events += event_count
 
-        if pinecone_service.is_available:
+        if vector_service.is_available:
             try:
-                await pinecone_service.upsert_session(session)
+                await vector_service.upsert_session(session)
             except Exception as e:
                 errors.append(f"Pinecone error for {session.session_id}: {e}")
-                logger.error("langsmith_ingest_pinecone_error", session_id=session.session_id, error=str(e))
+                logger.error("langsmith_ingest_vector_error", session_id=session.session_id, error=str(e))
 
         if neo4j_service.is_available:
             try:

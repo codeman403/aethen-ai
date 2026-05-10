@@ -51,7 +51,7 @@ class TestPineconeMetadata:
     """text and failure_summary fields are present and non-empty for all event types."""
 
     def _build_metadata(self, session: Session) -> list[dict]:
-        """Replicate the metadata construction from pinecone_service.upsert_session."""
+        """Replicate the metadata construction from pgvector_service.upsert_session."""
         failure_summary_short = (session.failure_summary or "")[:300]
         metadata_list = []
 
@@ -158,7 +158,7 @@ class TestPineconeMetadata:
         assert "avg_score" not in m["text"]
         assert "None" not in m["text"]
 
-    def test_metadata_within_pinecone_size_limit(self):
+    def test_metadata_within_vector_metadata_size_limit(self):
         """Combined metadata chars should be well under Pinecone's 40KB limit."""
         s = _session(
             llm_calls=[LLMCall(call_id="c1", prompt="A" * 500, response="B" * 500, model="gpt-4o-mini")],

@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from app.models.response import ApiResponse, ResponseMetadata
 from app.services.postgres_service import postgres_service
-from app.services.pinecone_service import pinecone_service
+from app.services.vector_service import vector_service
 from app.services.neo4j_service import neo4j_service
 from app.utils.request_context import get_data_org_id
 
@@ -153,9 +153,9 @@ async def _backfill_langfuse(job: BackfillJob) -> None:
                 if is_new:
                     job.stored += 1
                     # Store in vector DB and graph (fire-and-forget, no analysis)
-                    if pinecone_service.is_available:
+                    if vector_service.is_available:
                         try:
-                            await pinecone_service.upsert_session(session)
+                            await vector_service.upsert_session(session)
                         except Exception:
                             pass
                     if neo4j_service.is_available:
@@ -212,9 +212,9 @@ async def _backfill_langsmith(job: BackfillJob) -> None:
                 is_new = await postgres_service.save_session(session, org_id=job.org_id)
                 if is_new:
                     job.stored += 1
-                    if pinecone_service.is_available:
+                    if vector_service.is_available:
                         try:
-                            await pinecone_service.upsert_session(session)
+                            await vector_service.upsert_session(session)
                         except Exception:
                             pass
                     if neo4j_service.is_available:

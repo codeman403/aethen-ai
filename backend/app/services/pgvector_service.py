@@ -16,6 +16,26 @@ from app.services.postgres_service import postgres_service
 logger = structlog.get_logger()
 
 
+def _build_failure_pattern_text(session: Session) -> str:
+    """Build a rich text summary of a session's failure for the failure_patterns namespace."""
+    parts = [session.failure_summary or ""]
+    for evt in session.retrieval_events[:3]:
+        if evt.query:
+            parts.append(f"Query: {evt.query[:200]}")
+        if evt.chunks_returned == 0:
+            parts.append("No chunks retrieved")
+        elif evt.relevance_scores:
+            avg = sum(evt.relevance_scores) / len(evt.relevance_scores)
+            parts.append(f"Avg relevance: {avg:.2f}")
+    for tc in session.tool_calls[:3]:
+        if tc.error:
+            parts.append(f"Tool error ({tc.tool_name}): {tc.error[:200]}")
+    for lc in session.llm_calls[:2]:
+        if lc.hallucination_flag:
+            parts.append(f"Hallucinated response from {lc.model}")
+    return " | ".join(p for p in parts if p)
+
+
 class PgVectorService:
 
     @property
@@ -102,10 +122,9 @@ class PgVectorService:
             total += len(texts)
             logger.info("pgvector_traces_upserted", session_id=session.session_id, count=len(texts))
 
-        # Failure pattern (mirrors pinecone "failure_patterns" namespace)
+        # Failure pattern ("failure_patterns" namespace)
         if session.outcome == "failure" and session.failure_summary:
-            from app.services.pinecone_service import PineconeService
-            pattern_text = PineconeService._build_failure_pattern_text(session)
+            pattern_text = _build_failure_pattern_text(session)
             emb = await embedding_service.embed_text(pattern_text)
             meta = {
                 "session_id": session.session_id, "agent_id": session.agent_id,

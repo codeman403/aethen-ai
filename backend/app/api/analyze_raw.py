@@ -21,7 +21,7 @@ from app.middleware import pii_redactor
 from app.models.response import ApiResponse, ResponseMetadata
 from app.models.trace import FailureType, Session
 from app.services.neo4j_service import neo4j_service
-from app.services.pinecone_service import pinecone_service
+from app.services.vector_service import vector_service
 from app.services.postgres_service import postgres_service
 
 logger = structlog.get_logger()
@@ -202,11 +202,11 @@ def _langsmith_run_to_session(run: dict) -> Session:
 
 async def _ingest_session(session: Session) -> None:
     """Persist session to Pinecone + Neo4j + Postgres."""
-    if pinecone_service.is_available:
+    if vector_service.is_available:
         try:
-            await pinecone_service.upsert_session(session)
+            await vector_service.upsert_session(session)
         except Exception as exc:
-            logger.warning("analyze_raw_pinecone_error", session_id=session.session_id, error=str(exc))
+            logger.warning("analyze_raw_vector_error", session_id=session.session_id, error=str(exc))
 
     if neo4j_service.is_available:
         try:
