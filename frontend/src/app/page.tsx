@@ -191,7 +191,7 @@ const HOW_IT_WORKS = [
     icon: BrainCircuit,
     color: "#0891B2",
     title: "Diagnose the failure",
-    body: "The LangGraph pipeline classifies the failure type, runs Graph RAG across Neo4j causal chains, and retrieves semantic evidence from Pinecone to pinpoint the root cause.",
+    body: "The LangGraph pipeline classifies the failure type, runs Graph RAG across Neo4j causal chains, and retrieves semantic evidence from pgvector to pinpoint the root cause.",
   },
   {
     step: "03",
@@ -217,7 +217,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Is my agent trace data stored permanently?",
-    a: "Session data is stored in your own Supabase/Postgres instance — you own it. PII redaction is enabled by default before any data reaches storage. You can delete individual sessions or wipe your data at any time.",
+    a: "Session data is stored in Aethen's managed Postgres instance. PII redaction is enabled by default before any data reaches storage. You can delete individual sessions or wipe your data at any time.",
   },
   {
     q: "How long does a diagnosis take?",
@@ -225,11 +225,11 @@ const FAQ_ITEMS = [
   },
   {
     q: "Can Aethen work with any LLM provider?",
-    a: "Yes. The analysis pipeline defaults to Claude Sonnet 4.6 (via Anthropic) with a GPT-4o-mini fallback. The model running inside your AI agent doesn't matter — Aethen diagnoses at the trace level regardless of which LLM your agent uses.",
+    a: "Yes. You bring your own API keys for Anthropic (Claude) and OpenAI (GPT-4o-mini), configured once in LLM Settings. The model running inside your AI agent doesn't matter — Aethen diagnoses at the trace level regardless of which LLM your agent uses.",
   },
   {
     q: "How is Aethen different from reading logs in Langfuse or LangSmith?",
-    a: "Raw observability tools show you what happened. Aethen tells you why it failed and what to fix. It layers Graph RAG (causal chain traversal), semantic search (Pinecone), and a multi-module LangGraph state machine on top of raw traces to produce structured root-cause analysis.",
+    a: "Raw observability tools show you what happened. Aethen tells you why it failed and what to fix. It layers Graph RAG (causal chain traversal), semantic search (pgvector), and a multi-module LangGraph state machine on top of raw traces to produce structured root-cause analysis.",
   },
 ];
 
@@ -450,7 +450,7 @@ export default function LandingPage() {
                   { label: "LangChain",     color: "#6D28D9", icon: <GitBranch     className="size-5" /> },
                   { label: "Graph RAG",     color: "#059669", icon: <Search        className="size-5" /> },
                   { label: "Neo4j",         color: "#2563EB", icon: <GitBranch     className="size-5" /> },
-                  { label: "Pinecone",      color: "#10B981", icon: <Database      className="size-5" /> },
+                  { label: "pgvector",      color: "#10B981", icon: <Database      className="size-5" /> },
                   { label: "Cohere Rerank", color: "#047857", icon: <BarChart3     className="size-5" /> },
                   { label: "Langfuse",      color: "#D97706", icon: <Activity      className="size-5" /> },
                   { label: "LangSmith",     color: "#B45309", icon: <Cpu           className="size-5" /> },
@@ -486,7 +486,7 @@ export default function LandingPage() {
               <div className="grid md:grid-cols-2 gap-8 md:gap-10">
                 <Reveal delay={0.1}>
                   <h2 className="text-3xl md:text-5xl font-black tracking-tight text-foreground leading-tight">
-                    Diagnose AI failures<br /><span className="text-black/35">in under 30 seconds.</span>
+                    Diagnose AI failures<br /><span className="text-black/35">in ~25 seconds.</span>
                   </h2>
                 </Reveal>
                 <Reveal delay={0.2}>
@@ -637,7 +637,7 @@ export default function LandingPage() {
                 evidence={[
                   { label: "query",      text: "47 queries across 19 sessions returned 'I do not know'" },
                   { label: "score",      text: "Retrieval similarity: 0.31 — below 0.55 threshold" },
-                  { label: "namespace",  text: "Zero relevant chunks in Pinecone namespace" },
+                  { label: "namespace",  text: "Zero relevant chunks in pgvector" },
                 ]}
                 resolution="Root cause: refund policy docs never ingested. Gap closed, reliability +53%." />
             </div>
@@ -792,8 +792,7 @@ export default function LandingPage() {
                 ]},
                 { heading: "Resources", links: [
                   { label: "FAQ",          href: "#faq" },
-                  { label: "API Reference",href: "#" },
-                  { label: "GitHub",       href: "#" },
+                  { label: "API Reference",href: "/docs" },
                 ]},
                 { heading: "Legal", links: [
                   { label: "Privacy Policy", href: "/privacy" },

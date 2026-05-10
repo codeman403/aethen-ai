@@ -342,7 +342,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
                 </div>
                 <div>
                   <p className="text-base font-bold text-blue-300">Ingesting Live Traces</p>
-                  <p className="text-sm text-white/65 mt-0.5">Langfuse → Pinecone → Neo4j</p>
+                  <p className="text-sm text-white/65 mt-0.5">Langfuse → pgvector → Neo4j</p>
                 </div>
               </div>
             </motion.div>
@@ -423,7 +423,7 @@ export function HeroAnimation({ scrollContainerRef }: HeroAnimationProps) {
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}>
                 <pre className="font-mono text-[13px] leading-[1.65] text-white/55 whitespace-pre-wrap">
-                  {phase === "flow"        && "● Tracing active sessions...\n  └─ Ingesting spans · Langfuse\n  └─ Vectorizing chunks → Pinecone\n  └─ Indexing graph → Neo4j"}
+                  {phase === "flow"        && "● Tracing active sessions...\n  └─ Ingesting spans · Langfuse\n  └─ Vectorizing chunks → pgvector\n  └─ Indexing graph → Neo4j"}
                   {phase === "alert"       && "⚠ ANOMALY DETECTED\n  Confidence: 0.94\n  Signal: hallucination in response\n  Retrieval: NOT FOUND in indexed chunks"}
                   {phase === "investigate" && "🔍 Cross-trace diagnosis started\n  Neo4j: (Trace A)─[:EXHIBITS]→(Anomaly)\n  Neo4j: (Anomaly)─[:CAUSED_BY]→(Gap)\n  Found: Trace B shares same knowledge gap"}
                   {phase === "resolve"     && "✓ ROOT CAUSE: Knowledge gap confirmed\n  Topic: 'Refund Policies'\n  Fix: Re-index documentation cluster #7\n  Reliability: 45% → 98% ✓"}

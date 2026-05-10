@@ -58,7 +58,7 @@ const PIPELINE_STEPS = [
   { id: "connect",  text: "Connecting to data sources",                  ms: 600  },
   { id: "classify", text: "Classifying failure type",                    ms: 1400 },
   { id: "graph",    text: "Querying causal graph [Neo4j]",               ms: 2800 },
-  { id: "vector",   text: "Retrieving semantic evidence [Pinecone]",     ms: 4200 },
+  { id: "vector",   text: "Retrieving semantic evidence [pgvector]",     ms: 4200 },
   { id: "rerank",   text: "Reranking evidence [Cohere Rerank v3]",       ms: 5800 },
   { id: "module",   text: "Running analysis module",                     ms: 7200 },
   { id: "synth",    text: "Synthesizing root cause & findings",          ms: 8800 },

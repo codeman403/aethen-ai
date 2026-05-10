@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import type { UserProfile } from "@/app/(dashboard)/layout";
 
 function UserMenu({ profile }: { profile: UserProfile }) {
@@ -69,51 +70,81 @@ function UserMenu({ profile }: { profile: UserProfile }) {
 export function Header({ userProfile }: { userProfile: UserProfile }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   useEffect(() => setMounted(true), []);
 
-  return (
-    <header className="h-16 border-b border-border/30 bg-background/60 backdrop-blur-2xl sticky top-0 z-30 flex items-center justify-between px-8">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="text-base font-medium text-muted-foreground/80 flex items-center gap-2 hover:text-foreground transition-colors duration-200">
-          <span>Agent Reliability Studio</span>
-        </Link>
-        {userProfile.orgName && (
-          <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-md bg-muted/50 border border-border/40 text-xs text-muted-foreground font-medium">
-            {userProfile.orgName}
-          </span>
-        )}
-      </div>
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen(v => !v);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
-      <div className="flex items-center gap-3">
-        <div className="relative hidden md:flex items-center">
-          <button className="flex h-9 w-72 items-center justify-between rounded-full border border-input bg-muted/40 px-3 text-base text-muted-foreground shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-            <div className="flex items-center gap-2">
-              <Search className="size-4 opacity-70" />
-              <span>Search traces...</span>
-            </div>
-            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-              <span className="text-sm">⌘</span>K
-            </kbd>
-          </button>
-        </div>
-        <div className="flex items-center gap-1 ml-2 border-l pl-3 py-1">
-          {mounted && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              aria-label="Toggle theme"
-            >
-              {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-            </Button>
+  return (
+    <>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <header className="h-16 border-b border-border/30 bg-background/60 backdrop-blur-2xl sticky top-0 z-30 flex items-center justify-between px-8">
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-base font-medium text-muted-foreground/80 flex items-center gap-2 hover:text-foreground transition-colors duration-200">
+            <span>Agent Reliability Studio</span>
+          </Link>
+          {userProfile.orgName && (
+            <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-md bg-muted/50 border border-border/40 text-xs text-muted-foreground font-medium">
+              {userProfile.orgName}
+            </span>
           )}
-          <Button variant="ghost" size="icon" title="Coming soon" className="size-8 rounded-full text-muted-foreground/50 hover:text-foreground">
-            <Bell className="size-4" />
-          </Button>
-          <UserMenu profile={userProfile} />
         </div>
-      </div>
-    </header>
+
+        <div className="flex items-center gap-3">
+          <div className="relative hidden md:flex items-center">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="flex h-9 w-72 items-center justify-between rounded-full border border-input bg-muted/40 px-3 text-base text-muted-foreground shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <div className="flex items-center gap-2">
+                <Search className="size-4 opacity-70" />
+                <span>Search</span>
+              </div>
+              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                <span className="text-sm">⌘</span>K
+              </kbd>
+            </button>
+          </div>
+          <div className="flex items-center gap-1 ml-2 border-l pl-3 py-1">
+            {mounted && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full text-muted-foreground hover:text-foreground"
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                aria-label="Toggle theme"
+              >
+                {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              </Button>
+            )}
+            <div className="relative group">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled
+                className="size-8 rounded-full text-muted-foreground/40 cursor-not-allowed"
+                aria-label="Notifications — coming soon"
+              >
+                <Bell className="size-4" />
+              </Button>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex items-center whitespace-nowrap px-2.5 py-1.5 rounded-lg bg-popover border border-border/60 shadow-md text-xs text-muted-foreground pointer-events-none z-50">
+                Notifications — Coming Soon
+              </div>
+            </div>
+            <UserMenu profile={userProfile} />
+          </div>
+        </div>
+      </header>
+    </>
   );
 }
