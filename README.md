@@ -28,19 +28,29 @@ The **Demo Agent** (`/demo-agent`) lets you generate real failure traces directl
 ```
 Frontend (Next.js 14)  →  BFF API routes  →  Python Backend (FastAPI)
                                                       │
-                              ┌───────────────────────┤
-                              │    LangGraph Pipeline   │
-                              │  classify → retrieve    │
-                              │  → rerank → analyze     │
-                              │  → synthesize           │
-                              └───────────────────────┘
+                              ┌──────────────────────────────────┐
+                              │   LangGraph Pipeline (~9-12s)    │
+                              │                                   │
+                              │  ┌─────────────────────────┐     │
+                              │  │ parallel start           │     │
+                              │  │  ├─ classify_intent      │     │
+                              │  │  ├─ vector_retrieve      │     │
+                              │  │  └─ graph_traverse*      │     │
+                              │  └──────────┬──────────────┘     │
+                              │             ▼                     │
+                              │      fast_analyze                 │
+                              │  (analysis + synthesis merged)    │
+                              └──────────────────────────────────┘
                                     │           │
                                Pinecone      Neo4j
                              (vector search) (graph RAG)
+
+  * graph_traverse skipped via skip_graph=True when no cross-session data
 ```
 
-**LLMs**: GPT-4o-mini (routing/classification), Claude Sonnet 4.6 (synthesis via Anthropic proxy, GPT-4o-mini fallback)
-**Observability**: Langfuse (live trace ingestion)
+**LLMs**: GPT-4o-mini (routing/classification), Claude Haiku 4.5 (fast analysis, primary), GPT-4o-mini (fallback)
+**Observability**: Langfuse / LangSmith (live trace ingestion)
+**Eval results**: 100% classification accuracy · 85.56% LLM judge score
 
 ---
 

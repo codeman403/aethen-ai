@@ -183,6 +183,58 @@
 
 ## 5. LangGraph Analysis Pipeline
 
+> **Two compiled graphs** now exist:
+> - `analysis_graph` — **optimised** (default, ~9-12s): parallel classify+retrieve, fast_analyze merges analysis+synthesis
+> - `fast_analysis_graph` — Demo Agent only (~8-10s): classify → vector_retrieve → fast_analyze (no Neo4j, no Cohere)
+> - `_legacy_analysis_graph` — original full pipeline (~22s), kept for rollback
+
+### 5a. Optimised Graph (`analysis_graph`) — All Production Paths
+
+```
+  Session
+     │
+     ▼
+  ┌──────────────────────────────────────────────┐
+  │              parallel_start                   │
+  │  (fan-out entry node — all three in parallel) │
+  └──────┬──────────────────┬────────────────┬───┘
+         ▼                  ▼                ▼
+  classify_intent    vector_retrieve   graph_traverse*
+  [GPT-4o-mini]        [Pinecone]        [Neo4j]
+         │                  │                │
+         └──────────────────┴────────────────┘
+                            │
+                            ▼
+                    merge_retrieval
+                    (check failure_type)
+                            │
+                 ┌──────────┴──────────┐
+                 ▼                     ▼
+            UNKNOWN              known failure
+               │                     │
+               ▼                     ▼
+           early_exit           fast_analyze
+               │             [Claude Haiku 4.5]
+               ▼             [GPT-4o-mini fallback]
+              END                    │
+                                     ▼
+                                    END
+
+* graph_traverse returns [] immediately when AgentState["skip_graph"] = True
+  (set by caller when org has no cross-session Neo4j data — saves ~3s)
+```
+
+**fast_analyze** (`app/agents/nodes/fast_analyze.py`) handles all failure types in one
+LLM call, producing a complete `AnalysisReport` (summary, findings, root_cause, confidence).
+Replaces the separate analysis module + synthesize steps.
+
+**Eval results** (100-session golden dataset, run before promoting):
+- Classification accuracy: **100%** · LLM judge score: **85.56%** (up from 83%)
+
+---
+
+### 5b. Legacy Full Pipeline (`_legacy_analysis_graph`) — Reference / Rollback
+
 ```
   Session + Query
         │
@@ -287,6 +339,12 @@
   │  • Confidence score (0.0–1.0)                │
   │                                              │
   │  Traced to Langfuse for self-analysis        │
+  │                                              │
+  │  NOTE: In the OPTIMISED graph (analysis_graph│
+  │  singleton), this step is merged into        │
+  │  fast_analyze — synthesize is not called     │
+  │  separately. This box documents the legacy   │
+  │  full pipeline only.                         │
   └──────────────────┬──────────────────────────┘
                      │
                      ▼

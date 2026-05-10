@@ -39,5 +39,8 @@ export function NumberTicker({
     }),
   [springValue]);
 
-  return <span className={className} ref={ref} />;
+  // Seed the span with the initial formatted value so it shows immediately
+  // even when value = 0 (spring never fires a change event in that case).
+  const initial = Intl.NumberFormat("en-US").format(direction === "down" ? value : 0);
+  return <span className={className} ref={ref}>{initial}</span>;
 }

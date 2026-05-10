@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useElapsedSeconds } from "@/hooks/useElapsedSeconds";
 import { useSearchParams } from "next/navigation";
+import { TraceActions } from "@/components/TraceActions";
 import Link from "next/link";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
 import {
@@ -91,6 +92,12 @@ export default function TracesPage() {
 
   const [selected, setSelected] = useState<SessionSummary | null>(null);
   const [fullSession, setFullSession] = useState<Record<string, unknown> | null>(null);
+
+  // Multi-select + batch analysis
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [batchLimit, setBatchLimit] = useState(10);
+  const [batchIsUnlimited, setBatchIsUnlimited] = useState(false);
   const [filterTypes, setFilterTypes] = useState<string[]>(
     initialType && allowedTypes.slice(1).includes(initialType) ? [initialType] : []
   );
@@ -130,6 +137,14 @@ export default function TracesPage() {
   const [activeTab, setActiveTab] = useState<"context" | "diagnosis" | "retrieval" | "llm_calls" | "tool_calls" | "findings">("context");
 
   useEffect(() => {
+    // Load batch limit for this user
+    import("@/lib/api").then(({ fetchBatchLimit }) =>
+      fetchBatchLimit().then(r => {
+        setBatchLimit(r.limit);
+        setBatchIsUnlimited(r.unlimited);
+      }).catch(() => {})
+    );
+
     fetchAllSessions(PAGE_SIZE, 0)
       .then((data) => { setSessions(data); setHasMore(data.length === PAGE_SIZE); })
       .catch((e) => setSessionsError(e.message))
@@ -188,27 +203,65 @@ export default function TracesPage() {
     setReport(null);
     setAnalysisError(null);
     setAnalysisDuration(null);
-    setAnalysisLoading(true);
     setAnalysisRefreshing(false);
     setActiveTab("context");
-    analysisStartRef.current = Date.now();
+    // Fetch session data only — no auto-analysis
     try {
       const data = await fetchSession(s.session_id);
-      if (data) {
-        setFullSession(data as Record<string, unknown>);
-        setReport(await analyzeSession(data, false));
-      }
+      if (data) setFullSession(data as Record<string, unknown>);
+    } catch { /* non-fatal */ }
+  };
+
+  const handleAnalyze = async () => {
+    if (!selected || !fullSession) return;
+    setReport(null);
+    setAnalysisError(null);
+    setAnalysisDuration(null);
+    setAnalysisLoading(true);
+    setAnalysisRefreshing(false);
+    analysisStartRef.current = Date.now();
+    try {
+      setReport(await analyzeSession(fullSession, false));
     } catch (e) {
       setAnalysisError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
       const dur = Math.floor((Date.now() - analysisStartRef.current) / 1000);
       setAnalysisDuration(dur);
-      if (s.session_id && dur > 0) {
-        setSessionDurations(prev => ({ ...prev, [s.session_id]: dur }));
-      }
+      if (selected.session_id && dur > 0)
+        setSessionDurations(prev => ({ ...prev, [selected.session_id]: dur }));
       setAnalysisLoading(false);
       refreshLeftPanel();
     }
+  };
+
+  const handleBatchAnalyze = async () => {
+    const ids = Array.from(checkedIds);
+    if (ids.length === 0) return;
+    setBatchProgress({ current: 0, total: ids.length });
+    for (let i = 0; i < ids.length; i++) {
+      setBatchProgress({ current: i + 1, total: ids.length });
+      try {
+        const data = await fetchSession(ids[i]);
+        if (data) await analyzeSession(data, false);
+      } catch { /* continue */ }
+    }
+    setBatchProgress(null);
+    setCheckedIds(new Set());
+    refreshLeftPanel();
+  };
+
+  const toggleCheck = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); }
+      else {
+        const cap = batchIsUnlimited ? Infinity : batchLimit;
+        if (next.size >= cap) return prev; // at limit
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const handleRerun = async () => {
@@ -266,16 +319,21 @@ export default function TracesPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-          <div className="p-2 bg-primary/10 text-primary rounded-xl border border-primary/20">
-            <Eye className="size-6" />
-          </div>
-          Trace Explorer
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Global archive of all agent sessions. Filter, search, and deep-dive into the historical record.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+            <div className="p-2 bg-primary/10 text-primary rounded-xl border border-primary/20">
+              <Eye className="size-6" />
+            </div>
+            Trace Explorer
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Global archive of all agent sessions. Filter, search, and deep-dive into the historical record.
+          </p>
+        </div>
+        <div className="shrink-0 pt-1">
+          <TraceActions onPullComplete={refreshLeftPanel} />
+        </div>
       </div>
 
       {pinnedIds && (
@@ -423,6 +481,30 @@ export default function TracesPage() {
             )}
           </div>
 
+          {/* Batch analyze bar */}
+          {checkedIds.size > 0 && (
+            <div className="px-2 py-2 border-b border-border/50 bg-primary/5 flex items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-primary flex-1">
+                {checkedIds.size} selected
+                {!batchIsUnlimited && ` (max ${batchLimit})`}
+              </span>
+              {batchProgress ? (
+                <span className="text-xs text-muted-foreground">
+                  Analyzing {batchProgress.current}/{batchProgress.total}…
+                </span>
+              ) : (
+                <button onClick={handleBatchAnalyze}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+                  Analyze Selected
+                </button>
+              )}
+              <button onClick={() => setCheckedIds(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Clear
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 overflow-auto p-2 space-y-1">
             {loadingSessions ? (
               <div className="flex items-center justify-center h-32 text-muted-foreground">
@@ -438,9 +520,22 @@ export default function TracesPage() {
               <FadeInStagger key={sessions.length} className="flex flex-col gap-1">
                 {filtered.map((s) => (
                   <FadeInItem key={s.session_id}>
+                    <div className="flex items-start gap-1.5">
+                      {/* Checkbox */}
+                      <button
+                        onClick={e => toggleCheck(s.session_id, e)}
+                        className={`mt-2.5 shrink-0 size-4 rounded border flex items-center justify-center transition-colors ${
+                          checkedIds.has(s.session_id)
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-border/60 hover:border-primary/50"
+                        } ${!checkedIds.has(s.session_id) && !batchIsUnlimited && checkedIds.size >= batchLimit ? "opacity-30 cursor-not-allowed" : ""}`}
+                        title={checkedIds.has(s.session_id) ? "Deselect" : "Select for batch analysis"}
+                      >
+                        {checkedIds.has(s.session_id) && <span className="text-[8px] font-bold">✓</span>}
+                      </button>
                     <button
                       onClick={() => handleSelect(s)}
-                      className={`group w-full text-left p-2.5 rounded-md border transition-all duration-200 ${
+                      className={`group flex-1 text-left p-2.5 rounded-md border transition-all duration-200 ${
                         selected?.session_id === s.session_id
                           ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
                           : "border-transparent hover:border-border hover:bg-muted/40"
@@ -483,6 +578,7 @@ export default function TracesPage() {
                         </div>
                       </div>
                     </button>
+                    </div>
                   </FadeInItem>
                 ))}
               </FadeInStagger>
@@ -552,12 +648,13 @@ export default function TracesPage() {
                     ))}
                   </div>
                   <button
-                    onClick={handleRerun} disabled={analysisLoading}
+                    onClick={report ? handleRerun : handleAnalyze}
+                    disabled={analysisLoading || !fullSession}
                     className="shrink-0 mr-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
                     {analysisLoading
                       ? <><Loader2 className="size-3 animate-spin" /><span>Analyzing… <span className="tabular-nums font-mono">{analysisElapsed}s</span></span></>
-                      : report ? "Re-run" : "Run Analysis"}
+                      : report ? "Re-run" : "Analyze"}
                   </button>
                 </div>
 

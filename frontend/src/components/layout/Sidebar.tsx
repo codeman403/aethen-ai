@@ -4,19 +4,25 @@ import Link from "next/link";
 import { AethenLogo } from "@/components/ui/logo";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import type { UserProfile } from "@/app/(dashboard)/layout";
 import {
   LayoutDashboard,
   Bot,
   ShieldCheck,
   Eye,
   MessageSquare,
-  ChevronsUpDown,
   BrainCircuit,
-  Plug,
   TrendingUp,
   Network,
   Timer,
   Lightbulb,
+  UserCircle,
+  KeyRound,
+  BarChart3,
+  ShieldAlert,
+  Webhook,
+  BookOpen,
+  Mail,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -53,13 +59,19 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { label: "Data Quality",        href: "/data-quality",          icon: ShieldCheck  },
-      { label: "LLM Configuration",   href: "/settings",              icon: BrainCircuit },
-      { label: "Integrations",        href: "/settings/integrations", icon: Plug         },
+      { label: "Docs",                  href: "/docs",                  icon: BookOpen     },
+      { label: "Usage",                href: "/settings/usage",        icon: BarChart3    },
+      { label: "Integrations",        href: "/settings/integrations", icon: BrainCircuit },
+      { label: "Webhooks",            href: "/settings/webhooks",     icon: Webhook      },
+      { label: "Digest",              href: "/settings/digest",       icon: Mail         },
+      { label: "API Key",             href: "/settings/api-key",      icon: KeyRound     },
+      { label: "Profile",             href: "/settings/profile",      icon: UserCircle   },
     ],
   },
 ];
 
-export function Sidebar() {
+
+export function Sidebar({ userProfile }: { userProfile: UserProfile }) {
   const pathname = usePathname();
 
   return (
@@ -71,6 +83,14 @@ export function Sidebar() {
         </Link>
       </div>
 
+      {userProfile.orgName && (
+        <div className="px-6 py-2 border-b border-border/30 bg-muted/20">
+          <p className="text-xs text-muted-foreground truncate">
+            <span className="text-foreground/60 font-medium">{userProfile.orgName}</span>
+          </p>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto py-4 px-3 space-y-4">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
@@ -79,9 +99,7 @@ export function Sidebar() {
             </p>
             <nav className="flex flex-col gap-0.5">
               {group.items.map((item) => {
-                const isActive = item.href === "/settings"
-                  ? pathname === "/settings" || pathname === "/settings/"
-                  : pathname === item.href || pathname.startsWith(item.href + "/") || pathname.startsWith(item.href + "?");
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/") || pathname.startsWith(item.href + "?");
                 const Icon = item.icon;
                 return (
                   <Link
@@ -102,20 +120,38 @@ export function Sidebar() {
             </nav>
           </div>
         ))}
+
+        {/* Admin section — only visible to admin users */}
+        {userProfile.isAdmin && (
+          <div>
+            <p className="text-[10px] font-semibold text-amber-500/80 uppercase tracking-wider mb-1.5 px-2">
+              Admin
+            </p>
+            <nav className="flex flex-col gap-0.5">
+              {[{ label: "Admin Panel", href: "/admin", icon: ShieldAlert }].map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
+                      isActive
+                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    )}
+                  >
+                    <Icon className={cn("size-4 shrink-0", isActive ? "text-amber-500" : "text-muted-foreground/60")} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        )}
       </div>
 
-      <div className="p-3 border-t border-border/50 mt-auto bg-muted/20">
-        <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-200 cursor-pointer hover:bg-accent">
-          <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs border border-primary/20">
-            US
-          </div>
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <span className="text-sm font-medium truncate">System Admin</span>
-            <span className="text-xs text-muted-foreground truncate">admin@aethen.ai</span>
-          </div>
-          <ChevronsUpDown className="size-3.5 text-muted-foreground/50 ml-auto" />
-        </div>
-      </div>
     </aside>
   );
 }

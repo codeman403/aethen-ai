@@ -38,6 +38,10 @@ class AgentState(TypedDict, total=False):
     # Analysis (populated by the analysis module)
     analysis: str
 
+    # Pipeline control
+    early_exit: bool   # True when classify finds no failure pattern — skips retrieval/analysis
+    skip_graph: bool   # True to skip Neo4j graph_traverse (saves ~3s when no cross-session data)
+
     # Final output
     report: dict[str, Any]  # serialized AnalysisReport
 

@@ -26,6 +26,7 @@ import {
   Trash2,
   Search,
   Sparkles,
+  X,
 } from "lucide-react";
 import {
   sendFreeformQuery,
@@ -38,6 +39,7 @@ import {
   createChatSession,
   listChatSessions,
   loadChatSession,
+  deleteChatSession,
   appendChatMessage,
   renameChatSession,
   fetchModelSettings,
@@ -225,6 +227,15 @@ function AnalysisCard({ report }: { report: AnalysisReport }) {
 
 // ── Suggested Query Definitions ────────────────────────────────────────────
 
+// Static label map so the model selector shows the right name before the API responds
+const MODEL_LABEL: Record<string, string> = {
+  "gpt-4o-mini":              "GPT-4o Mini",
+  "gpt-4o":                   "GPT-4o",
+  "claude-sonnet-4-6":        "Claude Sonnet 4.6",
+  "claude-opus-4-7":          "Claude Opus 4.7",
+  "claude-haiku-4-5-20251001":"Claude Haiku 4.5",
+};
+
 const SUGGESTED_QUERIES = [
   {
     icon: BrainCircuit,
@@ -286,7 +297,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-4-6");
+  const CHAT_MODEL_KEY = "aethen_chat_model";
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
@@ -326,15 +338,28 @@ export default function ChatPage() {
 
   // Load session list on mount
   useEffect(() => {
+    // Restore persisted model preference (runs client-only — safe for SSR)
+    const saved = localStorage.getItem(CHAT_MODEL_KEY);
+    if (saved) setSelectedModel(saved);
+
     listChatSessions()
       .then(setSessions)
       .catch(() => {/* graceful — Postgres may not be running locally */})
       .finally(() => setLoadingSessions(false));
+
     fetchModelSettings().then((data) => {
       const synthesisRole = data.roles.find((r) => r.role === "synthesis");
       if (synthesisRole) {
         setModelOptions(synthesisRole.options);
-        setSelectedModel(synthesisRole.current_model);
+        // Only use backend default if user has no stored preference
+        if (!localStorage.getItem(CHAT_MODEL_KEY)) {
+          setSelectedModel(synthesisRole.current_model);
+          localStorage.setItem(CHAT_MODEL_KEY, synthesisRole.current_model);
+        }
+      }
+      // If no providers available, clear model options to show the no-LLM message
+      if ((data.available_providers ?? []).length === 0) {
+        setModelOptions([]);
       }
     }).catch(() => {});
   }, []);
@@ -500,8 +525,9 @@ export default function ChatPage() {
       const latency_ms = Math.round(Date.now() - t0);
       setLastReport(report);
        
-      const analysisEntry: ChatEntry = {  
-        id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms };
+      const analysisEntry: ChatEntry = {
+        id: crypto.randomUUID(), kind: "analysis", content: report.summary ?? "", report, latency_ms,
+      };
       addEntry(analysisEntry);
       saveMessage(chatSessionId, analysisEntry);
       refreshSessionList();
@@ -537,6 +563,17 @@ export default function ChatPage() {
     setLastReport(null);
     setCurrentSessionId(null);
     isFirstMessageRef.current = true;
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    try {
+      await deleteChatSession(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (currentSessionId === sessionId) handleClearChat();
+    } catch {
+      // silently ignore
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -575,18 +612,10 @@ export default function ChatPage() {
         {/* Header */}
         <div className="px-3 py-3 border-b bg-muted/10 flex items-center justify-between">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
-          <div className="flex items-center gap-1">
-            {messages.length > 0 && (
-              <button onClick={handleClearChat} title="Clear current chat"
-                className="size-6 rounded-xl flex items-center justify-center hover:bg-rose-500/10 transition-colors text-muted-foreground hover:text-rose-500">
-                <Trash2 className="size-3.5" />
-              </button>
-            )}
-            <button onClick={handleNewChat} title="New chat"
-              className="size-6 rounded-xl flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Plus className="size-3.5" />
-            </button>
-          </div>
+          <button onClick={handleNewChat} title="New chat"
+            className="size-6 rounded-xl flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <Plus className="size-3.5" />
+          </button>
         </div>
 
         {/* Search */}
@@ -619,33 +648,42 @@ export default function ChatPage() {
           <FadeInStagger key={sessions.length} className="flex flex-col gap-1">
             {filtered.map((s) => (
               <FadeInItem key={s.id}>
-                <button
-                  onClick={() => handleSelectSession(s.id)}
-                  className={`group w-full text-left p-2.5 rounded-md border transition-all duration-150 ${
-                    s.id === currentSessionId
-                      ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-                      : "border-transparent hover:border-border hover:bg-muted/40"
-                  }`}
-                >
-                  {/* Row 1 — title */}
-                  <p className={`text-[11px] font-medium truncate leading-tight mb-1 ${
-                    s.id === currentSessionId ? "text-primary" : "text-foreground"
-                  }`}>
-                    {s.title}
-                  </p>
-                  {/* Row 2 — message count · relative time */}
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <MessageSquare className="size-2.5" />
-                      <span>{s.message_count} msg{s.message_count !== 1 ? "s" : ""}</span>
+                <div className={`group relative rounded-md border transition-all duration-150 ${
+                  s.id === currentSessionId
+                    ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                    : "border-transparent hover:border-border hover:bg-muted/40"
+                }`}>
+                  <button
+                    onClick={() => handleSelectSession(s.id)}
+                    className="w-full text-left p-2.5 pr-7"
+                  >
+                    {/* Row 1 — title */}
+                    <p className={`text-[11px] font-medium truncate leading-tight mb-1 ${
+                      s.id === currentSessionId ? "text-primary" : "text-foreground"
+                    }`}>
+                      {s.title}
+                    </p>
+                    {/* Row 2 — message count · relative time */}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <MessageSquare className="size-2.5" />
+                        <span>{s.message_count} msg{s.message_count !== 1 ? "s" : ""}</span>
+                      </div>
+                      {(s.updated_at || s.created_at) && (
+                        <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">
+                          {formatRelativeTime(s.updated_at ?? s.created_at)}
+                        </span>
+                      )}
                     </div>
-                    {(s.updated_at || s.created_at) && (
-                      <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">
-                        {formatRelativeTime(s.updated_at ?? s.created_at)}
-                      </span>
-                    )}
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteSession(e, s.id)}
+                    title="Delete session"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 size-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-500 text-muted-foreground transition-all"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
               </FadeInItem>
             ))}
           </FadeInStagger>
@@ -823,6 +861,28 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
+        {/* Sample questions — shown only when chat is empty */}
+        {messages.length === 0 && !isLoading && (
+          <div className="px-4 pt-3 pb-2 flex flex-wrap gap-2">
+            {[
+              "How many sessions failed this week?",
+              "Which agent has the most failures?",
+              "Show recent memory retrieval failures",
+              "What's the most common failure type?",
+              "Which tools are failing most often?",
+              "Show hallucinations from the last 7 days",
+            ].map((q) => (
+              <button
+                key={q}
+                onClick={() => sendFreeform(q)}
+                className="text-xs px-3 py-1.5 rounded-xl border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground hover:border-border transition-all duration-150"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Input */}
         <div className="px-4 pb-4 pt-2 border-t bg-muted/5">
           <div className="flex items-end gap-2 rounded-2xl border bg-background px-3 py-2 focus-within:ring-1 focus-within:ring-primary/40">
@@ -848,6 +908,15 @@ export default function ChatPage() {
               )}
             </button>
           </div>
+          {modelOptions.length === 0 && (
+            <div className="mx-4 mb-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-3 py-2 flex items-center gap-2">
+              <AlertCircle className="size-3.5 text-amber-500 shrink-0" />
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                No LLM configured.{" "}
+                <a href="/settings/integrations" className="underline font-medium">Add API keys in Integrations → LLM Keys</a> to use Chat Debug.
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between mt-1.5 px-1">
             <p className="text-[10px] text-muted-foreground">
               AI-generated analysis. Verify before acting on any diagnosis.
@@ -855,10 +924,11 @@ export default function ChatPage() {
             <div className="relative" ref={modelDropdownRef}>
               <button
                 onClick={() => setModelOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border bg-background hover:bg-muted/50 transition-colors text-xs font-medium"
+                disabled={modelOptions.length === 0}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border bg-background hover:bg-muted/50 transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Cpu className="size-3 text-muted-foreground" />
-                <span className="max-w-[120px] truncate">{modelOptions.find(o => o.id === selectedModel)?.label ?? selectedModel}</span>
+                <span className="max-w-[120px] truncate">{modelOptions.find(o => o.id === selectedModel)?.label ?? MODEL_LABEL[selectedModel] ?? selectedModel}</span>
                 <ChevronDown className={`size-3 text-muted-foreground transition-transform ${modelOpen ? "rotate-180" : ""}`} />
               </button>
               {modelOpen && modelOptions.length > 0 && (
@@ -877,7 +947,7 @@ export default function ChatPage() {
                         </div>
                         {provModels.map((opt) => (
                           <button key={opt.id}
-                            onClick={() => { setSelectedModel(opt.id); setModelOpen(false); }}
+                            onClick={() => { setSelectedModel(opt.id); localStorage.setItem(CHAT_MODEL_KEY, opt.id); setModelOpen(false); }}
                             className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/50 transition-colors border-b last:border-0 ${opt.id === selectedModel ? "bg-primary/5" : ""}`}
                           >
                             <div className="flex-1 min-w-0">
@@ -897,44 +967,6 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* ── Right: Suggested Queries + Evidence ───────────────────────── */}
-      <div className="w-72 flex-shrink-0 flex flex-col gap-4">
-        {/* Structured Analysis shortcuts */}
-        <div className="rounded-2xl border border-border/50 bg-card hover:border-primary/20 transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-          <div className="px-4 py-3 border-b bg-muted/10">
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-primary" />
-              <h3 className="font-semibold tracking-tight text-sm">Structured Analysis</h3>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              One click → full LangGraph pipeline on a synthetic trace
-            </p>
-          </div>
-          <div className="p-3 space-y-2">
-            {SUGGESTED_QUERIES.map((q) => {
-              const Icon = q.icon;
-              return (
-                <button
-                  key={q.failureType}
-                  onClick={() => !isLoading && runSuggestedQuery(q)}
-                  disabled={isLoading}
-                  className={`w-full text-left rounded-2xl border p-3 transition-all ${q.bg} disabled:opacity-50`}
-                >
-                  <div className="flex items-start gap-2">
-                    <Icon className={`size-4 flex-shrink-0 mt-0.5 ${q.color}`} />
-                    <div>
-                      <p className={`text-sm font-semibold ${q.color}`}>{q.title}</p>
-                      <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
-                        {q.description}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
 
       </div>{/* end flex row */}
     </div>

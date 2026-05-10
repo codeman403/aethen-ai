@@ -974,6 +974,86 @@ the Langfuse handler and LangGraph invocation. Returns a static `AnalysisReport`
 
 ---
 
+---
+
+## Sessions 28+ — SaaS Transformation & Performance Optimisation
+
+### SaaS Auth System (Session 28)
+- **Supabase Auth**: email/password + Google + GitHub OAuth
+- **Multi-tenant**: `organizations` + `profiles` tables; `org_id` FK on all data; RLS; trigger auto-creates org+profile on signup
+- **JWT middleware**: Supabase auth API verification, 60s token cache, replaces global API key
+- **Admin user**: `ADMIN_EMAILS` env var — bypasses org scoping, sees all data including `org_id=NULL` legacy rows
+- **Public Demo Agent**: `/demo-agent` public route; 10-message limit; no Postgres writes for unauthenticated users
+- **Session timeout modal**: 15-minute inactivity warning with countdown
+
+### LLM API Keys Per Org (Session 28)
+- `POST/GET/DELETE /api/settings/llm-keys` — Fernet-encrypted per-org OpenAI/Anthropic keys
+- `contextvars.ContextVar` (`_org_llm_ctx`) threads org credentials through LangGraph without changing node signatures
+- Model availability gated: `GET /api/settings/models` filters to providers with configured keys (env var fallback for admin only)
+
+### LangGraph Pipeline Optimisation — CRITICAL DECISION (Session 28)
+
+**Problem**: Analysis pipeline took 22-30s.
+
+**Root cause**:
+
+| Step | Time | Issue |
+|------|------|-------|
+| classify_intent | ~2s | Sequential — blocking retrieval start |
+| vector_retrieve + graph_traverse | ~3s | Parallel with each other, not with classify |
+| rerank (Cohere) | ~1s | — |
+| analysis module LLM | ~8s | Full prompt per failure type |
+| synthesize LLM | ~8s | Second full round-trip |
+| **Total** | **~22s** | |
+
+**Solution** — three independent changes, all validated by evals before promoting:
+
+1. **Parallel classify + retrieve** — `parallel_start` entry node fans out to `classify_intent`, `vector_retrieve`, `graph_traverse` simultaneously → saves ~2s
+2. **`skip_graph` flag** — `AgentState["skip_graph"] = True` short-circuits `graph_traverse` → saves ~3s when no cross-session Neo4j history
+3. **`fast_analyze` node** (`app/agents/nodes/fast_analyze.py`) — merges analysis module + synthesize into one LLM call → saves ~8-12s
+
+**Optimised timings**:
+
+| Step | Time |
+|------|------|
+| parallel: classify + vector + graph | ~3s |
+| fast_analyze | ~6-8s |
+| **Total** | **~9-12s** |
+
+**Two compiled graph singletons**:
+- `analysis_graph` = `build_optimized_analysis_graph()` — default for all production paths
+- `fast_analysis_graph` = `build_fast_analysis_graph()` — Demo Agent only (classify → vector → fast_analyze, no Cohere)
+- `_legacy_analysis_graph` = `build_analysis_graph()` — original pipeline, kept for rollback
+
+**Eval validation** (ran before promoting):
+- Classification accuracy: **100%** (unchanged)
+- LLM judge score: **85.56%** (up from 83% — combined prompt more precise)
+- Decision: **PROMOTED** ✓
+
+**Key lesson**: Splitting analyze→synthesize added latency without quality gains. A single combined prompt is faster AND scores higher — the judge rewards concise, evidence-grounded root causes.
+
+### Rule-Based Confidence Scorer (Session 28) — CRITICAL DECISION
+
+**Problem**: `AnalysisReport.confidence` was LLM self-reported. LLMs are poorly calibrated, non-deterministic, and produce uncalibrated noise. Same session could return 0.72 then 0.91 on re-run.
+
+**Solution**: `app/agents/nodes/confidence.py` — `compute_confidence(session, failure_type, llm_confidence)`.
+
+- **Deterministic base score** — measurable trace signals with explicit weights (see signal table in `aethen_internal_flow.md` Part 6)
+- **LLM adjustment** — `(llm_score − 0.5) × 0.15` → max ±0.075 secondary only
+- **Final** — `clamp(base + adj, 0.05, 0.95)`
+- **4 bugs fixed**: actual_doc_ids=[] was silent; partial overlap treated same as full miss; hallucination count not proportional; SUCCESS-status timeout was ignored
+- **Tests**: 40 unit tests — determinism, clamping, ordering guarantees
+- **Eval**: 100% accuracy · 84.44% judge · PASSED
+
+**Remaining gap**: Weights are heuristics, not learned. True production requires labeled outcomes → calibrated logistic regression → Platt scaling → feedback loop.
+
+### Async Backfill Endpoint (Session 28)
+- `POST /api/backfill` — background job for bulk historical import (handles 100K+ traces)
+- Processes 200 traces/chunk, skips LangGraph analysis (store raw → diagnose on demand)
+- `GET /api/backfill/{job_id}` polls progress; `DELETE` cancels; jobs expire after 2 hours
+
+---
+
 ## Decisions Still Open / To Monitor
 
 | Decision | Status | Notes |
@@ -1003,3 +1083,14 @@ the Langfuse handler and LangGraph invocation. Returns a static `AnalysisReport`
 7. **Update this document** whenever a significant decision is made.
 
 8. **`_infer_failure_type` in `langfuse_provider.py` is intentionally kept** as a display pre-label and `retrieve.py` fallback. It is NOT authoritative — `classify_intent` always overwrites it during analysis. Do not remove it without also fixing `retrieve.py:76`.
+
+9. **Aethen reads traces, not the agent's KB — this is the fundamental epistemic constraint.** Classification is structural inference, not domain verification:
+   - Tool misfire: unambiguous (explicit status + error message)
+   - Blind spot: near-certain (chunks_returned=0)
+   - Memory: accurate when `expected_doc_ids` is populated; heuristic (score threshold) when not
+   - Hallucination: surface comparison of LLM output vs retrieved `doc_content` — false positives expected when LLM uses correct training knowledge not in retrieved docs
+   - Score threshold of 0.5 is universal — not calibrated per agent domain
+   
+   **`expected_doc_ids` is the highest-value instrumentation an agent team can provide.** It converts memory classification from score-based inference (confidence ~0.30) to doc ID mismatch confirmation (confidence ~0.58). Agent integration guides should make this explicit.
+
+10. **"Signal amplifier" is the correct framing.** Aethen surfaces patterns that warrant investigation — it does not render authoritative verdicts on domain correctness. Findings with confidence < 0.5 mean "investigate this" not "this is definitively broken."

@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Plug, Plus, Trash2, Zap, CheckCircle2, XCircle, Loader2, RefreshCw,
-  KeyRound, Copy, RotateCcw, ShieldAlert, Link2, Bot, Code2,
+  KeyRound, Copy, RotateCcw, ShieldAlert, Link2, Bot, Code2, AlertTriangle, Info,
 } from "lucide-react";
+
+// LLM Configuration — model selection panel (from /settings page)
+const ModelSettingsPanel = dynamic(
+  () => import("@/app/(dashboard)/settings/page"),
+  { loading: () => <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center"><Loader2 className="size-4 animate-spin" />Loading model settings…</div> }
+);
 import {
   fetchSources, addSource, removeSource, testSource, fetchAgentProfiles,
   getApiKeyStatus, generateApiKey, revokeApiKey,
@@ -466,6 +473,415 @@ function ApiKeyCard() {
   );
 }
 
+// ── LLM Keys Panel ────────────────────────────────────────────────────────────
+
+const LLM_PROVIDER_META = {
+  openai:    { label: "OpenAI",    color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", placeholder: "sk-proj-..." },
+  anthropic: { label: "Anthropic", color: "text-violet-600 dark:text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-500/20",  placeholder: "sk-ant-..."  },
+} as const;
+
+async function llmApiFetch(path: string, options?: RequestInit) {
+  const token = (await (await import("@/lib/supabase/client")).createClient().auth.getSession()).data.session?.access_token ?? "";
+  return fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options?.headers ?? {}) },
+  });
+}
+
+function _UNUSED_LLMProviderCard({ provider, hasKey, savedBaseUrl, onSaved, onDeleted }: {
+  provider: "openai" | "anthropic";
+  hasKey: boolean;
+  savedBaseUrl: string;
+  onSaved: (provider: string, baseUrl: string) => void;
+  onDeleted: (provider: string) => void;
+}) {
+  const meta = LLM_PROVIDER_META[provider];
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState(savedBaseUrl);
+  const [connType, setConnType] = useState<"direct" | "proxy">(savedBaseUrl ? "proxy" : "direct");
+  const [testing, setTesting]   = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleTest = async () => {
+    if (!apiKey.trim()) { setErr("Enter an API key first."); return; }
+    setTesting(true); setTestResult(null); setErr(null);
+    try {
+      const res = await llmApiFetch(`/api/settings/llm-keys/${provider}/test`, {
+        method: "POST", body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
+      });
+      const body = await res.json();
+      setTestResult(body.data);
+    } catch { setErr("Request failed."); }
+    finally { setTesting(false); }
+  };
+
+  const handleSave = async () => {
+    if (!apiKey.trim()) { setErr("Enter an API key first."); return; }
+    setSaving(true); setErr(null);
+    try {
+      const res = await llmApiFetch("/api/settings/llm-keys", {
+        method: "POST", body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error ?? "Save failed");
+      setApiKey(""); setTestResult(null);
+      onSaved(provider, baseUrl);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Save failed"); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true); setErr(null);
+    try {
+      const res = await llmApiFetch(`/api/settings/llm-keys/${provider}`, { method: "DELETE" });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error ?? "Delete failed");
+      setBaseUrl(""); setTestResult(null); onDeleted(provider);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Delete failed"); }
+    finally { setDeleting(false); }
+  };
+
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
+
+  return (
+    <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+      <div className={`px-5 py-3 border-b flex items-center justify-between ${meta.bg}`} style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2">
+          <KeyRound className={`size-4 ${meta.color}`} />
+          <span className={`font-semibold text-sm ${meta.color}`}>{meta.label}</span>
+        </div>
+        {hasKey
+          ? <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full"><CheckCircle2 className="size-3" /> Configured</span>
+          : <span className="text-[11px] text-muted-foreground bg-muted border border-border/50 px-2 py-0.5 rounded-full">Using system default</span>}
+      </div>
+      <div className="p-5 space-y-4">
+        {/* Connection type */}
+        <div>
+          <label className="block text-sm font-medium mb-2">Connection Type</label>
+          <div className="flex gap-2">
+            {([
+              { key: "direct", label: "Direct API Key" },
+              { key: "proxy",  label: "Custom Endpoint / Proxy" },
+            ] as const).map(opt => (
+              <button key={opt.key} onClick={() => { setConnType(opt.key); if (opt.key === "direct") setBaseUrl(""); }}
+                className={`flex-1 py-2 px-3 rounded-xl border text-xs font-medium transition-colors ${
+                  connType === opt.key ? "bg-primary/10 border-primary/40 text-primary" : "bg-card border-border text-muted-foreground hover:border-border/80"
+                }`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {connType === "direct" && (
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Uses the official{" "}
+              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{provider === "openai" ? "api.openai.com" : "api.anthropic.com"}</code>{" "}
+              endpoint. Enter your API key from the {meta.label} dashboard.
+            </p>
+          )}
+          {connType === "proxy" && (
+            <div className="mt-1.5 space-y-1">
+              <p className="text-xs text-muted-foreground">
+                Route through a custom endpoint or any {meta.label}-compatible proxy.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">API Key {hasKey && <span className="text-xs text-muted-foreground font-normal ml-1">(leave blank to keep existing)</span>}</label>
+          <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); setTestResult(null); setErr(null); }}
+            placeholder={hasKey ? "•••••••• (stored)" : meta.placeholder} className={inp} autoComplete="new-password" />
+          <p className="text-xs text-muted-foreground mt-1">Encrypted before storage — never returned in responses.</p>
+        </div>
+
+        {connType === "proxy" && (
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Base URL</label>
+            <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
+              placeholder="https://your-proxy.example.com/v1" className={inp} />
+          </div>
+        )}
+        {testResult && (
+          <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm border ${testResult.ok ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/8 border-emerald-500/20" : "text-destructive bg-destructive/10 border-destructive/20"}`}>
+            {testResult.ok ? <CheckCircle2 className="size-4 shrink-0 mt-0.5" /> : <XCircle className="size-4 shrink-0 mt-0.5" />}
+            {testResult.message}
+          </div>
+        )}
+        {err && <p className="text-sm text-destructive flex items-center gap-1.5"><AlertTriangle className="size-3.5" />{err}</p>}
+        <div className="flex items-center gap-2 pt-1">
+          <button onClick={handleTest} disabled={testing || !apiKey.trim()} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors disabled:opacity-50">
+            {testing && <Loader2 className="size-3.5 animate-spin" />}{testing ? "Testing…" : "Test"}
+          </button>
+          <button onClick={handleSave} disabled={saving || !apiKey.trim()} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+            {saving && <Loader2 className="size-3.5 animate-spin" />}{saving ? "Saving…" : "Save Key"}
+          </button>
+          {hasKey && (
+            <button onClick={handleDelete} disabled={deleting} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors disabled:opacity-50">
+              {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LLMKeysPanel() {
+  const [statuses, setStatuses] = useState<Array<{ provider: string; has_key: boolean; base_url: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [encWarn, setEncWarn] = useState(false);
+
+  // Single-card state
+  const [selectedProvider, setSelectedProvider] = useState<"openai" | "anthropic">("openai");
+  const [connType, setConnType] = useState<"direct" | "proxy">("direct");
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [testing, setTesting]   = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    llmApiFetch("/api/settings/llm-keys").then(async res => {
+      if (res.status === 503) { setEncWarn(true); return; }
+      const body = await res.json();
+      setStatuses(body.data ?? []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  // When user switches provider, sync form to stored values
+  const get = (p: string) => statuses.find(s => s.provider === p);
+  useEffect(() => {
+    const stored = get(selectedProvider);
+    setApiKey("");
+    setBaseUrl(stored?.base_url ?? "");
+    setConnType(stored?.base_url ? "proxy" : "direct");
+    setTestResult(null);
+    setErr(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProvider, statuses]);
+
+  const meta = LLM_PROVIDER_META[selectedProvider];
+  const hasKey = get(selectedProvider)?.has_key ?? false;
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
+
+  const handleTest = async () => {
+    if (!apiKey.trim()) { setErr("Enter an API key first."); return; }
+    setTesting(true); setTestResult(null); setErr(null);
+    try {
+      const res = await llmApiFetch(`/api/settings/llm-keys/${selectedProvider}/test`, {
+        method: "POST", body: JSON.stringify({ provider: selectedProvider, api_key: apiKey, base_url: connType === "proxy" ? baseUrl : "" }),
+      });
+      const body = await res.json(); setTestResult(body.data);
+    } catch { setErr("Request failed."); } finally { setTesting(false); }
+  };
+
+  const handleSave = async () => {
+    if (!apiKey.trim()) { setErr("Enter an API key first."); return; }
+    setSaving(true); setErr(null);
+    try {
+      const res = await llmApiFetch("/api/settings/llm-keys", {
+        method: "POST",
+        body: JSON.stringify({ provider: selectedProvider, api_key: apiKey, base_url: connType === "proxy" ? baseUrl : "" }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error ?? "Save failed");
+      setApiKey(""); setTestResult(null);
+      const saved = { provider: selectedProvider, has_key: true, base_url: connType === "proxy" ? baseUrl : "" };
+      setStatuses(prev => [...prev.filter(s => s.provider !== selectedProvider), saved]);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Save failed"); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true); setErr(null);
+    try {
+      const res = await llmApiFetch(`/api/settings/llm-keys/${selectedProvider}`, { method: "DELETE" });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error ?? "Delete failed");
+      setBaseUrl(""); setTestResult(null);
+      setStatuses(prev => prev.filter(s => s.provider !== selectedProvider));
+    } catch (e) { setErr(e instanceof Error ? e.message : "Delete failed"); } finally { setDeleting(false); }
+  };
+
+  const configuredProviders = statuses.filter(s => s.has_key);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
+        {/* LEFT — form card */}
+        {loading ? (
+          <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center"><Loader2 className="size-4 animate-spin" />Loading…</div>
+        ) : (
+        <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+          {/* Provider selector header */}
+          <div className="px-5 py-3 border-b bg-muted/10 flex items-center justify-between gap-3">
+            <div className="flex gap-2">
+              {(["openai", "anthropic"] as const).map(p => {
+                const m = LLM_PROVIDER_META[p];
+                const configured = get(p)?.has_key;
+                return (
+                  <button key={p} onClick={() => setSelectedProvider(p)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
+                      selectedProvider === p ? `${m.bg} ${m.border} ${m.color}` : "border-transparent text-muted-foreground hover:bg-muted/40"
+                    }`}>
+                    {m.label}
+                    {configured && <CheckCircle2 className="size-3 text-emerald-500" />}
+                  </button>
+                );
+              })}
+            </div>
+            {hasKey && (
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
+                <CheckCircle2 className="size-3" /> Configured
+              </span>
+            )}
+          </div>
+
+          {/* Form body */}
+          <div className="p-5 space-y-4">
+            {/* Connection type */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Connection Type</label>
+              <div className="flex gap-2">
+                {([{ key: "direct", label: "Direct API Key" }, { key: "proxy", label: "Custom Endpoint / Proxy" }] as const).map(opt => (
+                  <button key={opt.key} onClick={() => { setConnType(opt.key); if (opt.key === "direct") setBaseUrl(""); }}
+                    className={`flex-1 py-2 px-3 rounded-xl border text-xs font-medium transition-colors ${
+                      connType === opt.key ? "bg-primary/10 border-primary/40 text-primary" : "bg-card border-border text-muted-foreground hover:border-border/80"
+                    }`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {connType === "direct" && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Uses the official <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{selectedProvider === "openai" ? "api.openai.com" : "api.anthropic.com"}</code> endpoint.
+                </p>
+              )}
+              {connType === "proxy" && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Works with any {meta.label}-compatible proxy.
+                </p>
+              )}
+            </div>
+
+            {/* API Key */}
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                API Key {hasKey && <span className="text-xs text-muted-foreground font-normal ml-1">(leave blank to keep existing)</span>}
+              </label>
+              <input type="password" value={apiKey}
+                onChange={e => { setApiKey(e.target.value); setTestResult(null); setErr(null); }}
+                placeholder={hasKey ? "•••••••• (stored)" : meta.placeholder}
+                className={inp} autoComplete="new-password" />
+              <p className="text-xs text-muted-foreground mt-1">Encrypted before storage — never returned in responses.</p>
+            </div>
+
+            {/* Base URL (proxy only) */}
+            {connType === "proxy" && (
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Base URL</label>
+                <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
+                  placeholder="https://your-proxy.example.com/v1" className={inp} />
+              </div>
+            )}
+
+            {/* Test result */}
+            {testResult && (
+              <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm border ${testResult.ok ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/8 border-emerald-500/20" : "text-destructive bg-destructive/10 border-destructive/20"}`}>
+                {testResult.ok ? <CheckCircle2 className="size-4 shrink-0 mt-0.5" /> : <XCircle className="size-4 shrink-0 mt-0.5" />}
+                {testResult.message}
+              </div>
+            )}
+
+            {err && <p className="text-sm text-destructive flex items-center gap-1.5"><AlertTriangle className="size-3.5" />{err}</p>}
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-1">
+              <button onClick={handleTest} disabled={testing || !apiKey.trim()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors disabled:opacity-50">
+                {testing && <Loader2 className="size-3.5 animate-spin" />}{testing ? "Testing…" : "Test"}
+              </button>
+              <button onClick={handleSave} disabled={saving || !apiKey.trim()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {saving && <Loader2 className="size-3.5 animate-spin" />}{saving ? "Saving…" : "Save Key"}
+              </button>
+              {hasKey && (
+                <button onClick={handleDelete} disabled={deleting}
+                  className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors disabled:opacity-50">
+                  {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* RIGHT — Registered LLM Keys */}
+        <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border/50 bg-muted/10">
+            <h3 className="font-semibold text-base tracking-tight">Registered LLM Keys</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {configuredProviders.length === 0
+                ? "No providers configured yet"
+                : `${configuredProviders.length} provider${configuredProviders.length !== 1 ? "s" : ""} configured`}
+            </p>
+          </div>
+          <div className="divide-y divide-border/50">
+            {loading && (
+              <div className="flex items-center gap-2 text-muted-foreground py-6 justify-center text-sm">
+                <Loader2 className="size-4 animate-spin" /> Loading…
+              </div>
+            )}
+            {!loading && configuredProviders.length === 0 && (
+              <p className="px-6 py-6 text-sm text-muted-foreground">
+                No LLM providers configured yet. Add an API key on the left to enable the analysis pipeline.
+              </p>
+            )}
+            {!loading && configuredProviders.map(s => {
+              const m = LLM_PROVIDER_META[s.provider as keyof typeof LLM_PROVIDER_META];
+              return (
+                <div key={s.provider} className="px-6 py-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`size-8 rounded-xl ${m?.bg ?? "bg-muted"} border ${m?.border ?? "border-border/50"} flex items-center justify-center shrink-0`}>
+                      <CheckCircle2 className="size-4 text-emerald-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold truncate ${m?.color ?? ""}`}>{m?.label ?? s.provider}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {s.base_url ? `Proxy: ${s.base_url}` : "Direct API"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedProvider(s.provider as "openai" | "anthropic")}
+                    className="text-xs text-primary hover:underline shrink-0"
+                  >
+                    Edit
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {encWarn && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 px-5 py-4 flex items-start gap-3">
+          <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-amber-600 dark:text-amber-400">Credential encryption not configured. </span>
+            Set <code className="text-xs bg-muted px-1 py-0.5 rounded">CREDENTIAL_ENCRYPTION_KEY</code> in your backend env to enable secure key storage.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
@@ -504,7 +920,7 @@ export default function IntegrationsPage() {
 
   const SUB_TABS = [
     { key: "sources",    label: "Sources",          icon: Link2    },
-    { key: "apikey",     label: "API Key",           icon: KeyRound },
+    { key: "llmkeys",    label: "LLM Configuration", icon: KeyRound },
     { key: "agents",     label: "Connected Agents",  icon: Bot      },
     { key: "quickstart", label: "Quickstart",        icon: Code2    },
   ] as const;
@@ -631,7 +1047,16 @@ export default function IntegrationsPage() {
         </div>
       )}
 
-      {activeTab === "apikey" && <ApiKeyCard />}
+      {activeTab === "llmkeys" && (
+        <div className="space-y-8">
+          {/* LLM API Keys — configure provider keys */}
+          <LLMKeysPanel />
+          {/* Model selection — hide the standalone page header (context already provided by tab) */}
+          <div className="[&>div>div:first-child]:hidden [&>div]:!space-y-0 [&_h2]:!text-xl [&_h2]:!font-bold [&_p.text-muted-foreground.text-base]:hidden">
+            <ModelSettingsPanel />
+          </div>
+        </div>
+      )}
 
       {activeTab === "agents" && (
         <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">

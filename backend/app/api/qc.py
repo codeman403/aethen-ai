@@ -11,7 +11,8 @@ from collections import Counter
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter
+from app.utils.request_context import get_data_org_id
+from fastapi import APIRouter, Request  # noqa: F401 — Request used in quality_check
 from pydantic import BaseModel, Field
 
 from app import store
@@ -42,14 +43,28 @@ class QCReport(BaseModel):
 
 
 @router.post("/qc", response_model=ApiResponse[QCReport])
-async def quality_check(request: QCRequest) -> ApiResponse[QCReport]:
+async def quality_check(request: QCRequest, http_request: Request) -> ApiResponse[QCReport]:
     """Aggregate analysis results for the given session IDs."""
     request_id = str(uuid.uuid4())
     start = time.perf_counter()
+    org_id = get_data_org_id(http_request)
 
     logger.info("qc_request_received", request_id=request_id, session_count=len(request.session_ids))
 
-    reports = store.get_many(request.session_ids)
+    # Validate each requested session_id belongs to the calling org before
+    # returning cached analysis reports — prevents cross-org disclosure.
+    if org_id:
+        from app.services.postgres_service import postgres_service
+        allowed_ids: list[str] = []
+        for sid in request.session_ids:
+            row = await postgres_service.get_session(sid, org_id=org_id)
+            if row:
+                allowed_ids.append(sid)
+        session_ids = allowed_ids
+    else:
+        session_ids = request.session_ids
+
+    reports = store.get_many(session_ids)
     missing = len(request.session_ids) - len(reports)
 
     failure_dist: Counter[str] = Counter({ft.value: 0 for ft in FailureType if ft != FailureType.UNKNOWN})
@@ -367,13 +382,11 @@ def _check_tool_call_logs(sessions: list[dict]) -> SourceReport:
     return report
 
 
-def _check_user_feedback() -> SourceReport:
+def _check_user_feedback(total_analyzed: int = 0) -> SourceReport:
     """2 checks on user feedback data (framework ready; no feedback collected yet)."""
     report = SourceReport(source="User Feedback")
 
-    analyzed_sessions = store.all_reports()
     sessions_with_feedback = 0  # No feedback store yet — always 0
-    total_analyzed = len(analyzed_sessions)
 
     # ── Check 1: Coverage (% sessions with feedback) ──────────────────────
     coverage_pct = (sessions_with_feedback / max(total_analyzed, 1)) * 100
@@ -422,7 +435,7 @@ def _build_summary_text(sources: list[SourceReport], generated_at: str) -> str:
 
 
 @router.get("/qc/report", response_model=ApiResponse[DataQualityReport])
-async def data_quality_report() -> ApiResponse[DataQualityReport]:
+async def data_quality_report(request: Request) -> ApiResponse[DataQualityReport]:
     """Run the full automated data quality report across all 4 sources.
 
     Checks:
@@ -438,17 +451,33 @@ async def data_quality_report() -> ApiResponse[DataQualityReport]:
     try:
         from app.services.postgres_service import postgres_service
 
-        # Fetch all sessions from Postgres in a single query
-        sessions = await postgres_service.get_all_sessions(limit=500)
+        # Fetch sessions scoped to this org
+        org_id = get_data_org_id(request)
+        sessions = await postgres_service.get_all_sessions(limit=500, org_id=org_id)
+        session_count = len(sessions)
 
-        # _check_vector_db is async (runs Pinecone in executor); others are sync
-        vector_report = await _check_vector_db()
+        # Only run Pinecone/vector checks if org has ingested data — prevents
+        # showing global vector stats to orgs that haven't ingested anything yet.
+        if org_id and session_count == 0:
+            vector_report = SourceReport(source="Vector DB Chunks")
+            vector_report.checks.append(QualityCheck(
+                name="Coverage",
+                status="pass",
+                detail="No sessions ingested yet — vector check will run after first ingest.",
+            ))
+            vector_report.checks.append(QualityCheck(
+                name="Namespace Population",
+                status="pass",
+                detail="No sessions ingested yet.",
+            ))
+        else:
+            vector_report = await _check_vector_db()
 
         sources = [
             _check_agent_traces(sessions).compute_status(),
             vector_report.compute_status(),
             _check_tool_call_logs(sessions).compute_status(),
-            _check_user_feedback().compute_status(),
+            _check_user_feedback(session_count).compute_status(),
         ]
 
         all_statuses = [s.status for s in sources]
