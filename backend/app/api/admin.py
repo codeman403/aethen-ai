@@ -235,7 +235,7 @@ async def platform_stats(request: Request) -> ApiResponse[PlatformStats]:
     if not postgres_service.is_available:
         return ApiResponse(data=PlatformStats(
             total_orgs=0, total_users=0, total_sessions=0,
-            sessions_this_month=0, analysis_this_month=0,
+            unassigned_sessions=0, sessions_this_month=0, analysis_this_month=0,
         ))
     period = postgres_service._current_period()
     async with postgres_service._pool.acquire() as conn:
