@@ -33,24 +33,15 @@ async function getUserProfile(): Promise<UserProfile | null> {
   const orgName =
     (profile?.organizations as { name?: string } | null)?.name ?? null;
 
-  // Fetch is_admin from our backend (set by ADMIN_EMAILS config)
-  let isAdmin = false;
-  try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      const res = await fetch(`${apiUrl}/api/profile`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        next: { revalidate: 60 },
-      });
-      if (res.ok) {
-        const body = await res.json();
-        isAdmin = body?.data?.is_admin === true;
-      }
-    }
-  } catch {
-    // Non-fatal — admin panel will be hidden but app still works
-  }
+  // Admin detection — same logic as backend middleware (ADMIN_EMAILS env var).
+  // Checked server-side only; no network call needed.
+  const adminEmailSet = new Set(
+    (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const isAdmin = adminEmailSet.size > 0 && adminEmailSet.has((user.email ?? "").toLowerCase());
 
   return {
     id: user.id,
