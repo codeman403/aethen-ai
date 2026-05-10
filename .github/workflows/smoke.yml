@@ -73,7 +73,7 @@ jobs:
     name: Rollback on smoke test failure
     runs-on: ubuntu-latest
     needs: smoke-test
-    if: failure() && vars.RENDER_SERVICE_ID != '' && secrets.RENDER_API_KEY != ''
+    if: failure() && vars.RENDER_SERVICE_ID != ''
 
     steps:
       - name: Trigger Render rollback
