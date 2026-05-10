@@ -7,7 +7,7 @@ import structlog
 
 from app.agents.state import AgentState, ensure_session
 from app.services.neo4j_service import neo4j_service
-from app.services.pinecone_service import pinecone_service
+from app.services.vector_service import vector_service
 
 logger = structlog.get_logger()
 
@@ -51,7 +51,7 @@ async def vector_retrieve(state: AgentState) -> dict:
     try:
         # ── Search failure_patterns namespace (session-level, high semantic match)
         try:
-            pattern_matches = await pinecone_service.query_similar(
+            pattern_matches = await vector_service.query_similar(
                 query_text=query_text,
                 namespace="failure_patterns",
                 top_k=5,
@@ -68,7 +68,7 @@ async def vector_retrieve(state: AgentState) -> dict:
 
         # ── Search traces namespace (event-level, granular evidence)
         try:
-            trace_matches = await pinecone_service.query_similar(
+            trace_matches = await vector_service.query_similar(
                 query_text=query_text,
                 namespace="traces",
                 top_k=7,
