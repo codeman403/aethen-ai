@@ -57,6 +57,7 @@ async def test_list_chat_sessions_empty():
 @pytest.mark.asyncio
 async def test_get_messages_returns_history():
     with patch("app.api.chat_sessions.postgres_service") as mock_pg:
+        mock_pg.chat_session_belongs_to_org = AsyncMock(return_value=True)
         mock_pg.get_chat_messages = AsyncMock(return_value=[_MESSAGE])
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get("/api/chat/sessions/cs-abc123/messages")
@@ -68,6 +69,7 @@ async def test_get_messages_returns_history():
 @pytest.mark.asyncio
 async def test_get_messages_empty_returns_empty_list():
     with patch("app.api.chat_sessions.postgres_service") as mock_pg:
+        mock_pg.chat_session_belongs_to_org = AsyncMock(return_value=True)
         mock_pg.get_chat_messages = AsyncMock(return_value=[])
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get("/api/chat/sessions/cs-abc123/messages")
@@ -78,6 +80,7 @@ async def test_get_messages_empty_returns_empty_list():
 @pytest.mark.asyncio
 async def test_append_message_user():
     with patch("app.api.chat_sessions.postgres_service") as mock_pg:
+        mock_pg.chat_session_belongs_to_org = AsyncMock(return_value=True)
         mock_pg.append_chat_message = AsyncMock()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.post("/api/chat/sessions/cs-abc123/messages", json={
@@ -92,6 +95,7 @@ async def test_append_message_user():
 @pytest.mark.asyncio
 async def test_append_message_with_latency():
     with patch("app.api.chat_sessions.postgres_service") as mock_pg:
+        mock_pg.chat_session_belongs_to_org = AsyncMock(return_value=True)
         mock_pg.append_chat_message = AsyncMock()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             await ac.post("/api/chat/sessions/cs-abc123/messages", json={
@@ -105,6 +109,7 @@ async def test_append_message_with_latency():
 @pytest.mark.asyncio
 async def test_rename_session():
     with patch("app.api.chat_sessions.postgres_service") as mock_pg:
+        mock_pg.chat_session_belongs_to_org = AsyncMock(return_value=True)
         mock_pg.update_session_title = AsyncMock()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.patch("/api/chat/sessions/cs-abc123", json={"title": "New Title"})

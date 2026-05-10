@@ -86,8 +86,9 @@ async def test_post_source_stores_encrypted_credential():
             response = await _post_source(client)
 
     assert response.status_code == 200
-    source_key = "source:my-agent"
-    assert source_key in stored_calls
+    # Key is org-prefixed in multi-tenant mode — find by suffix
+    source_key = next((k for k in stored_calls if k.endswith("source:my-agent")), None)
+    assert source_key is not None, f"source:my-agent key not found in {list(stored_calls)}"
     payload = json.loads(stored_calls[source_key])
     assert "secret_key_enc" in payload
     assert "secret_key" not in payload  # raw key must NOT be stored
@@ -139,9 +140,9 @@ async def test_get_sources_never_returns_secret_key():
     })
 
     async def mock_get(key):
-        if key == "sources_index":
+        if key.endswith("sources_index"):
             return index_json
-        if key == "source:my-agent":
+        if key.endswith("source:my-agent"):
             return source_json
         return None
 
@@ -190,7 +191,8 @@ async def test_delete_source_removes_entry():
             response = await client.delete("/api/settings/sources/my-agent")
 
     assert response.status_code == 200
-    assert set_calls.get("source:my-agent") == ""
+    deleted_key = next((k for k in set_calls if k.endswith("source:my-agent")), None)
+    assert deleted_key is not None and set_calls[deleted_key] == ""
 
 
 @pytest.mark.asyncio

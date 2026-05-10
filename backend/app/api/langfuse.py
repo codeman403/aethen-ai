@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from app.utils.request_context import get_data_org_id
+from app.utils.request_context import get_data_org_id, _NO_ORG_SENTINEL
 from app.agents.llm import set_org_llm_context
 from app.services.llm_key_service import get_config as _get_llm_config
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -116,8 +116,8 @@ async def pull_langfuse_traces(
     set_org_llm_context(await _get_llm_config(org_id))
 
     # In multi-tenant mode, only pull from org-configured sources.
-    # The backend's default credentials are for internal use (cron/admin), not user pulls.
-    if org_id:
+    # Sentinel UUID means unauthenticated/no-org — fall through to global credentials.
+    if org_id and org_id != _NO_ORG_SENTINEL:
         from app.api.sources import list_all_sources
         org_sources = await list_all_sources(org_id=org_id)
         langfuse_sources = [s for s in org_sources if s.get("provider") == "langfuse"]
