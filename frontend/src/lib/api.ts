@@ -143,6 +143,12 @@ export async function fetchTrends(days: number = 30): Promise<TrendPoint[]> {
   return body.data?.points ?? [];
 }
 
+export async function fetchAuthStatus(): Promise<{ authenticated: boolean; user_id: string; org_id: string | null; is_admin: boolean }> {
+  const res = await fetchWithRetry(`${BASE_URL}/api/auth/status`);
+  const body = await res.json();
+  return body.data ?? { authenticated: false, user_id: "", org_id: null, is_admin: false };
+}
+
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetchWithRetry(`${BASE_URL}/api/stats`);
   const body: ApiResponse<DashboardStats> = await res.json();
