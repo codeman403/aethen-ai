@@ -339,7 +339,7 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<AdminOrgSummary | null>(null);
   const [search, setSearch] = useState("");
-  const [backendAdminStatus, setBackendAdminStatus] = useState<{ is_admin: boolean; checked: boolean }>({ is_admin: false, checked: false });
+  const [backendAdminStatus, setBackendAdminStatus] = useState<{ is_admin: boolean; checked: boolean; email?: string }>({ is_admin: false, checked: false });
 
   // Global limits
   const [maxBatch, setMaxBatch] = useState(10);
@@ -378,7 +378,7 @@ export default function AdminPage() {
   useEffect(() => {
     void load();
     void loadLimits();
-    fetchAuthStatus().then(s => setBackendAdminStatus({ is_admin: s.is_admin, checked: true })).catch(() => {});
+    fetchAuthStatus().then(s => setBackendAdminStatus({ is_admin: s.is_admin, checked: true, email: (s as any).email_seen_by_backend })).catch(() => {});
   }, []);
 
   const filtered = orgs.filter(o =>
@@ -413,8 +413,8 @@ export default function AdminPage() {
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 space-y-1">
           <p className="font-semibold">Backend does not recognize you as admin</p>
           <p className="text-amber-600/80 dark:text-amber-500/80 text-xs leading-relaxed">
-            The Render backend is not seeing <code className="font-mono bg-amber-500/10 px-1 rounded">ADMIN_EMAILS</code>.
-            Steps to fix:
+            Backend sees your email as: <code className="font-mono bg-amber-500/10 px-1 rounded">{backendAdminStatus.email || "unknown"}</code>.
+            Make sure <code className="font-mono bg-amber-500/10 px-1 rounded">ADMIN_EMAILS</code> on Render matches exactly.
           </p>
           <ol className="text-xs text-amber-600/80 dark:text-amber-500/80 list-decimal list-inside space-y-0.5 pl-1">
             <li>Go to <strong>Render → your backend service → Environment</strong></li>
