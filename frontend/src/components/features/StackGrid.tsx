@@ -6,7 +6,7 @@ import { GitBranch, Database, Workflow, Activity } from "lucide-react";
 
 const STACK_CARDS = [
   { tagId: "001", color: "#3B82F6", icon: <GitBranch className="size-5" />, label: "Neo4j · Graph RAG",        detail: "7 node types, 12+ relationships. Maps cross-session causal chains that flat logs cannot see." },
-  { tagId: "002", color: "#10B981", icon: <Database className="size-5" />, label: "Pinecone + Cohere",          detail: "Semantic evidence retrieval over traces and chunks. Rerank v3 for precision synthesis." },
+  { tagId: "002", color: "#10B981", icon: <Database className="size-5" />, label: "pgvector + Cohere",           detail: "Semantic evidence retrieval over traces and chunks. Rerank v3 for precision synthesis." },
   { tagId: "003", color: "#7C3AED", icon: <Workflow className="size-5" />, label: "LangGraph + LangChain",      detail: "State machine with conditional routing. Cyclical reasoning across 4 specialist modules." },
   { tagId: "004", color: "#F59E0B", icon: <Activity className="size-5" />, label: "Langfuse / LangSmith",       detail: "Zero-config trace capture and replay. Hooks every LLM call, tool invocation, and retrieval step." },
   { tagId: "005", color: "#EF4444", icon: <Database className="size-5" />, label: "Postgres · Supabase",        detail: "Primary session store. Full agent session JSON, chat history, analysis reports, and settings." },

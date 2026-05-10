@@ -8,7 +8,7 @@ const PIPELINE_STAGES = [
   { num: "01", label: "Ingest",          sublabel: "Langfuse hooks capture every LLM call and retrieval", color: "#3B82F6", stat: "10K+ traces/min", Icon: Activity    },
   { num: "02", label: "Classify",        sublabel: "Heuristic classifiers route to specialist modules",    color: "#EF4444", stat: "4 failure types",  Icon: BrainCircuit },
   { num: "03", label: "Graph Query",     sublabel: "Neo4j traversal maps causal chains across sessions",   color: "#7C3AED", stat: "Cross-trace",       Icon: GitBranch    },
-  { num: "04", label: "Vector Evidence", sublabel: "Pinecone + Cohere Rerank synthesizes evidence",        color: "#F59E0B", stat: "Rerank v3",         Icon: Database     },
+  { num: "04", label: "Vector Evidence", sublabel: "pgvector + Cohere Rerank synthesizes evidence",        color: "#F59E0B", stat: "Rerank v3",         Icon: Database     },
   { num: "05", label: "Recommend Fix",   sublabel: "Confidence-scored remediation with reliability delta", color: "#10B981", stat: "−80% MTTR",        Icon: CheckCircle2 },
 ];
 

@@ -154,7 +154,7 @@ export default function DocsPage() {
           <p>Every session goes through a 3-stage pipeline (~9–12 s):</p>
           <ol className="space-y-1.5 mt-2 list-decimal list-inside">
             <li><strong className="text-foreground">Classify</strong> — GPT-4o-mini identifies the failure type from trace structure.</li>
-            <li><strong className="text-foreground">Retrieve</strong> — Pinecone finds related sessions; Neo4j detects systemic patterns.</li>
+            <li><strong className="text-foreground">Retrieve</strong> — pgvector (via Postgres) finds related sessions; Neo4j detects systemic patterns.</li>
             <li><strong className="text-foreground">Analyze</strong> — Claude Sonnet generates root cause, findings, and recommendations.</li>
           </ol>
           <p className="text-xs mt-2 text-muted-foreground/70">Completed analyses are cached — repeat calls return instantly. Use <code className="bg-muted px-1 rounded">refresh=true</code> to rerun.</p>
