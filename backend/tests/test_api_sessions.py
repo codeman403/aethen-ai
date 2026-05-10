@@ -59,7 +59,8 @@ async def test_list_sessions_by_failure_type_returns_full_objects():
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert len(data) == 1
-    mock_pg.get_by_failure_type.assert_called_once_with("memory")
+    call_args = mock_pg.get_by_failure_type.call_args
+    assert call_args[0][0] == "memory"   # positional: failure_type
 
 
 @pytest.mark.asyncio

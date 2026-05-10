@@ -327,7 +327,12 @@ class TestModelSettingsAPI:
     @pytest.mark.asyncio
     async def test_model_options_are_whitelisted(self):
         """Only confirmed-working models appear in the options list."""
-        with patch("app.api.model_settings.postgres_service") as mock_pg:
+        fake_keys = {
+            "openai":    {"api_key": "sk-test-openai",    "base_url": ""},
+            "anthropic": {"api_key": "sk-ant-test",       "base_url": ""},
+        }
+        with patch("app.api.model_settings.postgres_service") as mock_pg, \
+             patch("app.api.model_settings._get_llm_keys", new=AsyncMock(return_value=fake_keys)):
             mock_pg.get_setting = AsyncMock(return_value=None)
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
                 resp = await ac.get("/api/settings/models")

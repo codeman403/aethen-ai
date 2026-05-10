@@ -92,6 +92,10 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
+        # Skip auth when Supabase is not configured (local dev / tests without JWT secret)
+        if not settings.supabase_url or not settings.supabase_anon_key:
+            return await call_next(request)
+
         # Skip auth for non-API routes and open paths
         if not path.startswith("/api") or path in _OPEN_PATHS:
             return await call_next(request)

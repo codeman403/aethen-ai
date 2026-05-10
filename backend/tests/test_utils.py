@@ -20,10 +20,12 @@ class TestSanitizeInput:
         result = sanitize_input("show me the top 10 memory failures")
         assert "top 10 memory failures" in result
 
-    def test_truncates_to_max_length(self):
+    def test_rejects_overlong_input(self):
+        """sanitize_input now raises HTTP 400 on inputs longer than MAX_LENGTH."""
         long_input = "a" * 1000
-        result = sanitize_input(long_input)
-        assert len(result) <= MAX_LENGTH
+        with pytest.raises(HTTPException) as exc_info:
+            sanitize_input(long_input)
+        assert exc_info.value.status_code == 400
 
     def test_html_escapes_angle_brackets(self):
         result = sanitize_input("query with <brackets>")
