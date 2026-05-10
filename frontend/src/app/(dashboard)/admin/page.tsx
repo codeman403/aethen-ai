@@ -9,7 +9,7 @@ import {
 import {
   fetchAdminOrgs, fetchPlatformStats, fetchAdminOrg,
   updateAdminQuota, removeOrgMember, updateOrgName,
-  fetchGlobalLimits, updateGlobalLimits,
+  fetchGlobalLimits, updateGlobalLimits, fetchAuthStatus,
   type AdminOrgSummary, type AdminOrgDetail, type PlatformStats,
 } from "@/lib/api";
 
@@ -339,6 +339,7 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<AdminOrgSummary | null>(null);
   const [search, setSearch] = useState("");
+  const [backendAdminStatus, setBackendAdminStatus] = useState<{ is_admin: boolean; checked: boolean }>({ is_admin: false, checked: false });
 
   // Global limits
   const [maxBatch, setMaxBatch] = useState(10);
@@ -374,7 +375,11 @@ export default function AdminPage() {
     } catch { /* show nothing */ } finally { setLimitsSaving(false); }
   };
 
-  useEffect(() => { void load(); void loadLimits(); }, []);
+  useEffect(() => {
+    void load();
+    void loadLimits();
+    fetchAuthStatus().then(s => setBackendAdminStatus({ is_admin: s.is_admin, checked: true })).catch(() => {});
+  }, []);
 
   const filtered = orgs.filter(o =>
     o.org_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -402,6 +407,29 @@ export default function AdminPage() {
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
+
+      {/* Backend admin status diagnostic */}
+      {backendAdminStatus.checked && !backendAdminStatus.is_admin && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 space-y-1">
+          <p className="font-semibold">Backend does not recognize you as admin</p>
+          <p className="text-amber-600/80 dark:text-amber-500/80 text-xs leading-relaxed">
+            The Render backend is not seeing <code className="font-mono bg-amber-500/10 px-1 rounded">ADMIN_EMAILS</code>.
+            Steps to fix:
+          </p>
+          <ol className="text-xs text-amber-600/80 dark:text-amber-500/80 list-decimal list-inside space-y-0.5 pl-1">
+            <li>Go to <strong>Render → your backend service → Environment</strong></li>
+            <li>Confirm <code className="font-mono bg-amber-500/10 px-1 rounded">ADMIN_EMAILS</code> is set to your exact login email</li>
+            <li>Click <strong>Save Changes</strong> → then <strong>Manual Deploy → Deploy latest commit</strong></li>
+            <li>Wait ~2 min for the service to restart, then refresh this page</li>
+          </ol>
+        </div>
+      )}
+      {backendAdminStatus.checked && backendAdminStatus.is_admin && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+          <Check className="size-3.5 shrink-0" />
+          Backend recognizes you as admin — all organisation data is visible.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
