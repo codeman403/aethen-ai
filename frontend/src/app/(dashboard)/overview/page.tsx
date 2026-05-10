@@ -15,7 +15,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { fetchDashboardStats, fetchTrends, type DashboardStats, type TrendPoint } from "@/lib/api";
-import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
@@ -206,9 +205,6 @@ export default function HomePage() {
         </div>
       )}
 
-
-      {/* Onboarding checklist — hidden once all steps complete or dismissed */}
-      <OnboardingChecklist />
 
       <FadeInStagger>
         {/* ── Metric Cards (all clickable) ───────────────────────────── */}

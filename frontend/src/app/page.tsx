@@ -7,6 +7,7 @@ import { ArrowRight, Database, Activity, Menu, X, GitBranch, Workflow, CheckCirc
 import dynamic from "next/dynamic";
 import { AethenLogo } from "../components/ui/logo";
 import { createClient } from "@/lib/supabase/client";
+import { MobileWarning } from "../components/MobileWarning";
 
 const AnimatedPipeline = dynamic(
   () => import("../components/features/AnimatedPipeline").then(m => m.AnimatedPipeline),
@@ -274,6 +275,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-purple-500/10 selection:text-purple-700">
+      <MobileWarning />
       <ScrollProgress />
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-background" />
@@ -577,8 +579,10 @@ export default function LandingPage() {
                 </Reveal>
               </div>
             </div>
-            <div className="flex justify-center">
-              <AnimatedPipeline />
+            <div className="w-full overflow-x-auto flex justify-center -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="min-w-[640px] sm:min-w-0 w-full">
+                <AnimatedPipeline />
+              </div>
             </div>
           </SectionReveal>
         </section>
