@@ -30,10 +30,6 @@ class Settings(BaseSettings):
     openai_base_url: str = ""
     cohere_api_key: str = ""
 
-    # Pinecone
-    pinecone_api_key: str = ""
-    pinecone_index: str = "aethen-traces"
-
     # PostgreSQL / Supabase — session CRUD store
     database_url: str = ""
 
@@ -77,9 +73,8 @@ class Settings(BaseSettings):
     # Cron — shared secret for Vercel cron job authentication
     cron_secret: str = ""
 
-    # Vector DB — pgvector is now the primary vector store.
-    # Set USE_PGVECTOR=false to fall back to Pinecone instantly.
-    use_pgvector: bool = True
+    # Vector DB — pgvector (Postgres-native), no external vector service needed.
+    use_pgvector: bool = True  # kept for potential future backend swap
 
     # Frontend
     frontend_url: str = "http://localhost:3000"
@@ -101,8 +96,6 @@ class Settings(BaseSettings):
             "neo4j_uri",
             "neo4j_password",
         ]
-        # Pinecone is optional — pgvector (Postgres-native) is now the default.
-        # pinecone_api_key only needed if USE_PGVECTOR=false for rollback.
         missing = [field for field in required_fields if not getattr(self, field)]
         
         # Anthropic is optional (falls back to GPT-4o-mini), Langfuse is optional for local runs 

@@ -6,7 +6,7 @@ Owns:
 
 NOT responsible for:
   - Graph relationships → neo4j_service
-  - Vector embeddings   → pinecone_service
+  - Vector embeddings   → pgvector_service
 
 Tables (auto-created on first connect):
   sessions, chat_sessions, chat_messages

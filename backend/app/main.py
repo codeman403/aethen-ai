@@ -53,7 +53,6 @@ from app.api.stats import router as stats_router
 from app.config import settings
 from app.services.embedding_service import embedding_service
 from app.services.neo4j_service import neo4j_service
-from app.services.pinecone_service import pinecone_service
 from app.services.postgres_service import postgres_service
 from app.api.usage import router as usage_router
 from app.api.admin import router as admin_router
@@ -85,7 +84,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize services (graceful — missing credentials are warnings, not errors)
     await embedding_service.initialize()
-    await pinecone_service.initialize()
     await neo4j_service.initialize()
     await postgres_service.initialize()
 

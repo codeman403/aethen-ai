@@ -5,10 +5,10 @@ Run this whenever you need a completely fresh start with guaranteed clean data.
 Steps:
   1. Truncate Postgres sessions table
   2. Wipe Neo4j graph
-  3. Delete all Pinecone vectors in the traces namespace
+  3. Clear session_vectors table (pgvector)
   4. Generate 500 fresh sessions (clean plain-English prompts/responses)
   5. Seed Postgres + Neo4j together
-  6. Seed Pinecone
+  6. Seed pgvector
 
 Usage:
     cd backend
@@ -31,8 +31,9 @@ from scripts.generate_traces import generate_traces
 from app.models.trace import FailureType, Session
 from app.services.neo4j_service import neo4j_service
 from app.services.postgres_service import postgres_service
-from app.services.pinecone_service import pinecone_service
+
 from app.services.embedding_service import embedding_service
+from app.services.vector_service import vector_service
 
 
 async def reset_postgres() -> None:
@@ -56,16 +57,17 @@ async def reset_neo4j() -> None:
     print("  ✓ Neo4j cleared")
 
 
-async def reset_pinecone() -> None:
-    print("\n[3/6] Clearing Pinecone traces namespace …")
-    if not pinecone_service.is_available:
-        print("  ⚠️  Pinecone unavailable — skipping")
+async def reset_vectors() -> None:
+    print("\n[3/6] Clearing pgvector session_vectors table …")
+    if not vector_service.is_available:
+        print("  ⚠️  pgvector unavailable — skipping")
         return
     try:
-        pinecone_service._index.delete(delete_all=True, namespace="traces")
-        print("  ✓ Pinecone traces namespace cleared")
+        async with postgres_service._pool.acquire() as conn:
+            await conn.execute("TRUNCATE TABLE session_vectors")
+        print("  ✓ session_vectors table cleared")
     except Exception as exc:
-        print(f"  ⚠️  Pinecone clear warning: {exc}")
+        print(f"  ⚠️  pgvector clear warning: {exc}")
 
 
 async def seed_postgres_and_neo4j(sessions: list[Session]) -> tuple[int, int]:
@@ -100,10 +102,10 @@ async def seed_postgres_and_neo4j(sessions: list[Session]) -> tuple[int, int]:
     return ok, errors
 
 
-async def seed_pinecone(sessions: list[Session]) -> tuple[int, int]:
-    print(f"\n[5/6] Seeding Pinecone with {len(sessions)} sessions …")
-    if not pinecone_service.is_available:
-        print("  ⚠️  Pinecone unavailable — skipping")
+async def seed_vectors(sessions: list[Session]) -> tuple[int, int]:
+    print(f"\n[5/6] Seeding pgvector with {len(sessions)} sessions …")
+    if not vector_service.is_available:
+        print("  ⚠️  pgvector unavailable — skipping")
         return 0, 0
 
     total = 0
@@ -114,7 +116,7 @@ async def seed_pinecone(sessions: list[Session]) -> tuple[int, int]:
         batch = sessions[i : i + batch_size]
         for session in batch:
             try:
-                n = await pinecone_service.upsert_session(session)
+                n = await vector_service.upsert_session(session)
                 total += n
             except Exception as exc:
                 print(f"  ✗ {session.session_id}: {exc}")
@@ -132,7 +134,7 @@ async def run(count: int, no_reset: bool = False, analyze: bool = False) -> None
     await postgres_service.initialize()
     await neo4j_service.initialize()
     await embedding_service.initialize()
-    await pinecone_service.initialize()
+    
 
     # ── Reset (skipped with --no-reset) ───────────────────────────────────
     if no_reset:
@@ -140,7 +142,7 @@ async def run(count: int, no_reset: bool = False, analyze: bool = False) -> None
     else:
         await reset_postgres()
         await reset_neo4j()
-        await reset_pinecone()
+        await reset_vectors()
 
     # ── Generate fresh sessions ───────────────────────────────────────────
     step = "2" if no_reset else "4"
@@ -157,14 +159,14 @@ async def run(count: int, no_reset: bool = False, analyze: bool = False) -> None
     # ── Seed ──────────────────────────────────────────────────────────────
     ok, errs = await seed_postgres_and_neo4j(sessions)
 
-    vectors, verrs = await seed_pinecone(sessions)
+    vectors, verrs = await seed_vectors(sessions)
 
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'─' * 56}")
     print("[6/6] Summary")
     print(f"  Sessions generated : {len(sessions)}")
     print(f"  Postgres + Neo4j   : {ok} ok, {errs} errors")
-    print(f"  Pinecone vectors   : {vectors} upserted, {verrs} errors")
+    print(f"  pgvector vectors   : {vectors} upserted, {verrs} errors")
 
     if ok == len(sessions) and errs == 0:
         print("\n  ✅ Fresh reseed complete — all stores in sync")
@@ -172,7 +174,7 @@ async def run(count: int, no_reset: bool = False, analyze: bool = False) -> None
         print(f"\n  ⚠️  Completed with {errs + verrs} error(s)")
 
     if vectors >= 1000:
-        print("  ✅ Pinecone rubric met (≥1,000 vectors)")
+        print("  ✅ pgvector rubric met (≥1,000 vectors)")
 
     # Neo4j schema check
     stats = await neo4j_service.get_graph_stats()
