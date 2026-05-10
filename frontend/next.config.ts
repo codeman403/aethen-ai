@@ -16,6 +16,10 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,
   },
-  autoInstrumentServerFunctions: true,
+  // Disabled — autoInstrument wraps Edge Runtime middleware with Node.js
+  // APIs unavailable in the Edge Runtime, causing MIDDLEWARE_INVOCATION_FAILED.
+  // Errors in API routes and server components are still captured via
+  // sentry.server.config.ts and sentry.edge.config.ts.
+  autoInstrumentServerFunctions: false,
   widenClientFileUpload: false,
 });
