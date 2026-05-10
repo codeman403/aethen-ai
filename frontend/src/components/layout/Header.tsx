@@ -109,7 +109,7 @@ export function Header({ userProfile }: { userProfile: UserProfile }) {
             >
               <Bell className="size-4" />
             </Button>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex items-center whitespace-nowrap px-2.5 py-1.5 rounded-lg bg-popover border border-border/60 shadow-md text-xs text-muted-foreground pointer-events-none z-50">
+            <div className="absolute top-full right-0 mt-2 hidden group-hover:flex items-center whitespace-nowrap px-2.5 py-1.5 rounded-lg bg-popover border border-border/60 shadow-md text-xs text-muted-foreground pointer-events-none z-50">
               Notifications — Coming Soon
             </div>
           </div>
