@@ -34,7 +34,8 @@ function UserMenu({ profile }: { profile: UserProfile }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(v => !v)}
-        className="size-8 rounded-full bg-foreground text-background text-xs font-black flex items-center justify-center hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1 overflow-hidden"
+        className="size-8 rounded-full text-white text-xs font-black flex items-center justify-center hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1 overflow-hidden"
+        style={{ backgroundColor: "#0f0f0f" }}
         aria-label="User menu"
       >
         {profile.avatarUrl ? (
