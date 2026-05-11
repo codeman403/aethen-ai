@@ -222,6 +222,8 @@ backend/scripts/traces.json
 capstone_proj_proposal_codeman403.md
 existing_product_comparison.md
 proj_plan.md
+prompt.md
+begin_prompt.md
 
 # Environment (explicit paths)
 backend/.env
@@ -265,12 +267,18 @@ docs/stakeholder_blog.md
 docs/technical_blog.md
 docs/enhancement_ideas.md
 docs/saas_readiness.md
+docs/initial/*
+docs/archive/*
+docs/images/aethen_hero_mockup*
+docs/scenarios/*
+docs/implementation_timeline.md
+docs/scope_adjustments.md
+
+
 
 # Demo GIF and video artifacts — large files, recorded locally
-demo.gif
 demo.webm
 demo.mp4
-*.gif
 *.webm
 scripts/record_demo.mjs
 
