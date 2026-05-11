@@ -254,6 +254,8 @@ export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
 
   useEffect(() => {
@@ -262,10 +264,29 @@ export default function LandingPage() {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
         setIsAuthenticated(!!session);
+        setUserEmail(session?.user?.email ?? null);
       });
     }, 0);
     return () => clearTimeout(id);
   }, []);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
+    setUserEmail(null);
+    setUserMenuOpen(false);
+  }
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-user-menu]")) setUserMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [userMenuOpen]);
 
   useEffect(() => {
     const sectionIds = ["howitworks", "pipeline", "cases", "stack", "faq"];
@@ -365,9 +386,53 @@ export default function LandingPage() {
             })}
             <div className="w-px h-4 bg-black/10 mx-3" />
             {isAuthenticated ? (
-              <Link href="/overview" className="group/cta flex items-center gap-2 px-5 py-2.5 rounded-xl bg-foreground text-background text-sm font-bold hover:bg-foreground/90 transition-all shadow-sm">
-                Dashboard <ArrowRight className="size-3.5 group-hover/cta:translate-x-0.5 transition-transform" />
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link href="/overview" className="group/cta flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-bold hover:bg-foreground/90 transition-all shadow-sm">
+                  Dashboard <ArrowRight className="size-3.5 group-hover/cta:translate-x-0.5 transition-transform" />
+                </Link>
+                {/* User avatar + dropdown */}
+                <div className="relative" data-user-menu>
+                  <button
+                    onClick={() => setUserMenuOpen(o => !o)}
+                    className="flex items-center justify-center w-8 h-8 rounded-full bg-foreground text-background text-xs font-black hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1"
+                    title={userEmail ?? "Account"}
+                  >
+                    {userEmail ? userEmail[0].toUpperCase() : "U"}
+                  </button>
+                  <AnimatePresence>
+                    {userMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                        transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                        className="absolute right-0 top-full mt-2 w-52 rounded-xl border border-black/[0.08] bg-white shadow-lg shadow-black/[0.08] overflow-hidden z-50"
+                      >
+                        {userEmail && (
+                          <div className="px-3 py-2.5 border-b border-black/[0.06]">
+                            <p className="text-[11px] font-mono text-black/35 truncate">{userEmail}</p>
+                          </div>
+                        )}
+                        <div className="p-1">
+                          <Link
+                            href="/overview"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-black/60 hover:bg-black/[0.04] hover:text-black/80 transition-colors"
+                          >
+                            Dashboard
+                          </Link>
+                          <button
+                            onClick={handleSignOut}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            Sign out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <Link href="/login" className="px-4 py-2 text-sm font-semibold text-black/60 hover:text-black/85 transition-colors">
