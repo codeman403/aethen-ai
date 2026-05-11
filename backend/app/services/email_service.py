@@ -230,3 +230,51 @@ async def send_quota_warning_email(
         logger.info("email_sent", type="quota_warning", to=to_email, resource=resource, pct=pct)
     except Exception as exc:
         logger.warning("email_send_failed", type="quota_warning", to=to_email, error=str(exc))
+
+
+async def send_contact_email(
+    name: str,
+    email: str,
+    reason: str,
+    message: str,
+) -> bool:
+    """Forward a contact form submission to the admin inbox. Returns True if sent."""
+    if not _is_configured():
+        logger.debug("email_skipped_no_config", reason="RESEND_API_KEY or EMAIL_FROM not set")
+        return False
+    try:
+        r = _resend()
+        admin_to = settings.email_from.split("<")[-1].rstrip(">").strip() if "<" in settings.email_from else settings.email_from
+        html = f"""
+<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,sans-serif;background:#f9fafb;margin:0;padding:0">
+  <div style="max-width:540px;margin:40px auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden">
+    <div style="background:#0f172a;padding:24px 28px">
+      <p style="color:#94a3b8;font-size:13px;margin:0;font-family:monospace">Aethen · Contact Form</p>
+    </div>
+    <div style="padding:28px">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:6px 0;color:#6b7280;width:80px">From</td><td style="padding:6px 0;font-weight:600;color:#111827">{name} &lt;{email}&gt;</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Reason</td><td style="padding:6px 0;color:#111827">{reason}</td></tr>
+      </table>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0">
+      <p style="color:#374151;font-size:14px;line-height:1.7;white-space:pre-wrap">{message}</p>
+    </div>
+    <div style="padding:16px 28px;border-top:1px solid #e5e7eb;background:#f9fafb">
+      <p style="color:#9ca3af;font-size:12px;margin:0">Reply directly to respond to {name}.</p>
+    </div>
+  </div>
+</body></html>"""
+
+        r.Emails.send({
+            "from": settings.email_from,
+            "to": [admin_to],
+            "reply_to": email,
+            "subject": f"[Aethen Contact] {reason} — {name}",
+            "html": html,
+        })
+        logger.info("email_sent", type="contact", from_email=email, name=name)
+        return True
+    except Exception as exc:
+        logger.warning("email_send_failed", type="contact", error=str(exc))
+        return False
