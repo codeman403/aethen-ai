@@ -228,8 +228,9 @@ async def trigger_digest(request: Request) -> ApiResponse[dict]:
             from app.services.email_service import send_daily_digest_email
             recipients = await _get_recipients(org_id)
             for email in recipients:
-                await send_daily_digest_email(email, org_name, date_label, stats)
-                summary["emails_sent"] += 1
+                sent = await send_daily_digest_email(email, org_name, date_label, stats)
+                if sent:
+                    summary["emails_sent"] += 1
 
             # Discord / webhook delivery
             from app.api.webhooks import deliver_event
