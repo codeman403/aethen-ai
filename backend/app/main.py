@@ -59,6 +59,7 @@ from app.api.admin import router as admin_router
 from app.api.onboarding import router as onboarding_router
 from app.api.webhooks import router as webhooks_router
 from app.api.digest import router as digest_router
+from app.api.contact import router as contact_router
 from app.utils.rate_limit import RateLimitMiddleware
 from app.utils.body_size_limit import BodySizeLimitMiddleware
 from app.utils.security_headers import SecurityHeadersMiddleware
@@ -172,3 +173,4 @@ app.include_router(admin_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(webhooks_router, prefix="/api")
 app.include_router(digest_router,   prefix="/api")
+app.include_router(contact_router,  prefix="/api")
