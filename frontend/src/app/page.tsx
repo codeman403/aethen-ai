@@ -394,7 +394,8 @@ export default function LandingPage() {
                 <div className="relative" data-user-menu>
                   <button
                     onClick={() => setUserMenuOpen(o => !o)}
-                    className="size-8 rounded-full bg-foreground text-background text-xs font-black flex items-center justify-center hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1 overflow-hidden"
+                    className="size-8 rounded-full text-white text-xs font-black flex items-center justify-center hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1 overflow-hidden"
+                    style={{ backgroundColor: "#0f0f0f" }}
                     title={userName ?? userEmail ?? "Account"}
                   >
                     {(userName?.[0] ?? userEmail?.[0] ?? "U").toUpperCase()}
