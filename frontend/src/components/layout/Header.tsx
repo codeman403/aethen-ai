@@ -38,12 +38,7 @@ function UserMenu({ profile }: { profile: UserProfile }) {
         style={{ backgroundColor: "#0f0f0f" }}
         aria-label="User menu"
       >
-        {profile.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
-        ) : (
-          initial
-        )}
+        {initial}
       </button>
 
       <AnimatePresence>
