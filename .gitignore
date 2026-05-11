@@ -1,6 +1,6 @@
-# Anti-Aethen red-team module and security report — never commit
+# Anti-Aethen red-team module — contains .env + attack payloads, never commit
 anti_aethen/
-docs/security_red_team_report.md
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
