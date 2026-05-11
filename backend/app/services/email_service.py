@@ -242,9 +242,14 @@ async def send_contact_email(
     if not _is_configured():
         logger.debug("email_skipped_no_config", reason="RESEND_API_KEY or EMAIL_FROM not set")
         return False
+    # Deliver to the first configured admin email (ADMIN_EMAILS env var)
+    admin_emails = list(settings.admin_email_set)
+    if not admin_emails:
+        logger.warning("contact_email_no_admin", reason="No ADMIN_EMAILS configured on Render")
+        return False
+    admin_to = admin_emails[0]
     try:
         r = _resend()
-        admin_to = settings.email_from.split("<")[-1].rstrip(">").strip() if "<" in settings.email_from else settings.email_from
         html = f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,sans-serif;background:#f9fafb;margin:0;padding:0">
