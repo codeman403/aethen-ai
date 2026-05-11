@@ -4,6 +4,7 @@ import { Bell, Sun, Moon, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/layout/SearchBar";
 import type { UserProfile } from "@/app/(dashboard)/layout";
@@ -34,7 +35,8 @@ function UserMenu({ profile }: { profile: UserProfile }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(v => !v)}
-        className="size-8 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold flex items-center justify-center hover:bg-primary/20 transition-colors overflow-hidden"
+        className="size-8 rounded-full text-white text-xs font-black flex items-center justify-center hover:opacity-85 transition-opacity ring-2 ring-purple-200 ring-offset-1 overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #7C3AED, #3B82F6)" }}
         aria-label="User menu"
       >
         {profile.avatarUrl ? (
@@ -45,24 +47,36 @@ function UserMenu({ profile }: { profile: UserProfile }) {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl border border-border/60 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden z-50">
-          <div className="px-4 py-3 border-b border-border/50">
-            <p className="text-sm font-medium truncate">{profile.fullName ?? profile.email}</p>
-            <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
-            {profile.orgName && (
-              <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{profile.orgName}</p>
-            )}
-          </div>
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute right-0 top-full mt-2 w-52 rounded-xl border border-black/[0.08] bg-white shadow-lg shadow-black/[0.08] overflow-hidden z-50"
           >
-            <LogOut className="size-3.5" />
-            Sign out
-          </button>
-        </div>
-      )}
+            <div className="px-3 py-2.5 border-b border-black/[0.06]">
+              {profile.fullName && (
+                <p className="text-sm font-semibold text-foreground truncate">{profile.fullName}</p>
+              )}
+              <p className="text-[11px] font-mono text-black/35 truncate">{profile.email}</p>
+              {profile.orgName && (
+                <p className="text-[11px] text-black/30 truncate mt-0.5">{profile.orgName}</p>
+              )}
+            </div>
+            <div className="p-1">
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="size-3.5" />
+                Sign out
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
