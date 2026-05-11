@@ -8,7 +8,7 @@
 
 > **AI failure intelligence platform** — diagnoses why AI agents fail by reasoning across execution traces, vector DB metadata, and tool logs using Graph RAG and a parallel LangGraph state machine.
 
-**[Live Demo](https://aethen-ai.vercel.app) · [Backend API](https://aethen-ai-backend.onrender.com/api/health) · [API Docs](https://aethen-ai-backend.onrender.com/docs)**
+**[Live Demo](https://aethen-ai.vercel.app) · [Backend API](https://aethen-ai-backend.onrender.com/api/health)**
 
 ![Aethen-AI walkthrough — landing page, pipeline, failure cases, and demo agent](demo.gif)
 
