@@ -11,27 +11,38 @@ import { MobileWarning } from "../components/MobileWarning";
 
 const AnimatedPipeline = dynamic(
   () => import("../components/features/AnimatedPipeline").then(m => m.AnimatedPipeline),
-  { ssr: false }
+  { ssr: false, loading: () => <div className="w-full h-48 rounded-2xl bg-black/[0.03] animate-pulse" /> }
 );
 const StackGrid = dynamic(
   () => import("../components/features/StackGrid").then(m => m.StackGrid),
-  { ssr: false }
+  { ssr: false, loading: () => <div className="w-full h-48 rounded-2xl bg-black/[0.03] animate-pulse" /> }
 );
 
 const HeroAnimation = dynamic(
   () => import("../components/ui/hero-animation").then(m => m.HeroAnimation),
-  { ssr: false }
+  { ssr: false, loading: () => <div className="flex-1 min-h-0 rounded-2xl bg-black/[0.03] animate-pulse" /> }
 );
 
+// Evaluated once after mount. Returns true only on mobile (<768px).
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => { setIsMobile(window.innerWidth < 768); }, []);
+  return isMobile;
+}
+
 function ScrollProgress() {
+  const isMobile = useIsMobile();
   const { scrollYProgress } = useScroll();
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  if (isMobile) return null;
   return <motion.div className="fixed top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-500 origin-left z-[100]" style={{ scaleX }} />;
 }
 
 function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
+  const isMobile = useIsMobile();
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
+  if (isMobile) return <div ref={ref} className={className}>{children}</div>;
   return (
     <motion.div ref={ref} className={className}
       initial={{ opacity: 0, y: 28 }}
@@ -63,8 +74,10 @@ function EvidenceTape({ color }: { color: string }) {
 
 // ── Section-level scroll entrance ────────────────────────────────────────────
 function SectionReveal({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const isMobile = useIsMobile();
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "0px 0px -40px 0px" });
+  if (isMobile) return <div ref={ref} className={className}>{children}</div>;
   return (
     <motion.div
       ref={ref}
@@ -80,10 +93,12 @@ function SectionReveal({ children, className = "" }: { children: ReactNode; clas
 
 // ── Typewriter component ──────────────────────────────────────────────────────
 function Typewriter({ text, className = "" }: { text: string; className?: string }) {
+  const isMobile = useIsMobile();
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [displayed, setDisplayed] = useState("");
   useEffect(() => {
+    if (isMobile) { setDisplayed(text); return; }
     if (!isInView) return;
     let i = 0;
     const id = setInterval(() => {
@@ -92,7 +107,8 @@ function Typewriter({ text, className = "" }: { text: string; className?: string
       if (i >= text.length) clearInterval(id);
     }, 30);
     return () => clearInterval(id);
-  }, [isInView, text]);
+  }, [isInView, text, isMobile]);
+  if (isMobile) return <span className={className}>{text}</span>;
   return <span ref={ref} className={className}>{displayed}<motion.span animate={{ opacity: [1,0] }} transition={{ duration: 0.5, repeat: Infinity }}>|</motion.span></span>;
 }
 
@@ -241,10 +257,14 @@ export default function LandingPage() {
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session);
-    });
+    // Defer auth check so it never blocks the initial paint
+    const id = setTimeout(() => {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setIsAuthenticated(!!session);
+      });
+    }, 0);
+    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {

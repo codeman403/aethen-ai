@@ -53,7 +53,7 @@ export function AnimatedPipeline() {
   const activeStage = PIPELINE_STAGES[active % N] ?? PIPELINE_STAGES[0];
 
   return (
-    <div ref={containerRef} className="flex flex-col lg:flex-row items-center gap-16 w-full max-w-5xl mx-auto px-4">
+    <div ref={containerRef} className="flex flex-col lg:flex-row items-center gap-16 w-full max-w-5xl mx-auto px-4 pt-12">
       <div className="relative shrink-0" style={{ width: VBSIZE * 0.96, height: VBSIZE * 0.96 }}>
         <svg viewBox={`0 0 ${VBSIZE} ${VBSIZE}`} className="w-full h-full" style={{ overflow: "visible" }}>
           <defs>
