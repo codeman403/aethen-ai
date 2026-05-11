@@ -241,7 +241,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Can Aethen work with any LLM provider?",
-    a: "Yes. You bring your own API keys for Anthropic (Claude) and OpenAI (GPT-4o-mini), configured once in LLM Settings. The model running inside your AI agent doesn't matter — Aethen diagnoses at the trace level regardless of which LLM your agent uses.",
+    a: "Yes. You bring your own API keys for Anthropic and OpenAI, configured once in LLM Settings. The model running inside your AI agent doesn't matter — Aethen diagnoses at the trace level regardless of which LLM your agent uses.",
   },
   {
     q: "How is Aethen different from reading logs in Langfuse or LangSmith?",
@@ -255,6 +255,7 @@ export default function LandingPage() {
   const [activeSection, setActiveSection] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
 
@@ -265,6 +266,7 @@ export default function LandingPage() {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setIsAuthenticated(!!session);
         setUserEmail(session?.user?.email ?? null);
+        setUserName(session?.user?.user_metadata?.full_name ?? session?.user?.user_metadata?.name ?? null);
       });
     }, 0);
     return () => clearTimeout(id);
@@ -275,6 +277,7 @@ export default function LandingPage() {
     await supabase.auth.signOut();
     setIsAuthenticated(false);
     setUserEmail(null);
+    setUserName(null);
     setUserMenuOpen(false);
   }
 
@@ -391,11 +394,10 @@ export default function LandingPage() {
                 <div className="relative" data-user-menu>
                   <button
                     onClick={() => setUserMenuOpen(o => !o)}
-                    className="size-8 rounded-full text-white text-xs font-black flex items-center justify-center hover:opacity-85 transition-opacity ring-2 ring-purple-200 ring-offset-1 overflow-hidden"
-                    style={{ background: "linear-gradient(135deg, #7C3AED, #3B82F6)" }}
-                    title={userEmail ?? "Account"}
+                    className="size-8 rounded-full bg-foreground text-background text-xs font-black flex items-center justify-center hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1 overflow-hidden"
+                    title={userName ?? userEmail ?? "Account"}
                   >
-                    {userEmail ? userEmail[0].toUpperCase() : "U"}
+                    {(userName?.[0] ?? userEmail?.[0] ?? "U").toUpperCase()}
                   </button>
                   <AnimatePresence>
                     {userMenuOpen && (
