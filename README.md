@@ -90,6 +90,8 @@ flowchart TD
 | `fast_analysis_graph` | Demo Agent `analyzeDirectly` endpoint only | ~4–6 s |
 | `_legacy_analysis_graph` | Reference / rollback | — |
 
+→ Full architecture documentation: [ARCHITECTURE.md](ARCHITECTURE.md)
+
 ---
 
 ## Evaluation Results
