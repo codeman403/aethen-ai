@@ -181,6 +181,21 @@ The demo agent runs via public endpoints (no auth required): `POST /api/demo/run
 <!-- SCREENSHOT: docs/images/screenshots/dashboard-failure-trends.png -->
 ![Failure Trends — time-series failure rate and pattern analysis](docs/images/screenshots/dashboard-failure-trends.png)
 
+### Pattern Clusters
+
+<!-- SCREENSHOT: docs/images/screenshots/dashboard-pattern-clusters.png -->
+![Pattern Clusters — cross-session failure pattern grouping](docs/images/screenshots/dashboard-pattern-clusters.png)
+
+### Agent Profiles
+
+<!-- SCREENSHOT: docs/images/screenshots/dashboard-agent-profiles.png -->
+![Agent Profiles — per-agent failure history and reliability score](docs/images/screenshots/dashboard-agent-profiles.png)
+
+### Recommendations
+
+<!-- SCREENSHOT: docs/images/screenshots/dashboard-recommendations.png -->
+![Recommendations — prioritised remediation actions across all agents](docs/images/screenshots/dashboard-recommendations.png)
+
 ### Daily Digest Email
 
 <!-- SCREENSHOT: docs/images/screenshots/notification-daily-digest-email.png -->
