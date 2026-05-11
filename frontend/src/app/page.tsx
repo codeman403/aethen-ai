@@ -387,14 +387,12 @@ export default function LandingPage() {
             <div className="w-px h-4 bg-black/10 mx-3" />
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
-                <Link href="/overview" className="group/cta flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-bold hover:bg-foreground/90 transition-all shadow-sm">
-                  Dashboard <ArrowRight className="size-3.5 group-hover/cta:translate-x-0.5 transition-transform" />
-                </Link>
                 {/* User avatar + dropdown */}
                 <div className="relative" data-user-menu>
                   <button
                     onClick={() => setUserMenuOpen(o => !o)}
-                    className="flex items-center justify-center w-8 h-8 rounded-full bg-foreground text-background text-xs font-black hover:opacity-80 transition-opacity ring-2 ring-black/10 ring-offset-1"
+                    className="flex items-center justify-center w-8 h-8 rounded-full text-white text-xs font-black hover:opacity-85 transition-opacity ring-2 ring-purple-200 ring-offset-1"
+                    style={{ background: "linear-gradient(135deg, #7C3AED, #3B82F6)" }}
                     title={userEmail ?? "Account"}
                   >
                     {userEmail ? userEmail[0].toUpperCase() : "U"}
@@ -414,13 +412,6 @@ export default function LandingPage() {
                           </div>
                         )}
                         <div className="p-1">
-                          <Link
-                            href="/overview"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-black/60 hover:bg-black/[0.04] hover:text-black/80 transition-colors"
-                          >
-                            Dashboard
-                          </Link>
                           <button
                             onClick={handleSignOut}
                             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
@@ -432,6 +423,9 @@ export default function LandingPage() {
                     )}
                   </AnimatePresence>
                 </div>
+                <Link href="/overview" className="group/cta flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-bold hover:bg-foreground/90 transition-all shadow-sm">
+                  Dashboard <ArrowRight className="size-3.5 group-hover/cta:translate-x-0.5 transition-transform" />
+                </Link>
               </div>
             ) : (
               <div className="flex items-center gap-2">
