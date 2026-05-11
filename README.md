@@ -176,6 +176,21 @@ The demo agent runs via public endpoints (no auth required): `POST /api/demo/run
 <!-- SCREENSHOT: docs/images/screenshots/dashboard-settings-integrations.png -->
 ![Settings — Langfuse and LangSmith source management](docs/images/screenshots/dashboard-settings-integrations.png)
 
+### Failure Trends
+
+<!-- SCREENSHOT: docs/images/screenshots/dashboard-failure-trends.png -->
+![Failure Trends — time-series failure rate and pattern analysis](docs/images/screenshots/dashboard-failure-trends.png)
+
+### Daily Digest Email
+
+<!-- SCREENSHOT: docs/images/screenshots/notification-daily-digest-email.png -->
+![Daily digest email — failure summary with breakdown by type](docs/images/screenshots/notification-daily-digest-email.png)
+
+### Discord Webhook Notification
+
+<!-- SCREENSHOT: docs/images/screenshots/notification-discord-webhook.png -->
+![Discord webhook — ingest/failure alert in Discord channel](docs/images/screenshots/notification-discord-webhook.png)
+
 ---
 
 ### Landing Page
