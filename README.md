@@ -123,6 +123,12 @@ Regression gates run automatically via `POST /api/eval` — the pipeline must cl
 
 ---
 
+## Getting Started
+
+→ **[Onboarding Guide](docs/product/onboarding.md)** — sign up → connect Langfuse/LangSmith → pull traces → run your first analysis.
+
+---
+
 ## Demo Agent
 
 The `/demo-agent` page lets you generate real failure traces from the browser — no scripts required.
