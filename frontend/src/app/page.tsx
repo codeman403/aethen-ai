@@ -391,7 +391,7 @@ export default function LandingPage() {
                 <div className="relative" data-user-menu>
                   <button
                     onClick={() => setUserMenuOpen(o => !o)}
-                    className="flex items-center justify-center w-8 h-8 rounded-full text-white text-xs font-black hover:opacity-85 transition-opacity ring-2 ring-purple-200 ring-offset-1"
+                    className="size-8 rounded-full text-white text-xs font-black flex items-center justify-center hover:opacity-85 transition-opacity ring-2 ring-purple-200 ring-offset-1 overflow-hidden"
                     style={{ background: "linear-gradient(135deg, #7C3AED, #3B82F6)" }}
                     title={userEmail ?? "Account"}
                   >

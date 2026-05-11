@@ -28,8 +28,7 @@ function UserMenu({ profile }: { profile: UserProfile }) {
     window.location.href = "/";
   };
 
-  const initials = (profile.fullName?.split(" ").map(w => w[0]).join("").slice(0, 2)
-    ?? profile.email.slice(0, 2)).toUpperCase();
+  const initial = (profile.fullName?.[0] ?? profile.email[0]).toUpperCase();
 
   return (
     <div className="relative" ref={ref}>
@@ -43,7 +42,7 @@ function UserMenu({ profile }: { profile: UserProfile }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
         ) : (
-          initials
+          initial
         )}
       </button>
 
