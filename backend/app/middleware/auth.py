@@ -30,6 +30,7 @@ _OPEN_PATHS = frozenset({
     "/api/demo/scenarios",
     "/api/demo/run",
     "/api/demo/analyze-direct",
+    "/api/digest/trigger",   # cron-secret protected, not JWT
     "/docs",
     "/openapi.json",
     "/redoc",
