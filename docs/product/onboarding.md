@@ -63,7 +63,7 @@ Connect Langfuse or LangSmith so Aethen can pull your agent execution traces.
 
 ## Step 4 — Ingest Your First Session
 
-1. Go to the **Overview** page
+1. Go to the **Trace Explorer** page
 2. Click **Pull Traces** (top-right area of the page)
 3. Aethen fetches recent traces from your connected source, embeds them into pgvector, and seeds the Neo4j graph
 4. Sessions appear in the **Traces** page, each tagged with a failure type indicator
