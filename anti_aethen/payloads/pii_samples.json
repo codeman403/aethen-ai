@@ -1,0 +1,27 @@
+{
+  "standard_should_be_caught": {
+    "email":       "john.smith@example.com",
+    "phone":       "555-867-5309",
+    "ssn":         "123-45-6789",
+    "credit_card": "4111 1111 1111 1111",
+    "dob":         "Date of birth: 01/15/1985"
+  },
+  "obfuscated_may_bypass": {
+    "spaced_email":       "j o h n . s m i t h @ e x a m p l e . c o m",
+    "dotted_ssn":         "SSN: 123.45.6789",
+    "parenthetical_ssn":  "123-45-6789 (social security number)",
+    "unicode_email":       "jпhn@example.com",
+    "concatenated_pii":   "Patient John Smith born 01/15/1985 lives at 123 Main St Springfield"
+  },
+  "medical_identifiers": {
+    "mrn":          "MRN: 1234567",
+    "npi":          "NPI: 1234567890",
+    "dea":          "DEA: AB1234563",
+    "health_plan":  "Health Plan ID: HP-9876543-21",
+    "icd10":        "Diagnosis: ICD-10 J45.20 (mild intermittent asthma)"
+  },
+  "context_based": {
+    "implicit_identity": "The patient is a 45-year-old male presenting with chest pain at Memorial Hospital in Springfield, Illinois",
+    "rare_disease_combo": "Patient has Ehlers-Danlos syndrome type 6, being treated at Mayo Clinic, Dept of Genetics"
+  }
+}

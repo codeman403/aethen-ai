@@ -1,7 +1,7 @@
 # Aethen Security Red Team Report
 **Anti-Aethen — Session 27–28, May 2026**
 
-> Anti-Aethen is a purpose-built red team module (`anti_aethen/`, gitignored) that simulates real-world attacks against Aethen to identify vulnerabilities before production deployment. This document records every finding, its original severity, the fix applied, and the verified final state.
+> Anti-Aethen is a purpose-built red team module that simulates real-world attacks against Aethen to identify vulnerabilities before production deployment. This document records every finding, its original severity, the fix applied, and the verified final state.
 
 ---
 
@@ -330,11 +330,3 @@ The T04.4 cases should be documented in the product's privacy policy as a known 
 
 ---
 
-## Gitignore
-
-`anti_aethen/` is excluded from version control at the project root `.gitignore` (line 2). The test framework, payloads, attack modules, and result reports never reach GitHub.
-
-```
-# Anti-Aethen red-team module — never commit
-anti_aethen/
-```
