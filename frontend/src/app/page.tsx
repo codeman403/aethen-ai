@@ -782,9 +782,9 @@ export default function LandingPage() {
             <Reveal delay={0.2}>
               <div className="mt-8">
                 <p className="text-sm text-black/45 mb-2">Still have questions?</p>
-                <a href="mailto:hello@aethen.ai" className="inline-flex items-center gap-2 text-sm font-semibold text-[#6D28D9] hover:text-[#5B21B6] transition-colors">
+                <Link href="/support" className="inline-flex items-center gap-2 text-sm font-semibold text-[#6D28D9] hover:text-[#5B21B6] transition-colors">
                   Contact us →
-                </a>
+                </Link>
               </div>
             </Reveal>
           </SectionReveal>
