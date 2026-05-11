@@ -129,3 +129,63 @@ The context window is capped (top-5 LLM calls, top-5 tool calls, top-3 retrieval
 | `failure_patterns` | Session-level failure summaries (one per failed session) | `vector_retrieve` |
 
 Both namespaces are stored in the same `session_vectors` table, filtered by `namespace` column.
+
+---
+
+## Graph RAG Quality Grows With Trace Volume
+
+Aethen's retrieval quality is not static — it improves as more sessions are ingested. This is the core flywheel effect of the two-store architecture.
+
+### How it works
+
+Every ingested session writes to **two stores simultaneously**:
+
+```
+POST /api/ingest
+  → pgvector: embed trace events → session_vectors (traces + failure_patterns)
+  → Neo4j:    seed nodes + edges  → session→query→chunk→tool→response graph
+```
+
+Both stores accumulate knowledge permanently. Each new failure becomes evidence for future analyses.
+
+### pgvector flywheel — richer evidence retrieval
+
+The `failure_patterns` namespace stores one rich embedding per failed session (failure summary + retrieval queries + tool errors + scores). As this namespace grows:
+
+| Sessions ingested | Effect |
+|---|---|
+| < 50 | Sparse — retrievals often return low-similarity matches; evidence context is thin |
+| 50–500 | Useful — similar failure patterns begin clustering; confidence scores improve |
+| 500+ | Strong — the LLM receives tightly relevant historical context; root causes become more specific |
+
+The `fast_analyze` node explicitly includes the top-3 retrieved patterns in the prompt:
+```
+=== Similar Failure Patterns ===
+[1] score=0.91: Memory failure | same agent, same query domain, retrieval score 0.28
+[2] score=0.87: Memory failure | doc ID mismatch confirmed across 3 sessions
+```
+Without history this section is empty. With history it anchors the LLM's reasoning in confirmed past evidence rather than inference alone.
+
+### Neo4j flywheel — structural blind spot detection
+
+Neo4j's value grows differently from pgvector. Vector search finds *similar* sessions; graph traversal finds *structurally related* sessions — shared failure types, shared tool error causes, recurring blind spot topics.
+
+Key relationships that compound over time:
+
+| Relationship | What accumulates | Used by |
+|---|---|---|
+| `(Session)-[:RELATED_TO]->(Session)` | Sessions sharing the same failure type cluster together | `graph_traverse` for cross-session pattern context |
+| `(Query)-[:UNRESOLVED_DUE_TO]->(BlindSpot)` | Repeated zero-retrieval queries link to the same `BlindSpot` node | Blind Spot Detector identifies systemic gaps |
+| `(Session)-[:FAILED_WITH]->(FailureEvent)` | Tool errors and hallucination events link to shared failure signatures | Pattern Clusters page |
+
+A `BlindSpot` node with 1 connected query is a one-off. The same node with 47 connected queries across 19 sessions (from multiple agents) is a confirmed systemic gap — and Aethen's confidence in flagging it is correspondingly higher.
+
+### Early vs mature system
+
+| State | pgvector evidence | Neo4j graph | Analysis quality |
+|---|---|---|---|
+| **Fresh** (< 50 sessions) | Low similarity matches, sparse context | Few edges, no recurring patterns | Functional but conservative confidence scores |
+| **Growing** (50–500) | Relevant patterns begin surfacing | Clusters form; blind spots emerge | Noticeably better root cause specificity |
+| **Mature** (500+) | High-confidence evidence retrieval | Rich causal chains; systemic gaps visible | Maximum accuracy; Blind Spot Detector most valuable |
+
+> The system is always correct about what it observes in the current trace. The cross-session context from RAG makes it more specific and confident about *why* — distinguishing a one-off misconfiguration from a recurring infrastructure pattern.
