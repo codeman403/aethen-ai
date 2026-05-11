@@ -146,10 +146,11 @@ async def send_daily_digest_email(
     org_name: str,
     date_label: str,
     stats: dict,
-) -> None:
-    """Send a daily failure-intelligence digest email."""
+) -> bool:
+    """Send a daily failure-intelligence digest email. Returns True if sent successfully."""
     if not _is_configured():
-        return
+        logger.debug("email_skipped_no_config", reason="RESEND_API_KEY or EMAIL_FROM not set")
+        return False
     try:
         r = _resend()
         total    = stats.get("total_sessions", 0)
@@ -201,8 +202,10 @@ table{{width:100%;border-collapse:collapse}}td{{font-size:13px}}.f{{padding:20px
             "html": html,
         })
         logger.info("email_sent", type="daily_digest", to=to_email)
+        return True
     except Exception as exc:
         logger.warning("email_send_failed", type="daily_digest", to=to_email, error=str(exc))
+        return False
 
 
 async def send_quota_warning_email(
