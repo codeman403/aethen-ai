@@ -406,23 +406,20 @@ async def run_demo_scenario(request: DemoRunRequest, http_request: Request) -> A
                 "run_name": scenario["run_name"],
                 "metadata": {
                     "langfuse_user_id": "Demo Agent",
-                    "langfuse_session_id": session_id,   # required for trace_id lookup
+                    "langfuse_session_id": session_id,
                     "tags": scenario["tags"],
                     "scenario": scenario["name"],
                 },
             }
 
-        # Run the synchronous LLM call off the event loop
-        def _invoke():
-            return llm.invoke(messages, config=invoke_config if invoke_config else {})
-
-        response = await asyncio.get_event_loop().run_in_executor(None, _invoke)
+        # Use async ainvoke — avoids thread-executor overhead of sync invoke()
+        response = await llm.ainvoke(messages, config=invoke_config if invoke_config else {})
         assistant_text = response.content if hasattr(response, "content") else str(response)
 
-        # Flush Langfuse traces
+        # Flush Langfuse in background — don't block the response
         if langfuse_client:
-            await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
-            logger.info("langfuse_flushed", scenario=scenario_key, session_id=session_id)
+            asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
+            logger.info("langfuse_flush_scheduled", scenario=scenario_key, session_id=session_id)
 
         # Resolve trace_id — return it so the frontend can trigger analysis separately.
         # Analysis is NOT triggered here; the frontend calls /api/demo/analyze-chat
@@ -541,14 +538,14 @@ async def demo_chat(request: DemoChatRequest, http_request: Request) -> ApiRespo
                 langfuse_traced=False,
             )
 
-        # ── Phase 1: tool loop — NO Langfuse callbacks ───────────────────────────
+        # ── Phase 1: async tool loop — NO Langfuse callbacks ────────────────────
         # Runs all tool iterations without creating Langfuse observations.
         # Accumulates the full conversation context (including tool results).
-        def _run_tools() -> tuple[list, bool]:
+        async def _run_tools_async() -> tuple[list, bool]:
             """Return (final_messages, hit_limit)."""
             current_messages = list(messages)
             for _ in range(5):
-                response = llm_with_tools.invoke(current_messages)
+                response = await llm_with_tools.ainvoke(current_messages)
                 if not getattr(response, "tool_calls", None):
                     return current_messages, False
                 current_messages.append(response)
@@ -566,29 +563,21 @@ async def demo_chat(request: DemoChatRequest, http_request: Request) -> ApiRespo
                     )
             return current_messages, True
 
-        final_messages, hit_limit = await asyncio.get_event_loop().run_in_executor(
-            None, _run_tools
-        )
+        final_messages, hit_limit = await _run_tools_async()
 
         if hit_limit:
             assistant_text = "I've reached the tool call limit. Please try a more specific request."
         else:
-            # ── Phase 2: ONE final invoke WITH callback → exactly one Langfuse trace ─
-            # final_messages includes any tool call context so the LLM gives a
-            # response that reflects what the tools returned.
-            def _traced_invoke() -> str:
-                resp = llm.invoke(
-                    final_messages,
-                    config=invoke_config if invoke_config else {},
-                )
-                return resp.content if hasattr(resp, "content") else str(resp)
-
-            assistant_text = await asyncio.get_event_loop().run_in_executor(
-                None, _traced_invoke
+            # ── Phase 2: ONE final ainvoke WITH callback → exactly one Langfuse trace
+            resp = await llm.ainvoke(
+                final_messages,
+                config=invoke_config if invoke_config else {},
             )
+            assistant_text = resp.content if hasattr(resp, "content") else str(resp)
 
+        # Flush Langfuse in background — don't block the response
         if langfuse_client:
-            await asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
+            asyncio.get_event_loop().run_in_executor(None, langfuse_client.flush)
 
         # Resolve trace_id for this turn — use handler.last_trace_id first (no delay)
         langfuse_trace_id: str | None = None
