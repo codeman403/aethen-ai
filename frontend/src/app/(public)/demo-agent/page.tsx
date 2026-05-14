@@ -65,6 +65,71 @@ const PIPELINE_STEPS = [
   { id: "done",     text: "Pipeline complete",                           ms: 99999 },
 ];
 
+// ── Analysis loading — same style as ScenarioLoading ─────────────────────────
+function AnalysisLoading({ elapsed }: { elapsed: number }) {
+  const [dotCount, setDotCount] = useState(1);
+
+  useEffect(() => {
+    const id = setInterval(() => setDotCount(d => (d % 3) + 1), 420);
+    return () => clearInterval(id);
+  }, []);
+
+  const dots = ".".repeat(dotCount);
+  const elapsedMs = elapsed * 1000;
+  const visibleSteps = PIPELINE_STEPS.filter(s => elapsedMs >= s.ms && s.id !== "done");
+  const activeIdx = visibleSteps.length;
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="size-7 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 mt-0.5">
+        <Bot className="size-3.5 text-muted-foreground" />
+      </div>
+      <div className="flex flex-col gap-2 flex-1">
+        {/* Bouncing dots bubble */}
+        <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-border/50 bg-muted/40 px-4 py-3">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="size-2 rounded-full bg-muted-foreground/50"
+              style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
+            />
+          ))}
+          <span className="ml-2 text-xs text-muted-foreground font-mono">Aethen pipeline running</span>
+        </div>
+
+        {/* Mini terminal — same style as ScenarioLoading */}
+        <div className="rounded-xl border border-border/40 bg-[#0d1117] overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#30363d]">
+            <div className="flex gap-1">
+              <span className="size-2 rounded-full bg-[#ff5f57]/60" />
+              <span className="size-2 rounded-full bg-[#febc2e]/60" />
+              <span className="size-2 rounded-full bg-[#28c840]/60" />
+            </div>
+            <span className="text-[10px] font-mono text-[#7d8590]">aethen — diagnostic pipeline</span>
+          </div>
+          <div className="px-3 py-2.5 space-y-1 min-h-[80px]">
+            {PIPELINE_STEPS.filter(s => s.id !== "done").map((step, i) => {
+              const done = elapsedMs > step.ms;
+              const active = i === activeIdx;
+              if (!done && !active) return null;
+              return (
+                <div key={step.id} className="flex items-center gap-2 font-mono text-[11px]">
+                  <span className={done ? "text-[#3fb950]" : "text-[#58a6ff]"}>
+                    {done ? "✓" : "▶"}
+                  </span>
+                  <span className={done ? "text-[#7d8590]" : "text-[#e6edf3]"}>
+                    {step.text}{active ? dots : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Steps shown when no failure pattern is detected (early exit path)
 const EARLY_EXIT_STEPS = [
   { id: "init",     text: "Initializing Aethen diagnostic pipeline",    ms: 200  },
@@ -581,34 +646,9 @@ function ChatTurn({ result, analyzing, analysisReport, analysisFailed, onAnalyze
       )}
       {(analyzing || (analysisReport && !analysisFailed)) && (
         <div className="space-y-3">
-          {/* Bouncing dots + agent bubble — only while analysis is running */}
-          {analyzing && (
-            <div className="flex items-start gap-3">
-              <div className="size-7 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 mt-0.5">
-                <Bot className="size-3.5 text-muted-foreground" />
-              </div>
-              <div className="flex flex-col gap-2 flex-1">
-                <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-border/50 bg-muted/40 px-4 py-3">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="size-2 rounded-full bg-muted-foreground/50"
-                      style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
-                    />
-                  ))}
-                  <span className="ml-2 text-xs text-muted-foreground font-mono">Aethen pipeline running</span>
-                </div>
-                <TerminalAnalysis
-                  analyzing={!!analyzing}
-                  elapsed={elapsed}
-                  failureType={analysisReport?.failure_type}
-                  completedIn={completedIn}
-                  earlyExit={!analyzing && analysisReport?.failure_type === "unknown" && analysisReport?.confidence === 0}
-                />
-              </div>
-            </div>
-          )}
-          {/* When complete — show terminal result without the chat bubble wrapper */}
+          {/* While running — new ScenarioLoading-style animation */}
+          {analyzing && <AnalysisLoading elapsed={elapsed} />}
+          {/* When complete — existing terminal result + findings */}
           {!analyzing && (
             <TerminalAnalysis
               analyzing={false}
