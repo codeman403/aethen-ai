@@ -581,13 +581,43 @@ function ChatTurn({ result, analyzing, analysisReport, analysisFailed, onAnalyze
       )}
       {(analyzing || (analysisReport && !analysisFailed)) && (
         <div className="space-y-3">
-          <TerminalAnalysis
-            analyzing={!!analyzing}
-            elapsed={elapsed}
-            failureType={analysisReport?.failure_type}
-            completedIn={completedIn}
-            earlyExit={!analyzing && analysisReport?.failure_type === "unknown" && analysisReport?.confidence === 0}
-          />
+          {/* Bouncing dots + agent bubble — only while analysis is running */}
+          {analyzing && (
+            <div className="flex items-start gap-3">
+              <div className="size-7 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 mt-0.5">
+                <Bot className="size-3.5 text-muted-foreground" />
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-border/50 bg-muted/40 px-4 py-3">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="size-2 rounded-full bg-muted-foreground/50"
+                      style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
+                    />
+                  ))}
+                  <span className="ml-2 text-xs text-muted-foreground font-mono">Aethen pipeline running</span>
+                </div>
+                <TerminalAnalysis
+                  analyzing={!!analyzing}
+                  elapsed={elapsed}
+                  failureType={analysisReport?.failure_type}
+                  completedIn={completedIn}
+                  earlyExit={!analyzing && analysisReport?.failure_type === "unknown" && analysisReport?.confidence === 0}
+                />
+              </div>
+            </div>
+          )}
+          {/* When complete — show terminal result without the chat bubble wrapper */}
+          {!analyzing && (
+            <TerminalAnalysis
+              analyzing={false}
+              elapsed={elapsed}
+              failureType={analysisReport?.failure_type}
+              completedIn={completedIn}
+              earlyExit={analysisReport?.failure_type === "unknown" && analysisReport?.confidence === 0}
+            />
+          )}
           {!analyzing && analysisReport && analysisReport.failure_type !== "unknown" && (
             <AethenAnalysisCard report={analysisReport} />
           )}
