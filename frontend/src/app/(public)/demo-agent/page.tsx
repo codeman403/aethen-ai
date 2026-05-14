@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { useElapsedSeconds } from "@/hooks/useElapsedSeconds";
 import Link from "next/link";
 import { FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
@@ -66,65 +67,47 @@ const PIPELINE_STEPS = [
 ];
 
 // ── Analysis loading — same style as ScenarioLoading ─────────────────────────
+// ── Shared floating bottom-up step text ───────────────────────────────────────
+function FloatingStepText({ steps, elapsedMs }: {
+  steps: { id: string; text: string; ms: number }[];
+  elapsedMs: number;
+}) {
+  const visible = steps.filter(s => elapsedMs >= s.ms && s.id !== "done");
+  const shown   = visible.slice(-3); // keep last 3
+
+  return (
+    <div className="flex flex-col gap-1 min-h-[52px] justify-end overflow-hidden">
+      {shown.map((step, i) => {
+        const isActive = i === shown.length - 1;
+        return (
+          <motion.p
+            key={step.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: isActive ? 1 : 0.28, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="text-xs font-mono leading-snug"
+            style={{
+              color: isActive ? "#4ade80" : "hsl(var(--muted-foreground))",
+              textShadow: isActive ? "0 0 12px rgba(74,222,128,0.7), 0 0 24px rgba(74,222,128,0.35)" : "none",
+            }}
+          >
+            <span className="mr-1.5 opacity-60">{isActive ? "▶" : "✓"}</span>
+            {step.text}{isActive ? "…" : ""}
+          </motion.p>
+        );
+      })}
+    </div>
+  );
+}
+
 function AnalysisLoading({ elapsed }: { elapsed: number }) {
-  const [dotCount, setDotCount] = useState(1);
-
-  useEffect(() => {
-    const id = setInterval(() => setDotCount(d => (d % 3) + 1), 420);
-    return () => clearInterval(id);
-  }, []);
-
-  const dots = ".".repeat(dotCount);
-  const elapsedMs = elapsed * 1000;
-  const visibleSteps = PIPELINE_STEPS.filter(s => elapsedMs >= s.ms && s.id !== "done");
-  const activeIdx = visibleSteps.length;
-
   return (
     <div className="flex items-start gap-3">
       <div className="size-7 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 mt-0.5">
         <Bot className="size-3.5 text-muted-foreground" />
       </div>
-      <div className="flex flex-col gap-2 flex-1">
-        {/* Bouncing dots bubble */}
-        <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-border/50 bg-muted/40 px-4 py-3">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="size-2 rounded-full bg-muted-foreground/50"
-              style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
-            />
-          ))}
-          <span className="ml-2 text-xs text-muted-foreground font-mono">Aethen pipeline running</span>
-        </div>
-
-        {/* Mini terminal — same style as ScenarioLoading */}
-        <div className="rounded-xl border border-border/40 bg-[#0d1117] overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#30363d]">
-            <div className="flex gap-1">
-              <span className="size-2 rounded-full bg-[#ff5f57]/60" />
-              <span className="size-2 rounded-full bg-[#febc2e]/60" />
-              <span className="size-2 rounded-full bg-[#28c840]/60" />
-            </div>
-            <span className="text-[10px] font-mono text-[#7d8590]">aethen — diagnostic pipeline</span>
-          </div>
-          <div className="px-3 py-2.5 space-y-1 min-h-[80px]">
-            {PIPELINE_STEPS.filter(s => s.id !== "done").map((step, i) => {
-              const done = elapsedMs > step.ms;
-              const active = i === activeIdx;
-              if (!done && !active) return null;
-              return (
-                <div key={step.id} className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className={done ? "text-[#3fb950]" : "text-[#58a6ff]"}>
-                    {done ? "✓" : "▶"}
-                  </span>
-                  <span className={done ? "text-[#7d8590]" : "text-[#e6edf3]"}>
-                    {step.text}{active ? dots : ""}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div className="flex-1 py-1">
+        <FloatingStepText steps={PIPELINE_STEPS} elapsedMs={elapsed * 1000} />
       </div>
     </div>
   );
@@ -332,39 +315,24 @@ const SCENARIO_MAP = Object.fromEntries(SCENARIOS.map((s) => [s.key, s]));
 // Scenario loading animation — shown while the LLM generates the response
 // ---------------------------------------------------------------------------
 
-const BACKEND_STEPS = [
-  { text: "Routing request to GPT-4o-mini",       duration: 900  },
-  { text: "Agent processing your message",          duration: 1800 },
-  { text: "Executing tool calls",                   duration: 1500 },
-  { text: "Generating response",                    duration: 2000 },
-  { text: "Logging trace to Langfuse",              duration: 800  },
+// Timed steps for the scenario run (no ms field — use index × duration)
+const SCENARIO_RUN_STEPS = [
+  { id: "route",    text: "Routing to inference endpoint",     ms: 0    },
+  { id: "process",  text: "Agent processing your message",     ms: 1000 },
+  { id: "tools",    text: "Resolving tool calls",              ms: 2400 },
+  { id: "generate", text: "Generating response",               ms: 3800 },
+  { id: "trace",    text: "Logging trace to Langfuse",         ms: 5400 },
 ];
 
 function ScenarioLoading({ scenarioKey }: { scenarioKey: string }) {
   const scenario = SCENARIO_MAP[scenarioKey];
-  const [stepIdx, setStepIdx] = useState(0);
-  const [dotCount, setDotCount] = useState(1);
+  const [elapsed, setElapsed] = useState(0);
 
-  // Advance through backend steps based on timing
   useEffect(() => {
-    let elapsed = 0;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    BACKEND_STEPS.forEach((step, i) => {
-      const t = setTimeout(() => setStepIdx(i), elapsed);
-      timers.push(t);
-      elapsed += step.duration;
-    });
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
-  // Animate dots
-  useEffect(() => {
-    const id = setInterval(() => setDotCount(d => (d % 3) + 1), 420);
+    const start = Date.now();
+    const id = setInterval(() => setElapsed((Date.now() - start) / 1000), 100);
     return () => clearInterval(id);
   }, []);
-
-  const dots = ".".repeat(dotCount);
-  const currentStep = BACKEND_STEPS[stepIdx];
 
   return (
     <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
@@ -380,66 +348,23 @@ function ScenarioLoading({ scenarioKey }: { scenarioKey: string }) {
       </div>
 
       <div className="p-6 space-y-4">
-        {/* User message bubble */}
+        {/* User message — text-base to match ChatTurn */}
         <div className="flex justify-end">
-          <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-foreground text-background px-4 py-2.5 text-sm leading-relaxed">
+          <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-4 py-2.5 text-base leading-relaxed shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             {scenario?.userMessage ?? "Running scenario…"}
           </div>
         </div>
 
-        {/* Agent typing bubble */}
+        {/* Floating bottom-up step text */}
         <div className="flex items-start gap-3">
           <div className="size-7 rounded-full bg-muted border border-border/50 flex items-center justify-center shrink-0 mt-0.5">
             <Bot className="size-3.5 text-muted-foreground" />
           </div>
-          <div className="flex-1 space-y-2">
-            {/* Typing dots */}
-            <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-border/50 bg-muted/40 px-4 py-3">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="size-2 rounded-full bg-muted-foreground/50"
-                  style={{
-                    animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Backend status — mini terminal */}
-            <div className="rounded-xl border border-border/40 bg-[#0d1117] overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#30363d]">
-                <div className="flex gap-1">
-                  <span className="size-2 rounded-full bg-[#ff5f57]/60" />
-                  <span className="size-2 rounded-full bg-[#febc2e]/60" />
-                  <span className="size-2 rounded-full bg-[#28c840]/60" />
-                </div>
-                <span className="text-[10px] font-mono text-[#7d8590]">aethen — demo agent</span>
-              </div>
-              <div className="px-3 py-2.5 space-y-1 min-h-[72px]">
-                {BACKEND_STEPS.slice(0, stepIdx + 1).map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className={i < stepIdx ? "text-[#3fb950]" : "text-[#58a6ff]"}>
-                      {i < stepIdx ? "✓" : "▶"}
-                    </span>
-                    <span className={i < stepIdx ? "text-[#7d8590]" : "text-[#e6edf3]"}>
-                      {step.text}{i === stepIdx ? dots : ""}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="flex-1 py-1">
+            <FloatingStepText steps={SCENARIO_RUN_STEPS} elapsedMs={elapsed * 1000} />
           </div>
         </div>
       </div>
-
-      {/* Bounce keyframes */}
-      <style>{`
-        @keyframes bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-          30% { transform: translateY(-5px); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -646,18 +571,7 @@ function ChatTurn({ result, analyzing, analysisReport, analysisFailed, onAnalyze
       )}
       {(analyzing || (analysisReport && !analysisFailed)) && (
         <div className="space-y-3">
-          {/* While running — new ScenarioLoading-style animation */}
           {analyzing && <AnalysisLoading elapsed={elapsed} />}
-          {/* When complete — existing terminal result + findings */}
-          {!analyzing && (
-            <TerminalAnalysis
-              analyzing={false}
-              elapsed={elapsed}
-              failureType={analysisReport?.failure_type}
-              completedIn={completedIn}
-              earlyExit={analysisReport?.failure_type === "unknown" && analysisReport?.confidence === 0}
-            />
-          )}
           {!analyzing && analysisReport && analysisReport.failure_type !== "unknown" && (
             <AethenAnalysisCard report={analysisReport} />
           )}
