@@ -87,8 +87,8 @@ function FloatingStepText({ steps, elapsedMs }: {
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className="text-xs font-mono leading-snug"
             style={{
-              color: isActive ? "#4ade80" : "hsl(var(--muted-foreground))",
-              textShadow: isActive ? "0 0 12px rgba(74,222,128,0.7), 0 0 24px rgba(74,222,128,0.35)" : "none",
+              color: isActive ? "#16a34a" : "hsl(var(--muted-foreground))",
+              textShadow: isActive ? "0 0 8px rgba(22,163,74,0.2)" : "none",
             }}
           >
             <span className="mr-1.5 opacity-60">{isActive ? "▶" : "✓"}</span>
@@ -317,22 +317,34 @@ const SCENARIO_MAP = Object.fromEntries(SCENARIOS.map((s) => [s.key, s]));
 
 // Timed steps for the scenario run (no ms field — use index × duration)
 const SCENARIO_RUN_STEPS = [
-  { id: "route",    text: "Routing to inference endpoint",     ms: 0    },
-  { id: "process",  text: "Agent processing your message",     ms: 1000 },
-  { id: "tools",    text: "Resolving tool calls",              ms: 2400 },
-  { id: "generate", text: "Generating response",               ms: 3800 },
-  { id: "trace",    text: "Logging trace to Langfuse",         ms: 5400 },
+  { id: "route",    text: "Routing to inference endpoint",     ms: 200  },
+  { id: "process",  text: "Agent processing your message",     ms: 1200 },
+  { id: "tools",    text: "Resolving tool calls",              ms: 2600 },
+  { id: "generate", text: "Generating response",               ms: 4000 },
+  { id: "trace",    text: "Logging trace to Langfuse",         ms: 5600 },
 ];
 
 function ScenarioLoading({ scenarioKey }: { scenarioKey: string }) {
   const scenario = SCENARIO_MAP[scenarioKey];
   const [elapsed, setElapsed] = useState(0);
+  const fullText = scenario?.userMessage ?? "Running scenario…";
+  const [typed, setTyped] = useState("");
+  const typingDone = typed.length >= fullText.length;
 
+  // Typewriter effect for the user message
   useEffect(() => {
+    if (typingDone) return;
+    const id = setTimeout(() => setTyped(fullText.slice(0, typed.length + 1)), 28);
+    return () => clearTimeout(id);
+  }, [typed, fullText, typingDone]);
+
+  // Elapsed timer — starts only AFTER typewriter completes
+  useEffect(() => {
+    if (!typingDone) return;
     const start = Date.now();
     const id = setInterval(() => setElapsed((Date.now() - start) / 1000), 100);
     return () => clearInterval(id);
-  }, []);
+  }, [typingDone]);
 
   return (
     <div className="rounded-2xl border border-border/50 bg-card shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
@@ -348,10 +360,13 @@ function ScenarioLoading({ scenarioKey }: { scenarioKey: string }) {
       </div>
 
       <div className="p-6 space-y-4">
-        {/* User message — text-base to match ChatTurn */}
+        {/* User message — typewriter effect */}
         <div className="flex justify-end">
           <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-4 py-2.5 text-base leading-relaxed shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            {scenario?.userMessage ?? "Running scenario…"}
+            {typed}
+            {typed.length < fullText.length && (
+              <span className="inline-block w-[2px] h-[1em] bg-primary-foreground/70 ml-[1px] align-middle animate-pulse" />
+            )}
           </div>
         </div>
 
@@ -361,7 +376,9 @@ function ScenarioLoading({ scenarioKey }: { scenarioKey: string }) {
             <Bot className="size-3.5 text-muted-foreground" />
           </div>
           <div className="flex-1 py-1">
-            <FloatingStepText steps={SCENARIO_RUN_STEPS} elapsedMs={elapsed * 1000} />
+            {typingDone && (
+              <FloatingStepText steps={SCENARIO_RUN_STEPS} elapsedMs={elapsed * 1000} />
+            )}
           </div>
         </div>
       </div>
@@ -556,8 +573,8 @@ function ChatTurn({ result, analyzing, analysisReport, analysisFailed, onAnalyze
         <div className={`shrink-0 size-7 rounded-full flex items-center justify-center border ${scenario?.bg.split(" ")[0] ?? "bg-muted"}`}>
           <Icon className={`size-3.5 ${scenario?.color ?? "text-muted-foreground"}`} />
         </div>
-        <div className="max-w-[80%] rounded-2xl rounded-tl-sm border border-border/50 bg-card px-4 py-2.5 text-base leading-relaxed">
-          {result.assistant_response}
+        <div className="max-w-[80%] rounded-2xl rounded-tl-sm border border-border/50 bg-card px-4 py-2.5">
+          {renderContent(result.assistant_response)}
         </div>
       </div>
       {!analyzing && !analysisReport && !analysisFailed && onAnalyze && (
@@ -937,8 +954,8 @@ export default function DemoAgentPage() {
               </span>
             </div>
             <div className="p-6 space-y-8">
-              {turns.map((t, i) => (
-                <div key={i}>
+              {[...turns].reverse().map((t, i) => (
+                <div key={t.session_id}>
                   {i > 0 && <hr className="border-border mb-8" />}
                   <ChatTurn
                     result={t}
