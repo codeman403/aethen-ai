@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, ReactNode } from "react";
+import { useEffect, useRef, useState, ReactNode, Fragment } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "framer-motion";
-import { ArrowRight, Database, Activity, Menu, X, GitBranch, Workflow, CheckCircle2, Play, BrainCircuit, Search, Zap, Globe, BarChart3, Cpu, Server, Plug, ChevronDown, Wrench, ScanSearch } from "lucide-react";
+import { ArrowRight, Database, Activity, Menu, X, GitBranch, Workflow, CheckCircle2, Play, BrainCircuit, Search, Zap, Globe, BarChart3, Cpu, Server, Plug, ChevronDown, Wrench, ScanSearch, AlertTriangle, SearchCode } from "lucide-react";
 import dynamic from "next/dynamic";
 import { AethenLogo } from "../components/ui/logo";
 import { createClient } from "@/lib/supabase/client";
@@ -28,6 +28,38 @@ function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => { setIsMobile(window.innerWidth < 768); }, []);
   return isMobile;
+}
+
+// ── Cursor spotlight — follows mouse, creates a moving light-source effect ───
+function CursorSpotlight() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (window.innerWidth < 768) return; // desktop only
+    const move = (e: MouseEvent) => {
+      if (!ref.current) return;
+      // Direct DOM manipulation — no React state, zero re-renders
+      ref.current.style.transform = `translate(${e.clientX - 400}px, ${e.clientY - 400}px)`;
+      ref.current.style.opacity = "1";
+    };
+    window.addEventListener("mousemove", move, { passive: true });
+    return () => window.removeEventListener("mousemove", move);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="pointer-events-none fixed z-[5] w-[800px] h-[800px] rounded-full"
+      style={{
+        opacity: 0,
+        background: "radial-gradient(circle at center, rgba(124,58,237,0.07) 0%, rgba(59,130,246,0.04) 40%, transparent 68%)",
+        willChange: "transform",
+        transition: "opacity 0.4s ease",
+        top: 0,
+        left: 0,
+      }}
+    />
+  );
 }
 
 function ScrollProgress() {
@@ -249,6 +281,308 @@ const FAQ_ITEMS = [
   },
 ];
 
+// ── Sticky split-panel data ───────────────────────────────────────────────────
+const DIAG_MODULES = [
+  {
+    n: "01", key: "memory", label: "Memory Debug",
+    color: "#3B82F6", tag: "memory",
+    headline: "Retrieval fetched the wrong documents.",
+    body: "The vector DB returned semantically adjacent but wrong-specific content. Expected doc IDs differ from what was actually retrieved — the knowledge base has the right content, the embedding layer surfaced the wrong chunk.",
+    signals: [
+      { k: "expected_doc_ids", v: "≠ actual_doc_ids  ← definitive mismatch" },
+      { k: "relevance_scores", v: "< 0.5 threshold (weak retrieval)" },
+      { k: "doc_content",      v: "same domain, wrong specific tier" },
+    ],
+    remedy: "Re-index the target document. Audit metadata filters and embedding model freshness.",
+  },
+  {
+    n: "02", key: "tool_misfire", label: "Tool Misfire",
+    color: "#F59E0B", tag: "tool_misfire",
+    headline: "A tool call failed structurally.",
+    body: "Wrong parameters, permission denied, timeout, or a cascade of failures triggered by the first misfire. The tool's error message and latency are direct structural signals — no inference required.",
+    signals: [
+      { k: "status",   v: "= failed | timeout  ← explicit error" },
+      { k: "error",    v: "PermissionError / ConnectionError / ValueError" },
+      { k: "latency",  v: "> 5 000 ms  ← timeout candidate" },
+    ],
+    remedy: "Fix the tool's permission scope or parameter schema. Add retry logic with exponential backoff.",
+  },
+  {
+    n: "03", key: "hallucination", label: "Hallucination RCA",
+    color: "#EF4444", tag: "hallucination",
+    headline: "The LLM stated facts not in any retrieved document.",
+    body: "The response introduced specific claims, numbers, or policies absent from doc_content — including the hedge-then-assert pattern where the model says 'I'm not sure, but typically X…' and X is fabricated.",
+    signals: [
+      { k: "hallucination_flag", v: "= true on LLM call" },
+      { k: "response claims",    v: "absent from doc_content" },
+      { k: "hedge-then-assert",  v: '"typically X" where X ∉ retrieved docs' },
+    ],
+    remedy: "Strengthen grounding constraints in the system prompt. Add 'only use retrieved content' guard.",
+  },
+  {
+    n: "04", key: "blind_spot", label: "Blind Spot Detector",
+    color: "#10B981", tag: "blind_spot",
+    headline: "The knowledge base has zero coverage for this topic.",
+    body: "Nothing was retrieved — the topic simply doesn't exist in the docs. Recurring blind spots across multiple sessions are surfaced by Neo4j graph traversal, turning a one-off failure into a confirmed systemic gap.",
+    signals: [
+      { k: "chunks_returned", v: "= 0  ← unambiguous structural signal" },
+      { k: "all scores",      v: "< 0.3 — no relevant content at all" },
+      { k: "cross-session",   v: "same gap confirmed in N sessions via Graph RAG" },
+    ],
+    remedy: "Add documentation for the missing topic. Verify KB ingestion pipeline for content gaps.",
+  },
+];
+
+function StickyModulePanel({ mod }: { mod: typeof DIAG_MODULES[0] }) {
+  return (
+    <motion.div
+      key={mod.key}
+      initial={{ opacity: 0, x: -16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      className="rounded-2xl border bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.06)]"
+      style={{ borderColor: mod.color + "25" }}
+    >
+      <div className="flex items-center gap-3 mb-5">
+        <span className="text-xs font-mono font-bold text-black/30 tracking-widest">{mod.n}</span>
+        <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full border"
+          style={{ color: mod.color, borderColor: mod.color + "35", backgroundColor: mod.color + "10" }}>
+          {mod.tag}
+        </span>
+      </div>
+
+      <h3 className="text-2xl md:text-3xl font-black tracking-tight text-foreground leading-tight mb-3">
+        {mod.label}
+      </h3>
+      <p className="text-sm text-black/50 leading-relaxed mb-6 italic">{mod.headline}</p>
+      <p className="text-sm text-black/60 leading-relaxed mb-7">{mod.body}</p>
+
+      <div className="space-y-2 mb-7">
+        <p className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-black/35 mb-3">Key signals</p>
+        {mod.signals.map((s, i) => (
+          <div key={i} className="flex items-start gap-2.5">
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 mt-0.5 border"
+              style={{ color: mod.color, borderColor: mod.color + "30", backgroundColor: mod.color + "08" }}>
+              {s.k}
+            </span>
+            <span className="text-xs text-black/50 leading-relaxed">{s.v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-black/[0.06] bg-black/[0.02] p-4">
+        <p className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-black/30 mb-2">Remediation</p>
+        <p className="text-xs text-black/60 leading-relaxed">{mod.remedy}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Mock AnalysisReport cards ────────────────────────────────────────────────
+
+const MOCK_REPORTS: Record<string, {
+  confidence: number;
+  root_cause: string;
+  findings: { severity: string; title: string; description: string }[];
+}> = {
+  memory: {
+    confidence: 0.81,
+    root_cause: "Embedding similarity peaked at 0.47 — below the 0.5 threshold — causing retrieval to surface billing-standard docs instead of billing-enterprise, so the LLM answered with the wrong pricing tier.",
+    findings: [
+      { severity: "high",   title: "Doc ID mismatch confirmed",          description: "Expected billing-enterprise-v2 but retrieved billing-standard-v1 — expected docs were not returned." },
+      { severity: "medium", title: "Relevance scores below threshold",   description: "Max score 0.47 across all chunks — below the 0.5 confidence floor." },
+      { severity: "low",    title: "No fallback for enterprise queries", description: "No metadata filter exists for enterprise-tier queries." },
+    ],
+  },
+  tool_misfire: {
+    confidence: 0.94,
+    root_cause: "update_user_record failed with PermissionError at 8,420ms — the service account lacks WRITE access to the user_record table, causing the agent to terminate without fallback.",
+    findings: [
+      { severity: "critical", title: "PermissionError on WRITE operation", description: "Service account role does not include WRITE access to user_record." },
+      { severity: "high",     title: "No retry or graceful fallback",     description: "Agent terminated on first error with no retry logic or escalation path." },
+      { severity: "medium",   title: "Latency exceeded timeout",          description: "8,420ms exceeded the 5,000ms threshold." },
+    ],
+  },
+  hallucination: {
+    confidence: 0.87,
+    root_cause: "LLM introduced '256-qubit lattice encryption' claims not present in either retrieved document — fabricating technical specifics from training data despite relevant docs being available.",
+    findings: [
+      { severity: "high",   title: "hallucination_flag: true",           description: "Response contains specific technical claims absent from doc_content." },
+      { severity: "high",   title: "Hedge-then-assert pattern",          description: "Response begins 'I'm not sure, but typically…' then asserts fabricated specifics." },
+      { severity: "medium", title: "Source docs don't cover this",       description: "Retrieved docs cover HMAC-SHA256 only. No quantum encryption content exists." },
+    ],
+  },
+  blind_spot: {
+    confidence: 0.76,
+    root_cause: "Zero chunks returned for 'Zephyr module configuration' — the knowledge base has no content on this topic, confirmed by Neo4j graph traversal across 19 sessions.",
+    findings: [
+      { severity: "critical", title: "chunks_returned = 0",               description: "Complete absence of relevant content across all retrieval attempts." },
+      { severity: "high",     title: "19 sessions hit the same gap",      description: "Graph RAG links this pattern across 19 sessions — systemic gap confirmed." },
+      { severity: "medium",   title: "No escalation path configured",     description: "Agent responded 'I don't know' without triggering a fallback route." },
+    ],
+  },
+};
+
+const SEVERITY_COLOR: Record<string, string> = {
+  critical: "text-rose-600 bg-rose-50 border-rose-200",
+  high:     "text-orange-600 bg-orange-50 border-orange-200",
+  medium:   "text-amber-600 bg-amber-50 border-amber-200",
+  low:      "text-emerald-600 bg-emerald-50 border-emerald-200",
+};
+
+function TraceCard({ mod }: { mod: typeof DIAG_MODULES[0] }) {
+  const report = MOCK_REPORTS[mod.key];
+  const pct = Math.round(report.confidence * 100);
+  const isMobile = useIsMobile();
+  return (
+    <motion.div
+      className="rounded-2xl border bg-white shadow-[0_8px_40px_rgba(0,0,0,0.07)] overflow-hidden"
+      style={{ borderColor: mod.color + "30" }}
+      initial={isMobile ? {} : { opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.05]"
+        style={{ backgroundColor: mod.color + "06" }}>
+        <div className="flex items-center gap-2.5">
+          <SearchCode className="size-4" style={{ color: mod.color }} />
+          <span className="text-sm font-semibold" style={{ color: mod.color }}>Aethen Diagnosis</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+            style={{ color: mod.color, borderColor: mod.color + "35", backgroundColor: mod.color + "10" }}>
+            {mod.tag}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-20 rounded-full bg-black/[0.06] overflow-hidden">
+            <motion.div className="h-full rounded-full" style={{ backgroundColor: mod.color }}
+              initial={{ width: 0 }}
+              whileInView={{ width: `${pct}%` }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.9, delay: 0.3, ease: [0.16, 1, 0.3, 1] }} />
+          </div>
+          <span className="text-xs font-bold tabular-nums" style={{ color: mod.color }}>{pct}%</span>
+        </div>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-black/30 mb-1.5">Root Cause</p>
+          <p className="text-sm text-black/70 leading-relaxed">{report.root_cause}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-black/30 mb-2.5">Findings ({report.findings.length})</p>
+          <div className="space-y-2.5">
+            {report.findings.map((f, i) => (
+              <motion.div key={i} className="flex items-start gap-2.5"
+                initial={isMobile ? {} : { opacity: 0, x: -8 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.15 + i * 0.08 }}>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 mt-0.5 uppercase ${SEVERITY_COLOR[f.severity]}`}>
+                  {f.severity}
+                </span>
+                <div>
+                  <p className="text-xs font-semibold text-black/70 mb-0.5">{f.title}</p>
+                  <p className="text-xs text-black/45 leading-relaxed">{f.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function StickyModuleSection() {
+  const isMobile = useIsMobile();
+  const [active, setActive] = useState(0);
+  const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    if (isMobile) return;
+    const observers = anchorRefs.current.map((el, i) => {
+      if (!el) return null;
+      const obs = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActive(i); },
+        { rootMargin: "-35% 0px -35% 0px", threshold: 0 }
+      );
+      obs.observe(el);
+      return obs;
+    });
+    return () => observers.forEach(o => o?.disconnect());
+  }, [isMobile]);
+
+  // Activate CSS scroll snap while this section is mounted (desktop only)
+  useEffect(() => {
+    if (isMobile) return;
+    document.documentElement.style.scrollSnapType = "y proximity";
+    return () => { document.documentElement.style.scrollSnapType = ""; };
+  }, [isMobile]);
+
+  // Mobile: simple stacked cards
+  if (isMobile) {
+    return (
+      <div className="space-y-8">
+        {DIAG_MODULES.map((mod, i) => (
+          <div key={mod.key} className="space-y-4">
+            <StickyModulePanel mod={mod} />
+            <TraceCard mod={mod} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-12 lg:gap-16 items-start max-w-7xl mx-auto">
+      {/* Sticky left — active module detail */}
+      <div className="hidden lg:block w-[44%] sticky top-[18vh] self-start">
+        <AnimatePresence mode="wait">
+          <StickyModulePanel key={active} mod={DIAG_MODULES[active]} />
+        </AnimatePresence>
+
+        {/* Module indicator dots */}
+        <div className="flex items-center gap-2 mt-5 pl-1">
+          {DIAG_MODULES.map((m, i) => (
+            <button
+              key={m.key}
+              onClick={() => {
+                setActive(i);
+                anchorRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              className="transition-all duration-300 rounded-full"
+              style={{
+                width: active === i ? 20 : 8,
+                height: 8,
+                backgroundColor: active === i ? m.color : "rgba(0,0,0,0.12)",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Scrollable right — trace evidence cards */}
+      <div className="w-full lg:w-[56%] space-y-0">
+        {DIAG_MODULES.map((mod, i) => (
+          <div
+            key={mod.key}
+            ref={el => { anchorRefs.current[i] = el; }}
+            className="min-h-screen flex flex-col justify-center py-12"
+            style={{ scrollSnapAlign: "start" }}
+          >
+            {/* Mobile label */}
+            <div className="lg:hidden mb-4">
+              <span className="text-sm font-bold" style={{ color: mod.color }}>{mod.label}</span>
+            </div>
+            <TraceCard mod={mod} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -317,10 +651,43 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const isMobile = useIsMobile();
+
+  // Map section IDs → readable labels for the sticky scroll label
+  const SECTION_LABELS: Record<string, string> = {
+    howitworks: "How It Works",
+    pipeline:   "Pipeline",
+    cases:      "Failure Reports",
+    stack:      "Stack",
+    faq:        "FAQ",
+  };
+  const sectionLabel = SECTION_LABELS[activeSection] ?? "";
+
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-purple-500/10 selection:text-purple-700">
+      <CursorSpotlight />
       <MobileWarning />
       <ScrollProgress />
+
+      {/* Sticky scroll-updating section label */}
+      {!isMobile && sectionLabel && (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={sectionLabel}
+            className="fixed left-6 z-40 pointer-events-none hidden md:flex items-center gap-2"
+            style={{ top: 68 }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <span className="size-1 rounded-full bg-black/20" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-[0.22em] text-black/30">
+              {sectionLabel}
+            </span>
+          </motion.div>
+        </AnimatePresence>
+      )}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-background" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_70%_55%_at_50%_25%,#000_20%,transparent_100%)]" />
@@ -670,68 +1037,39 @@ export default function LandingPage() {
         </section>
 
         <section id="cases" className="py-20 md:py-24 px-4 sm:px-6 scroll-mt-20">
-          <SectionReveal className="max-w-7xl mx-auto">
-            <div className="mb-12 md:mb-14">
-              <Reveal><SectionLabel text="Failure Reports · four incident types Aethen diagnoses" /></Reveal>
-              <div className="grid md:grid-cols-2 gap-8 md:gap-10">
-                <Reveal delay={0.1}>
-                  <h2 className="text-3xl md:text-5xl font-black tracking-tight text-foreground leading-tight">
-                    Every failure<br /><span className="text-black/40">leaves a signal.</span>
-                  </h2>
-                </Reveal>
-                <Reveal delay={0.2}>
-                  <div className="flex items-end">
-                    <p className="text-base md:text-[17px] text-black/55 leading-relaxed">
-                      <Typewriter text="Unlike observability tools that surface logs, Aethen reconstructs the failure trace - linking each incident back to its structural root cause across sessions." />
-                    </p>
-                  </div>
-                </Reveal>
-              </div>
+          {/* Section header */}
+          <div className="max-w-7xl mx-auto mb-16 md:mb-20">
+            <Reveal><SectionLabel text="Failure Reports · four incident types Aethen diagnoses" /></Reveal>
+            <div className="grid md:grid-cols-2 gap-8 md:gap-10">
+              <Reveal delay={0.1}>
+                <h2 className="text-3xl md:text-5xl font-black tracking-tight text-foreground leading-tight">
+                  Every failure<br /><span className="text-black/40">leaves a signal.</span>
+                </h2>
+              </Reveal>
+              <Reveal delay={0.2}>
+                <div className="flex items-end">
+                  <p className="text-base md:text-[17px] text-black/55 leading-relaxed">
+                    <Typewriter text="Unlike observability tools that surface logs, Aethen reconstructs the failure trace — linking each incident back to its structural root cause across sessions." />
+                  </p>
+                </div>
+              </Reveal>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 items-stretch">
-              <CaseFolder caseId="HAL-01" type="Hallucination" color="#EF4444" index={0}
-                title="LLM fabricated a fact not present in any retrieved chunk"
-                evidence={[
-                  { label: "llm_call",   text: "Response claimed Project Olympus launched Q2" },
-                  { label: "retrieval",  text: "Chunk #42 retrieved — topic: Q1 roadmap only" },
-                  { label: "gap",        text: "No Q2 source exists in vector store" },
-                ]}
-                resolution="Knowledge gap in Product Timeline cluster. Re-index 3 documents to cover Q2 scope." />
-              <CaseFolder caseId="TOOL-02" type="Tool Misfire" color="#F59E0B" index={1}
-                title="API tool entered infinite retry loop on malformed parameters"
-                evidence={[
-                  { label: "tool_call",  text: "get_order_status — attempt 1 of 47" },
-                  { label: "param_err",  text: "order_id passed as integer, API expects string" },
-                  { label: "schema",     text: "No type validation in tool definition" },
-                ]}
-                resolution="Add schema validation layer. Tool definition updated with explicit type coercion." />
-              <CaseFolder caseId="MEM-03" type="Memory Fault" color="#7C3AED" index={2}
-                title="Agent forgot user constraints set 8 turns earlier in session"
-                evidence={[
-                  { label: "session",    text: "Turn 3: user said never recommend competitor products" },
-                  { label: "llm_call",   text: "Turn 11: agent recommended CompetitorX" },
-                  { label: "ctx_drop",   text: "Context window compression dropped turns 3–6" },
-                ]}
-                resolution="Inject critical constraints as system-level memory. Implement constraint pinning." />
-              <CaseFolder caseId="BSP-04" type="Blind Spot" color="#10B981" index={3}
-                title="47 users failed on refund policy — topic absent from knowledge base"
-                evidence={[
-                  { label: "query",      text: "47 queries across 19 sessions returned 'I do not know'" },
-                  { label: "score",      text: "Retrieval similarity: 0.31 — below 0.55 threshold" },
-                  { label: "namespace",  text: "Zero relevant chunks in pgvector" },
-                ]}
-                resolution="Root cause: refund policy docs never ingested. Gap closed, reliability +53%." />
-            </div>
-            <Reveal className="mt-14 md:mt-16">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 p-6 md:p-8 rounded-2xl border border-black/[0.06] bg-white">
-                <StatCounter value={7} label="Node Types" suffix="+" color="#3B82F6" />
-                <StatCounter value={12} label="Rel. Types" suffix="+" color="#7C3AED" />
-                <StatCounter value={25} label="Avg MTTR sec" color="#F59E0B" />
-                <StatCounter value={98} label="Reliability Target" suffix="%" color="#10B981" />
+          {/* Sticky split-panel */}
+          <StickyModuleSection />
+
+          {/* Stats bar */}
+          <Reveal className="mt-16 md:mt-20 max-w-7xl mx-auto">
+            <div className="grid grid-cols-3 gap-6 md:gap-8 p-6 md:p-8 rounded-2xl border border-black/[0.06] bg-white">
+              <StatCounter value={100} label="Classification accuracy" suffix="%" color="#7C3AED" />
+              <div className="text-center">
+                <div className="text-3xl md:text-4xl font-black tabular-nums" style={{ color: "#3B82F6" }}>85.56%</div>
+                <p className="text-xs font-mono text-black/45 mt-2 uppercase tracking-[0.14em]">LLM judge score</p>
               </div>
-            </Reveal>
-          </SectionReveal>
+              <StatCounter value={9} label="Analysis latency" suffix="–12s" color="#10B981" />
+            </div>
+          </Reveal>
         </section>
 
         <section id="stack" className="py-20 md:py-24 px-4 sm:px-6 scroll-mt-20">
@@ -842,10 +1180,16 @@ export default function LandingPage() {
               })}
             </div>
             <Reveal delay={0.2}>
-              <div className="mt-8">
-                <p className="text-sm text-black/45 mb-2">Still have questions?</p>
-                <Link href="/support" className="inline-flex items-center gap-2 text-sm font-semibold text-[#6D28D9] hover:text-[#5B21B6] transition-colors">
-                  Contact us →
+              <div className="mt-10 flex items-center gap-4 p-5 rounded-2xl border border-black/[0.06] bg-white">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">Still have questions?</p>
+                  <p className="text-xs text-black/40 mt-0.5">Reach out and we&apos;ll help you get started.</p>
+                </div>
+                <Link
+                  href="/support"
+                  className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-foreground text-background text-sm font-bold hover:bg-foreground/85 hover:scale-[1.02] transition-all duration-200 shadow-sm"
+                >
+                  Contact us <ArrowRight className="size-3.5" />
                 </Link>
               </div>
             </Reveal>
